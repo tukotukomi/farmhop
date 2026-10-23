@@ -850,6 +850,63 @@ const sfx = (() => {
     o.start(t);
     o.stop(t + dur + 0.02);
   }
+  // ---- hop voices ----
+  const HOP_TUNE = [587.3, 659.3, 740, 880, 987.8, 880, 740, 659.3];   // D E F# A B A F# E
+  let hopStep = 0, pulse = null;
+  function env(g, t, vol, dur, attack = 0.004) {
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  }
+  function sweep(type, f0, f1, t, dur, vol) {                  // a quick pitch glide
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(f0, t);
+    if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + dur * 0.8);
+    env(g, t, vol, dur);
+    o.connect(g).connect(master);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+  function pluck(f, t, dur, vol) {                             // thin pulse, bright attack that mellows: banjo-ish
+    if (!pulse) {
+      const k = 32, re = new Float32Array(k), im = new Float32Array(k);
+      for (let i = 1; i < k; i++) im[i] = (2 / (i * Math.PI)) * Math.sin(i * Math.PI * 0.2);
+      pulse = ctx.createPeriodicWave(re, im);
+    }
+    const o = ctx.createOscillator(), f1 = ctx.createBiquadFilter(), g = ctx.createGain();
+    o.setPeriodicWave(pulse);
+    o.frequency.value = f;
+    f1.type = 'lowpass';
+    f1.frequency.setValueAtTime(5000, t);
+    f1.frequency.exponentialRampToValueAtTime(700, t + dur);
+    env(g, t, vol, dur, 0.002);
+    o.connect(f1).connect(g).connect(master);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+  function boing(f, t, dur, vol) {                             // up-glide, then a wobble that dies away
+    const o = ctx.createOscillator(), g = ctx.createGain(), lfo = ctx.createOscillator(), depth = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(f * 0.6, t);
+    o.frequency.exponentialRampToValueAtTime(f * 1.3, t + 0.06);
+    lfo.frequency.value = 17;
+    depth.gain.setValueAtTime(f * 0.25, t + 0.04);
+    depth.gain.exponentialRampToValueAtTime(1, t + dur);
+    lfo.connect(depth).connect(o.frequency);
+    env(g, t, vol, dur);
+    o.connect(g).connect(master);
+    o.start(t); lfo.start(t); o.stop(t + dur + 0.02); lfo.stop(t + dur + 0.02);
+  }
+  function rustle(t, dur, vol) {                               // noise through a rising band: leaves brushing
+    const s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+    s.buffer = noiseBuf;
+    f.type = 'bandpass';
+    f.Q.value = 1.4;
+    f.frequency.setValueAtTime(1600, t);
+    f.frequency.exponentialRampToValueAtTime(5200, t + dur);
+    env(g, t, vol, dur, 0.02);
+    s.connect(f).connect(g).connect(master);
+    s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.02);
+  }
   function noise(dur, vol, type, freq, delay = 0) {
     if (!ctx || muted) return;
     const t = ctx.currentTime + delay;
@@ -872,7 +929,28 @@ const sfx = (() => {
       if (master) master.gain.value = muted ? 0 : 0.55;
       return muted;
     },
-    hop() { tone(440, 760, 0.07, 'square', 0.06); },
+    // Each hopper has its own hop, soft and musical rather than a bright square chirp.
+    // The notes walk a D-major pentatonic line (the soundtrack's key), so a run of
+    // hops plays a little tune.
+    hop(id) {
+      if (!ctx || muted) return;
+      const n = HOP_TUNE[hopStep++ % HOP_TUNE.length], t = ctx.currentTime;
+      if (id === 'axolotl') {                                   // a watery bubble bloop, then a smaller one
+        sweep('sine', n * 0.45, n * 1.6, t, 0.09, 0.16);
+        sweep('sine', n * 0.7, n * 2.2, t + 0.055, 0.07, 0.07);
+        sweep('triangle', n * 4, n * 4, t + 0.05, 0.12, 0.018);
+      } else if (id === 'catstar') {                            // a springy boing from her hat, plus a star chime
+        boing(n * 0.42, t, 0.32, 0.14);
+        sweep('triangle', n * 2, n * 2, t + 0.04, 0.18, 0.035);
+      } else if (id === 'leafwish') {                           // a leafy rustle and a wind-chime twinkle
+        rustle(t, 0.13, 0.16);
+        sweep('triangle', n * 2, n * 2, t + 0.03, 0.45, 0.045);
+        sweep('sine', n * 3, n * 3, t + 0.07, 0.3, 0.015);
+      } else {                                                  // Betty Lou: a banjo pluck
+        pluck(n, t, 0.28, 0.11);
+        pluck(n / 2, t, 0.2, 0.05);
+      }
+    },
     bump() { tone(220, 150, 0.07, 'square', 0.07); },
     coin() { tone(988, null, 0.08, 'square', 0.07); tone(1319, null, 0.2, 'square', 0.07, 0.08); },
     squash() { noise(0.3, 0.5, 'lowpass', 700); tone(180, 60, 0.3, 'sawtooth', 0.12); },
@@ -1430,7 +1508,7 @@ function resetPlayer() {
   if (P.model) scene.remove(P.model.group);
   Object.assign(P, {
     x: 0, z: 0, y: 0, r: 0, hop: null, queue: null, log: null, alive: true,
-    face: Math.PI + 0.36, faceTarget: Math.PI + 0.36, held: false, sy: 1,
+    face: Math.PI + 0.36, faceTarget: Math.PI + 0.36, held: false, sy: 1, jelly: 9,
     tailAng: 0, tailVel: 0, death: null, deathT: 0, vx: 0, vy: 0, vz: 0,
     model: hero().build(),
   });
@@ -1457,17 +1535,29 @@ function move(dx, dr) {
     sfx.bump();
     return;
   }
-  P.hop = { fx: P.x, fz: P.z, fy: P.y, tx, tz: -tr, ty: LANE_Y[lane.type], t: 0, fromR: P.r, toR: tr, h: 0.42 };
+  P.hop = { fx: P.x, fz: P.z, fy: P.y, tx, tz: -tr, ty: LANE_Y[lane.type], t: 0, fromR: P.r, toR: tr, h: 0.5 };
   P.log = null;
   P.tailVel += 9;
-  sfx.hop();
+  sfx.hop(heroId);
+}
+
+// Each hopper kicks up their own little puff on landing.
+const PUFFS = {
+  betty: [RAINBOW, false],                                  // rainbow sparkles
+  axolotl: [[0xbfe9ff, 0xffffff, 0xff8fc8], true],          // bubbles
+  catstar: [[0xffd23f, 0xfff3a0, 0xffffff], false],         // little stars
+  leafwish: [[0x6cc94a, 0x8fe070, 0x4fa83a], false],        // leaves
+};
+function hopPuff() {
+  const [cols, soft] = PUFFS[heroId] || PUFFS.betty;
+  burst(P.x, P.y + 0.05, P.z, cols, 6, 1, 2, soft ? 0.13 : 0.08, 0.45, soft);
 }
 
 function land() {
   const h = P.hop;
   P.hop = null;
   P.x = h.tx; P.z = h.tz; P.y = h.ty; P.r = h.toR;
-  if (h.bump) { if (P.queue) { const q = P.queue; P.queue = null; move(...q); } return; }
+  if (h.bump) { P.jelly = 0.12; if (P.queue) { const q = P.queue; P.queue = null; move(...q); } return; }
   const lane = laneAt(P.r);
   if (lane.type === 'water') {
     const m = lane.movers.find(m => Math.abs(m.x - P.x) < m.len / 2 + 0.12);
@@ -1480,6 +1570,8 @@ function land() {
   } else if (lane.type === 'pads' && !lane.padCols.has(P.x)) {
     return die('splash');
   }
+  P.jelly = 0;   // start the landing wobble
+  hopPuff();
   const coin = lane.coins.find(c => c.c === P.x);
   if (coin) {
     lane.group.remove(coin.m);
@@ -1575,7 +1667,7 @@ function updatePlayer(dt) {
       const t = Math.min(1, h.t);
       P.x = lerp(h.fx, h.tx, t);
       P.z = lerp(h.fz, h.tz, t);
-      P.y = lerp(h.fy, h.ty, t) + Math.sin(Math.PI * t) * h.h;
+      P.y = lerp(h.fy, h.ty, t) + Math.pow(Math.sin(Math.PI * t), 0.6) * h.h;   // a floaty, flat-topped arc
       if (h.t >= 1) land();
     } else if (P.log) {
       const lane = laneAt(P.r);
@@ -1622,10 +1714,16 @@ function updatePlayer(dt) {
   }
 
   // squash & stretch, facing, pigtail bounce
-  const syT = !P.alive && FLAT.has(P.death) ? 0.12 : P.held && P.alive ? 0.78 : P.hop && !P.hop.bump ? 1.12 : 1;
+  // The hop: crouch while held, stretch tall and lean into the hop on take-off,
+  // tuck into a squash coming down, then settle with a jelly wobble.
   if (!FLAT.has(P.death)) {
-    P.sy = lerp(P.sy, syT, Math.min(1, dt * 25));
-    inner.scale.set(1 + (1 - P.sy) * 0.5, P.sy, 1 + (1 - P.sy) * 0.5);
+    const flying = P.alive && P.hop && !P.hop.bump, k = flying ? Math.min(1, P.hop.t) : 0;
+    if (flying) P.sy = 1 + 0.16 * Math.cos(Math.PI * k);                       // 1.16 at take-off -> 0.84 at touch-down
+    else if (P.alive && P.held) P.sy = lerp(P.sy, 0.78, Math.min(1, dt * 25));  // wind-up crouch
+    else if (P.alive) { P.jelly += dt; P.sy = 1 - 0.17 * Math.exp(-P.jelly * 7) * Math.cos(P.jelly * 26); }
+    else P.sy = lerp(P.sy, 1, Math.min(1, dt * 25));
+    inner.scale.set(1 + (1 - P.sy) * 0.55, P.sy, 1 + (1 - P.sy) * 0.55);
+    if (P.alive) inner.rotation.x = flying ? -0.34 * Math.sin(Math.PI * k) : lerp(inner.rotation.x, 0, Math.min(1, dt * 14));
   }
   let da = P.faceTarget - P.face;
   da = Math.atan2(Math.sin(da), Math.cos(da));
@@ -2366,4 +2464,4 @@ document.body.classList.add('farm', 'show-logo');
 setHint();
 hud();
 requestAnimationFrame(frame);
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { P, game, lanes, move, step, pollPad, camera, farm };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { P, game, lanes, move, step, pollPad, camera, farm, sfx };
