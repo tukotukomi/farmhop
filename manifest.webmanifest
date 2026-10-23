@@ -1,0 +1,13 @@
+{
+  "name": "Betty Lou's Farm Hop",
+  "short_name": "Farm Hop",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#2f6e3a",
+  "theme_color": "#2f6e3a",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
