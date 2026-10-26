@@ -701,12 +701,18 @@ function buildTuko() {
 
 const HEROES = [
   { id: 'betty', name: 'Betty Lou', build: () => buildGirl(), bg: '#ffd6ec', pad: '#ff7fb8' },
-  { id: 'axolotl', name: 'Axolotl Princess', build: buildAxolotl, bg: '#d9f2ff', pad: '#7fd0ff' },
-  { id: 'catstar', name: 'Catstar', build: buildCatstar, bg: '#fff1b8', pad: '#ffd24a' },
-  { id: 'leafwish', name: 'LeafWish', build: buildLeafWish, bg: '#e6dcff', pad: '#7ad653' },
+  { id: 'axolotl', name: 'Axolotl Princess', build: buildAxolotl, bg: '#d9f2ff', price: 20, pad: '#7fd0ff' },
+  { id: 'catstar', name: 'Catstar', build: buildCatstar, bg: '#fff1b8', price: 20, pad: '#ffd24a' },
+  { id: 'leafwish', name: 'LeafWish', build: buildLeafWish, bg: '#e6dcff', price: 20, pad: '#7ad653' },
   { id: 'tuko', name: 'Tuko', build: buildTuko, bg: '#ffe1c4', price: 20, pad: '#ff9a3c' },
 ];
-const STARTERS = ['betty', 'axolotl', 'catstar', 'leafwish'];   // owned from the start; the rest live in the Bunkhouse
+const STARTERS = ['betty'];   // owned from the start; everyone else is invited from the Bunkhouse
+// Farms from before only Betty Lou came free keep the three friends they started with.
+if (!store.get('bl-owned-v2', false)) {
+  const played = ['bl-top', 'bl-coins', 'bl-hero', 'bl-pond'].some(k => store.get(k, null) !== null);
+  if (played) store.set('bl-owned', [...new Set([...store.get('bl-owned', []), 'axolotl', 'catstar', 'leafwish'])]);
+  store.set('bl-owned-v2', true);
+}
 const owned = new Set([...STARTERS, ...store.get('bl-owned', [])].filter(id => HEROES.some(h => h.id === id)));
 const ownedHeroes = () => HEROES.filter(h => owned.has(h.id));
 let heroId = store.get('bl-hero', 'betty');
