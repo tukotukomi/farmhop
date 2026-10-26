@@ -2492,10 +2492,12 @@ function upgradePond() {
 // ---------- flow ----------
 const $ = id => document.getElementById(id);
 let sunDot = null, skyBar = null;
-function hudDay() {   // slide the sun along the daylight dial
+function hudDay() {   // the daylight clock: its sunny wedge shrinks and warms toward night
   sunDot ||= $('sunDot'); skyBar ||= $('sky');
-  sunDot.style.left = (clamp(game.day, 0, 1) * 100).toFixed(1) + '%';
-  sunDot.classList.toggle('moon', game.day < 0.15);
+  const d = clamp(game.day, 0, 1);
+  skyBar.style.setProperty('--day', d.toFixed(3));
+  skyBar.style.setProperty('--wedge', d > 0.5 ? '#ffd24a' : d > 0.2 ? '#ff9a3c' : '#bd96ff');
+  sunDot.classList.toggle('moon', d < 0.15);
   skyBar.classList.toggle('low', game.day < 0.25 && game.state === 'play');
 }
 function hud() {
@@ -2697,6 +2699,10 @@ document.addEventListener('gesturestart', e => e.preventDefault());
 for (const type of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) {
   window.addEventListener(type, () => sfx.ensure(), { capture: true, passive: true });
 }
+// The logo greets you on the farm; the first touch, click, key or controller press
+// tucks it away to free up the screen, and the tip appears at the top instead.
+const dismissLogo = () => document.body.classList.remove('show-logo');
+for (const type of ['pointerdown', 'keydown']) window.addEventListener(type, dismissLogo, { capture: true, passive: true });
 document.addEventListener('contextmenu', e => e.preventDefault());
 
 const KEYS = {
@@ -3372,7 +3378,7 @@ function pollPad() {
   pad.stick = stick;
   const dir = pressed(12) ? 'up' : pressed(13) ? 'down' : pressed(14) ? 'left' : pressed(15) ? 'right' : flick;
 
-  if (dir || down.some(Boolean)) { showPadHints(); sfx.ensure(); }
+  if (dir || down.some(Boolean)) { showPadHints(); sfx.ensure(); dismissLogo(); }
   const pick = pressed(2) || pressed(3);
 
   if (game.picking && settingsOpen()) {
