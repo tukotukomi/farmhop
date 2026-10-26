@@ -1559,10 +1559,12 @@ const P = {};
 const game = { state: 'farm', where: 'farm', light: 1, dawn: 1, today: 0, day: 1, shake: 0, score: 0, top: store.get('bl-top', 0), coins: store.get('bl-coins', 0), camX: 0, camZ: 0, time: 0 };
 
 function resetPlayer() {
+  // Classic and Low start her turned toward the camera; Behind starts her facing down the road, back to the camera.
+  const startFace = VIEWS[viewIdx].ortho ? Math.PI + 0.36 : 0;
   if (P.model) scene.remove(P.model.group);
   Object.assign(P, {
     x: 0, z: 0, y: 0, r: 0, hop: null, queue: null, log: null, alive: true,
-    face: Math.PI + 0.36, faceTarget: Math.PI + 0.36, held: false, sy: 1, jelly: 9,
+    face: startFace, faceTarget: startFace, held: false, sy: 1, jelly: 9,
     tailAng: 0, tailVel: 0, death: null, deathT: 0, vx: 0, vy: 0, vz: 0,
     model: hero().build(),
   });
