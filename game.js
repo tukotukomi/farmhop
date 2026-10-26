@@ -3496,7 +3496,7 @@ const SCALE = [1, 1.1225, 1.2599, 1.4983, 1.6818, 2];   // D E F# A B D
 const JAM_ROWS = 3;   // top row an octave up, bottom row an octave down
 const JAM_KEYS = ['KeyQ KeyW KeyE KeyR KeyT KeyY', 'KeyA KeyS KeyD KeyF KeyG KeyH', 'KeyZ KeyX KeyC KeyV KeyB KeyN'].map(r => r.split(' '));
 const PAD_BTNS = [4, 2, 0, 3, 1, 5], PAD_LABELS = ['LB', 'X', 'A', 'Y', 'B', 'RB'];   // controller button for each column
-const jam = { open: false, oct: 0, row: 1, input: null, t: 0, kick: 0, r: null, scene: null, cam: null, model: null, spread: 0,
+const jam = { open: false, drums: false, oct: 0, row: 1, input: null, t: 0, kick: 0, r: null, scene: null, cam: null, model: null, spread: 0,
   sustain: store.get('bl-sustain', 0.35), held: new Map() };   // held: finger / key / button -> release()
 const jamPads = $('jamPads');
 for (let row = 0; row < JAM_ROWS; row++) SCALE.forEach((_, col) => {
@@ -3556,7 +3556,7 @@ function playDrum(d) {
 }
 // Flip between the hopper's own sounds and the drum kit (once the kit is bought).
 function setDrums(on) {
-  jam.drums = on && ownedDecor.has('drums');
+  jam.drums = !!on && ownedDecor.has('drums');   // a strict true/false: toggle() with undefined would flip the class instead
   letGoAll();
   $('jam').classList.toggle('drums', jam.drums);
   if (jam.banjo) jam.banjo.visible = !jam.drums;   // the banjo goes down while you drum
