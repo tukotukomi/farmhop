@@ -1041,10 +1041,11 @@ const sfx = (() => {
         sweep('triangle', n * 2, n * 2, t + 0.03, 0.45, 0.045);
         sweep('sine', n * 3, n * 3, t + 0.07, 0.3, 0.015);
       } else if (id === 'tuko') {                               // a woodblock tok, then a quick little fox yip
-        sweep('sine', n * 2.5, n * 2.1, t, 0.05, 0.16);
-        sweep('triangle', n * 5, n * 4.4, t, 0.03, 0.05);
-        sweep('sawtooth', n * 1.5, n * 2.6, t + 0.06, 0.08, 0.025);
-        sweep('sine', n * 2.6, n * 1.9, t + 0.12, 0.07, 0.05);
+        // Octaves and fifths of the tune note only, so every pitch it lands on is in key.
+        sweep('sine', n * 2, n * 2, t, 0.05, 0.16);
+        sweep('triangle', n * 4, n * 4, t, 0.03, 0.04);
+        sweep('triangle', n * 2, n * 3, t + 0.06, 0.06, 0.045);
+        sweep('sine', n * 3, n * 3, t + 0.11, 0.08, 0.04);
       } else {                                                  // Betty Lou: a banjo pluck
         pluck(n, t, 0.28, 0.11);
         pluck(n / 2, t, 0.2, 0.05);
