@@ -1048,11 +1048,11 @@ const sfx = (() => {
     o.connect(f1).connect(g).connect(master);
     o.start(t); o.stop(t + dur + 0.02);
   }
-  function boing(f, t, dur, vol) {                             // up-glide, then a wobble that dies away
+  function boing(f, t, dur, vol, glide = true) {               // up-glide, then a wobble that dies away
     const o = ctx.createOscillator(), g = ctx.createGain(), lfo = ctx.createOscillator(), depth = ctx.createGain();
     o.type = 'sine';
-    o.frequency.setValueAtTime(f * 0.6, t);
-    o.frequency.exponentialRampToValueAtTime(f * 1.3, t + 0.06);
+    o.frequency.setValueAtTime(f * (glide ? 0.6 : 1.3), t);   // no glide: straight onto the note
+    if (glide) o.frequency.exponentialRampToValueAtTime(f * 1.3, t + 0.06);
     lfo.frequency.value = 17;
     depth.gain.setValueAtTime(f * 0.25, t + 0.04);
     depth.gain.exponentialRampToValueAtTime(1, t + dur);
@@ -1105,9 +1105,34 @@ const sfx = (() => {
     // The notes walk a D-major pentatonic line (the soundtrack's key), so a run of
     // hops plays a little tune.
     hop(id) { this.voice(id, HOP_TUNE[hopStep++ % HOP_TUNE.length]); },
-    voice(id, n) {   // one hopper's hop sound at pitch n; the Jam Stage pads play these too
+    // One hopper's hop sound at pitch n. tight (the Jam Stage pads) lands every voice on
+    // its note in the first millisecond: no slides up from below, nothing held back, so
+    // a pad sounds the instant it's hit. The hop versions keep their swoops.
+    voice(id, n, tight = false) {
       if (!ctx || muted) return;
       const t = ctx.currentTime;
+      if (tight) {
+        if (id === 'axolotl') {                                  // the bloop, starting on the note
+          sweep('sine', n * 0.94, n * 1.06, t, 0.13, 0.17);
+          sweep('triangle', n * 4, n * 4, t, 0.1, 0.02);
+          sweep('sine', n * 1.9, n * 2.1, t + 0.05, 0.06, 0.05);
+        } else if (id === 'catstar') {                           // the spring's wobble, on the note an octave down
+          boing(n / 2 / 1.3, t, 0.3, 0.15, false);
+          sweep('triangle', n * 2, n * 2, t, 0.18, 0.035);
+        } else if (id === 'leafwish') {
+          rustle(t, 0.1, 0.12);
+          sweep('triangle', n * 2, n * 2, t, 0.45, 0.05);
+          sweep('sine', n * 3, n * 3, t + 0.02, 0.3, 0.015);
+        } else if (id === 'tuko') {                              // the tok already lands at once
+          sweep('sine', n * 2, n * 2, t, 0.06, 0.16);
+          sweep('triangle', n * 4, n * 4, t, 0.03, 0.04);
+          sweep('triangle', n * 2, n * 3, t + 0.05, 0.05, 0.04);
+        } else {
+          pluck(n, t, 0.28, 0.11);
+          pluck(n / 2, t, 0.2, 0.05);
+        }
+        return;
+      }
       if (id === 'axolotl') {                                   // a watery bubble bloop, then a smaller one
         sweep('sine', n * 0.45, n * 1.6, t, 0.09, 0.16);
         sweep('sine', n * 0.7, n * 2.2, t + 0.055, 0.07, 0.07);
@@ -1153,8 +1178,8 @@ const sfx = (() => {
       f1.frequency.value = Math.min(9000, n * oct * 3.5);
       const lvl = 0.02 + 0.06 * amt;
       g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(lvl, t + 0.05);
-      g.gain.setTargetAtTime(lvl * 0.7, t + 0.05, 0.4);   // settles a touch below the attack
+      g.gain.exponentialRampToValueAtTime(lvl, t + 0.012);
+      g.gain.setTargetAtTime(lvl * 0.7, t + 0.012, 0.4);   // settles a touch below the attack
       o.connect(f1).connect(g).connect(master);
       o.start(t);
       let done = false;
@@ -3408,7 +3433,7 @@ const padFreq = (row, col) => 293.66 * SCALE[col] * 2 ** (jam.oct + 1 - row);
 function playPad(row, col, by) {
   sfx.ensure();
   const h = hero();
-  sfx.voice(h.id, padFreq(row, col));
+  sfx.voice(h.id, padFreq(row, col), true);
   if (by) {   // held: the sustain tone rings until it's let go
     letGo(by);
     const release = sfx.hold(h.id, padFreq(row, col), jam.sustain);
