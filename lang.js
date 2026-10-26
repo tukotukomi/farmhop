@@ -39,6 +39,8 @@ export const STRINGS = {
     viewNotes: ['Right behind your hopper, close to the ground.', 'The view from above, over the shoulder.', 'Halfway down toward the ground.'],
     viewWhen: 'Used on the road. The farm keeps its view.',
     art: 'Art style', arts: ['Soft', 'Bold'],
+    graphics: 'Graphics', gfxs: ['Auto', 'High', 'Medium', 'Low'],
+    gfxNotes: ['Adjusts itself to keep the game smooth. Right now: {level}.', 'The sharpest picture.', 'A little softer, easier on older devices.', 'The softest picture, for slower devices and longer battery life.'],
   },
   es: {
     best: 'Récord {n}',
@@ -71,6 +73,8 @@ export const STRINGS = {
     viewNotes: ['Justo detrás de tu saltarín, cerca del suelo.', 'La vista desde arriba, por encima del hombro.', 'A medio camino hacia el suelo.'],
     viewWhen: 'Se usa en el camino. La granja conserva su vista.',
     art: 'Estilo', arts: ['Suave', 'Marcado'],
+    graphics: 'Gráficos', gfxs: ['Auto', 'Alta', 'Media', 'Baja'],
+    gfxNotes: ['Se ajusta solo para que el juego vaya fluido. Ahora: {level}.', 'La imagen más nítida.', 'Un poco más suave, mejor para dispositivos antiguos.', 'La imagen más suave, para dispositivos lentos y para ahorrar batería.'],
   },
   zh: {
     best: '最佳 {n}',
@@ -103,5 +107,7 @@ export const STRINGS = {
     viewNotes: ['紧跟在角色身后，贴近地面。', '从斜上方俯视的经典视角。', '离地面近了一半。'],
     viewWhen: '只用于路上，农场保持原来的视角。',
     art: '画风', arts: ['柔和', '粗线'],
+    graphics: '画质', gfxs: ['自动', '高', '中', '低'],
+    gfxNotes: ['自动调整，让游戏保持流畅。当前：{level}。', '最清晰的画面。', '稍微柔和一些，适合较旧的设备。', '最柔和的画面，适合较慢的设备，也更省电。'],
   },
 };

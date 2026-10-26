@@ -65,8 +65,8 @@ const store = {
 
 // ---------- renderer / scene ----------
 const canvas = document.getElementById('game');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+// No antialias on the canvas itself: it only ever shows the finished picture; the scene is smoothed in rtColor.
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 
@@ -87,6 +87,62 @@ sun.shadow.bias = -0.0006;
 sun.shadow.normalBias = 0.02;
 scene.add(sun, sun.target);
 const SUN_OFF = new THREE.Vector3(-5, 12, 4);
+
+// ---------- graphics quality ----------
+// High is the full picture. Medium and Low draw fewer pixels (the ink lines are
+// redrawn at screen size, so they stay crisp), use a smaller shadow map and, on Low,
+// skip edge smoothing. Auto starts where it last settled and steps down if frames drop.
+const QUALITY = {
+  high: { scale: dpr => Math.min(dpr, 2), samples: 4, shadow: 2048 },
+  medium: { scale: dpr => Math.min(dpr, 1.5), samples: 4, shadow: 1024 },
+  low: { scale: dpr => Math.max(0.75, Math.min(dpr, 1.25) * 0.8), samples: 0, shadow: 1024 },
+};
+const Q_LEVELS = ['high', 'medium', 'low'];
+let gfx = store.get('bl-gfx', 'auto');
+if (!QUALITY[gfx]) gfx = 'auto';
+const autoQ = { level: QUALITY[store.get('bl-gfx-auto')] ? store.get('bl-gfx-auto') : 'high', dts: [], calm: 0, tried: false, noUp: false };
+const qualityLevel = () => gfx === 'auto' ? autoQ.level : gfx;
+let qualityNow = null;
+function applyQuality() {
+  const name = qualityLevel(), q = QUALITY[name];
+  if (name === qualityNow) return;
+  qualityNow = name;
+  renderer.setPixelRatio(q.scale(window.devicePixelRatio || 1));
+  if (rtColor.samples !== q.samples) { rtColor.samples = q.samples; rtColor.dispose(); }
+  if (sun.shadow.mapSize.x !== q.shadow) {
+    sun.shadow.mapSize.set(q.shadow, q.shadow);
+    sun.shadow.map?.dispose();
+    sun.shadow.map = null;   // three.js makes a new one at the new size
+  }
+  resize();
+}
+function setAuto(level) {
+  autoQ.level = level;
+  store.set('bl-gfx-auto', level);
+  applyQuality();
+  if (settingsOpen()) renderSettings();
+}
+// Fed the real time between frames. Two seconds under ~45 fps steps down a level;
+// half a minute of smooth frames tries one step back up, once, and if that is
+// too much it steps down again and stays there.
+function watchFrames(dt) {
+  if (gfx !== 'auto' || document.hidden || dt > 0.1) return;   // skip hitches from tab switches and loading
+  const a = autoQ;
+  a.dts.push(dt);
+  if (a.dts.length < 120) return;
+  const avg = a.dts.reduce((s, x) => s + x, 0) / a.dts.length;
+  a.dts.length = 0;
+  const i = Q_LEVELS.indexOf(a.level);
+  if (avg > 1 / 45) {
+    a.calm = 0;
+    if (a.tried) a.noUp = true;
+    if (i < Q_LEVELS.length - 1) setAuto(Q_LEVELS[i + 1]);
+  } else if (avg < 1 / 58 && i > 0 && !a.noUp && ++a.calm >= 15) {
+    a.calm = 0;
+    a.tried = true;
+    setAuto(Q_LEVELS[i - 1]);
+  }
+}
 
 // ---------- cel shading ----------
 // Lighting snaps to flat bands via a toon gradient, then a screen-space pass
@@ -112,7 +168,7 @@ const toon = opts => {
 };
 
 const INK = new THREE.Color(0x2b1d33);
-const rtColor = new THREE.WebGLRenderTarget(1, 1, { samples: 4, stencilBuffer: true });
+const rtColor = new THREE.WebGLRenderTarget(1, 1, { samples: 4 });   // no stencil: multisampled stencil costs ~8 ms a frame on Windows
 rtColor.texture.colorSpace = THREE.SRGBColorSpace;
 const rtNormal = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
 rtNormal.depthTexture = new THREE.DepthTexture(1, 1, THREE.FloatType);   // float depth: precise enough for perspective outlines
@@ -183,8 +239,10 @@ function renderCel() {
   renderer.shadowMap.needsUpdate = true;
   renderer.setRenderTarget(rtColor);
   camera.layers.enable(GLOW_LAYER);    // glowing bits (fireflies) are drawn but get no ink outline
+  camera.layers.enable(XRAY_LAYER);
   renderer.render(scene, camera);
   camera.layers.disable(GLOW_LAYER);
+  camera.layers.disable(XRAY_LAYER);
   const bg = scene.background;
   scene.overrideMaterial = normalMat;
   scene.background = null;
@@ -376,14 +434,27 @@ class VB {
 const shade = (hex, f) => new THREE.Color(hex).multiplyScalar(f).getHex();
 
 // ---------- models ----------
-// The low camera lets trees and traffic stand in front of Betty Lou, so she marks
-// her pixels in the stencil buffer and a flat silhouette is drawn wherever
-// something else covers her.
-const GIRL_MAT = toon({ vertexColors: true, stencilWrite: true, stencilRef: 1, stencilZPass: THREE.ReplaceStencilOp });
-const XRAY_MAT = new THREE.MeshBasicMaterial({
-  color: 0x8a5cff, transparent: true, opacity: 0.8, depthWrite: false, depthFunc: THREE.GreaterDepth,
-  stencilWrite: true, stencilRef: 1, stencilFunc: THREE.NotEqualStencilFunc,
-});
+// The low cameras let trees and traffic stand in front of the hopper, so a flat
+// silhouette is drawn wherever something else covers her. No stencil buffer for this:
+// a multisampled stencil is very slow on Windows. Instead, after everything else the
+// silhouette is drawn where she is hidden (greater depth), and then her visible
+// pixels are drawn again on top, wiping the bits of silhouette that landed on her own body.
+const GIRL_MAT = toon({ vertexColors: true });
+const XRAY_LAYER = 2;   // only the colour pass draws these (not the outline or shadow passes)
+const XRAY_MAT = new THREE.MeshBasicMaterial({ color: 0x8a5cff, transparent: true, opacity: 0.8, depthWrite: false, depthFunc: THREE.GreaterDepth });
+const REDRAW_MAT = toon({ vertexColors: true, transparent: true, depthWrite: false });
+function addXray(model) {   // only the hopper you're playing needs it
+  const meshes = [];
+  model.group.traverse(o => { if (o.isMesh) meshes.push(o); });
+  for (const m of meshes) for (const [mat, order] of [[XRAY_MAT, 10], [REDRAW_MAT, 11]]) {
+    const c = new THREE.Mesh(m.geometry, mat);
+    c.renderOrder = order;
+    c.receiveShadow = true;
+    c.layers.set(XRAY_LAYER);
+    m.add(c);
+  }
+  return model;
+}
 
 // ---------- the four hoppers, built from rounded "toy" shapes ----------
 const hairAt = x => RAINBOW[clamp(Math.floor((x + 0.27) / 0.54 * 6), 0, 5)];   // rainbow stripes, side to side
@@ -428,7 +499,7 @@ function buildGirl() {
   return finishHero(group, inner, tails);
 }
 
-// Shared by every playable character: scale, stencil material, x-ray children.
+// Shared by every playable character: scale and material.
 // `wobbles` are pivoted meshes that bounce when hopping (pigtails, tails...);
 // userData.side sets direction and userData.axis the rotation axis (default z).
 function finishHero(group, inner, wobbles) {
@@ -438,9 +509,12 @@ function finishHero(group, inner, wobbles) {
   for (const m of meshes) {
     m.material = GIRL_MAT;
     m.castShadow = true;
-    m.add(new THREE.Mesh(m.geometry, XRAY_MAT));
   }
   return { group, inner, tails: wobbles };
+}
+// Free a hopper's GPU buffers once it leaves the scene (every hopper is built fresh, so nothing is shared).
+function disposeHero(model) {
+  model.group.traverse(o => { if (o.isMesh) o.geometry.dispose(); });
 }
 function wobble(inner, vb, x, y, z, side, axis = 'z') {
   const m = vb.mesh();
@@ -1607,12 +1681,12 @@ const game = { state: 'farm', where: 'farm', light: 1, dawn: 1, today: 0, day: 1
 function resetPlayer() {
   // Classic and Low start her turned toward the camera; Behind starts her facing down the road, back to the camera.
   const startFace = VIEWS[viewIdx].ortho ? Math.PI + 0.36 : 0;
-  if (P.model) scene.remove(P.model.group);
+  if (P.model) { scene.remove(P.model.group); disposeHero(P.model); }
   Object.assign(P, {
     x: 0, z: 0, y: 0, r: 0, hop: null, queue: null, log: null, alive: true,
     face: startFace, faceTarget: startFace, held: false, sy: 1, jelly: 9,
     tailAng: 0, tailVel: 0, death: null, deathT: 0, vx: 0, vy: 0, vz: 0,
-    model: hero().build(),
+    model: addXray(hero().build()),
   });
   scene.add(P.model.group);
 }
@@ -2207,7 +2281,7 @@ function addWalker(h, at) {
   return w;
 }
 function spawnWalkers() {
-  for (const w of farm.walkers || []) farm.group.remove(w.m.group);
+  for (const w of farm.walkers || []) { farm.group.remove(w.m.group); disposeHero(w.m); }
   farm.walkers = [];
   for (const h of ownedHeroes()) addWalker(h);
   if (!farm.marker) {
@@ -2560,7 +2634,8 @@ function step(dt) {
 }
 function frame(now) {
   pollPad();
-  if (!game.frozen) step(Math.min(0.05, (now - last) / 1000));   // frozen: tests drive the frames themselves
+  const dt = (now - last) / 1000;
+  if (!game.frozen) { watchFrames(dt); step(Math.min(0.05, dt)); }   // frozen: tests drive the frames themselves
   last = now;
   requestAnimationFrame(frame);
 }
@@ -2787,7 +2862,8 @@ $('bunk').addEventListener('click', e => { if (e.target.id === 'bunk') closeBunk
 // Language, music and effects volume, the road's view angle, and the art style.
 // With a controller or arrow keys: up/down picks a row, left/right changes it.
 const settingsOpen = () => $('settings').classList.contains('show');
-const SET_ROWS = ['lang', 'music', 'fx', 'view', 'art'];
+const SET_ROWS = ['lang', 'music', 'fx', 'view', 'art', 'gfx'];
+const GFX_CHOICES = ['auto', ...Q_LEVELS];
 let setFocus = 0;
 // Little diagrams for the views: an eye above the ground, looking down at the hopper.
 const VIEW_ICONS = [[10, 14], [30, 4], [34, 11]].map(([ex, ey]) =>
@@ -2817,6 +2893,9 @@ function renderSettings() {
   segment($('segLang'), LANGS.map(l => l.label), LANGS.findIndex(l => l.id === lang), i => setLang(LANGS[i].id));
   segment($('segView'), t('views'), viewIdx, setView, VIEW_ICONS);
   segment($('segArt'), t('arts'), lookName === 'bold' ? 1 : 0, i => setLook(i ? 'bold' : 'cel'));
+  const gi = GFX_CHOICES.indexOf(gfx);
+  segment($('segGfx'), t('gfxs'), gi, i => setGfx(GFX_CHOICES[i]));
+  $('gfxNote').textContent = t('gfxNotes.' + gi, { level: t('gfxs')[GFX_CHOICES.indexOf(autoQ.level)] });
   $('viewNote').textContent = t('viewNotes')[viewIdx] + (lang === 'zh' ? '' : ' ') + t('viewWhen');   // Chinese runs sentences together
   const v = sfx.volumes;
   setVolSlider('volMusic', v.music);
@@ -2832,6 +2911,13 @@ function setLang(id) {
 function setView(i) {
   viewIdx = i;
   store.set('bl-view2', VIEWS[i].id);
+  renderSettings();
+}
+function setGfx(name) {
+  gfx = name;
+  store.set('bl-gfx', name);
+  Object.assign(autoQ, { dts: [], calm: 0, tried: false, noUp: false });
+  applyQuality();
   renderSettings();
 }
 function setLook(name) {
@@ -2879,6 +2965,7 @@ function settingsNav(dir) {
     if (row === 'fx') sfx.hop(heroId);
     renderSettings();
   } else if (row === 'view') setView((viewIdx + d + VIEWS.length) % VIEWS.length);
+  else if (row === 'gfx') setGfx(GFX_CHOICES[(GFX_CHOICES.indexOf(gfx) + d + GFX_CHOICES.length) % GFX_CHOICES.length]);
   else setLook(lookName === 'bold' ? 'cel' : 'bold');
 }
 for (const [id, which] of [['volMusic', 'music'], ['volFx', 'fx']]) {
@@ -2973,7 +3060,7 @@ function pollPad() {
   }
 }
 
-resize();
+applyQuality();   // sizes the canvas too
 newWorld();
 buildFarm();
 placeFarmHero();
@@ -2982,4 +3069,4 @@ setHint();
 hud();
 applyLang();
 requestAnimationFrame(frame);
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { P, game, lanes, move, step, pollPad, camera, farm, sfx };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ };
