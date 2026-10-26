@@ -590,13 +590,53 @@ function buildLeafWish() {
   return finishHero(group, inner, [wobble(inner, st, 0, 1.15, 0, 1), wand]);
 }
 
+function buildTuko() {
+  const FOX = 0xff8a2a, FOX_D = 0xe0661a, W = 0xfff4e6, K = 0x2e2230, HAT = 0x3f8fe0, HAT_D = 0x2c6fc0;
+  const group = new THREE.Group(), inner = new THREE.Group();
+  group.add(inner);
+  const b = new VB();
+  for (const s of [-1, 1]) {
+    b.ball(0.07, 0.045, 0.1, s * 0.09, 0.045, -0.03, K);               // dark socks
+    b.cap(0.055, 0.08, s * 0.09, 0.16, 0, FOX);
+    b.cap(0.04, 0.12, s * 0.185, 0.41, -0.02, FOX, 0, 0, s * 0.25);    // arms
+    b.ball(0.045, 0.045, 0.045, s * 0.21, 0.31, -0.03, K);             // paws
+    b.ball(0.07, 0.05, 0.05, s * 0.07, 0.64, -0.17, W);                // white cheeks
+    b.ball(0.034, 0.044, 0.02, s * 0.095, 0.765, -0.19, 0x222222);     // eyes
+    b.ball(0.012, 0.014, 0.008, s * 0.095 + 0.01, 0.782, -0.208, 0xffffff);
+    b.cone(0.1, 0.22, s * 0.15, 0.95, 0.02, FOX, 0, 0, -s * 0.28);     // big pointed ears, poking through the cap
+    b.cone(0.06, 0.13, s * 0.145, 0.93, -0.03, W, 0, 0, -s * 0.28);
+    b.cone(0.048, 0.08, s * 0.172, 1.024, 0.02, K, 0, 0, -s * 0.28);    // dark ear tips
+  }
+  b.ball(0.17, 0.17, 0.14, 0, 0.36, 0, FOX);                           // body
+  b.ball(0.1, 0.12, 0.04, 0, 0.37, -0.115, W);                         // white chest
+  b.hiBall(0.25, 0.2, 0.21, 0, 0.72, 0, FOX);                          // head
+  b.ball(0.08, 0.06, 0.12, 0, 0.64, -0.14, W);                         // pointy snout
+  b.ball(0.03, 0.022, 0.02, 0, 0.66, -0.265, K);                       // nose
+  b.torus(0.028, 0.008, Math.PI, 0, 0.605, -0.21, 0xc2475f, 0, 0, Math.PI); // grin
+  b.ball(0.2, 0.09, 0.19, 0, 0.87, 0.01, HAT);                         // baseball cap, worn backwards
+  b.ball(0.025, 0.02, 0.025, 0, 0.958, 0.01, HAT_D);                   // button on top
+  b.ball(0.15, 0.02, 0.13, 0.1, 0.85, 0.19, HAT_D, 0, 0.5, 0);        // brim out the back, a little to one side
+  b.ball(0.07, 0.05, 0.03, -0.05, 0.9, 0.16, 0xffffff, 0, 0.5, 0);    // the white front panel ends up at the back too
+  b.torus(0.05, 0.012, Math.PI, 0, 0.83, -0.185, HAT_D, 0, 0, 0);      // snapback strap across the forehead
+  inner.add(b.mesh());
+  const t = new VB();                                                 // big bushy tail, white tip
+  for (const [y, z, r] of [[0.0, 0.06, 0.07], [0.07, 0.13, 0.09], [0.16, 0.18, 0.1], [0.26, 0.2, 0.095]]) t.ball(r, r, r, 0, y, z, FOX_D);
+  t.ball(0.085, 0.09, 0.085, 0, 0.35, 0.19, W);
+  return finishHero(group, inner, [wobble(inner, t, 0, 0.24, 0.12, 1)]);
+}
+
 const HEROES = [
   { id: 'betty', name: 'Betty Lou', build: () => buildGirl(), bg: '#ffd6ec' },
   { id: 'axolotl', name: 'Axolotl Princess', build: buildAxolotl, bg: '#d9f2ff' },
   { id: 'catstar', name: 'Catstar', build: buildCatstar, bg: '#fff1b8' },
   { id: 'leafwish', name: 'LeafWish', build: buildLeafWish, bg: '#e6dcff' },
+  { id: 'tuko', name: 'Tuko', build: buildTuko, bg: '#ffe1c4', price: 20 },
 ];
+const STARTERS = ['betty', 'axolotl', 'catstar', 'leafwish'];   // owned from the start; the rest live in the Bunkhouse
+const owned = new Set([...STARTERS, ...store.get('bl-owned', [])].filter(id => HEROES.some(h => h.id === id)));
+const ownedHeroes = () => HEROES.filter(h => owned.has(h.id));
 let heroId = store.get('bl-hero', 'betty');
+if (!owned.has(heroId)) heroId = 'betty';
 const hero = () => HEROES.find(h => h.id === heroId) || HEROES[0];
 
 // ---------- traffic & animals: rounded, with moving parts ----------
@@ -1000,6 +1040,11 @@ const sfx = (() => {
         rustle(t, 0.13, 0.16);
         sweep('triangle', n * 2, n * 2, t + 0.03, 0.45, 0.045);
         sweep('sine', n * 3, n * 3, t + 0.07, 0.3, 0.015);
+      } else if (id === 'tuko') {                               // a woodblock tok, then a quick little fox yip
+        sweep('sine', n * 2.5, n * 2.1, t, 0.05, 0.16);
+        sweep('triangle', n * 5, n * 4.4, t, 0.03, 0.05);
+        sweep('sawtooth', n * 1.5, n * 2.6, t + 0.06, 0.08, 0.025);
+        sweep('sine', n * 2.6, n * 1.9, t + 0.12, 0.07, 0.05);
       } else {                                                  // Betty Lou: a banjo pluck
         pluck(n, t, 0.28, 0.11);
         pluck(n / 2, t, 0.2, 0.05);
@@ -1603,6 +1648,7 @@ const PUFFS = {
   axolotl: [[0xbfe9ff, 0xffffff, 0xff8fc8], true],          // bubbles
   catstar: [[0xffd23f, 0xfff3a0, 0xffffff], false],         // little stars
   leafwish: [[0x6cc94a, 0x8fe070, 0x4fa83a], false],        // leaves
+  tuko: [[0xff8a2a, 0xffb24a, 0xd2541a], false],            // autumn leaves
 };
 function hopPuff() {
   const [cols, soft] = PUFFS[heroId] || PUFFS.betty;
@@ -1792,13 +1838,15 @@ function updatePlayer(dt) {
 //   Behind:  a perspective camera just behind the hopper, about 20 degrees down,
 //            with sky above the fields and distant lanes fading into it.
 // lead = how far ahead of the hopper the camera looks; ahead/behind = rows kept loaded.
-const VIEWS = [
-  { ortho: true, off: CAM_OFF, lead: 4, ahead: AHEAD, behind: BEHIND, shadow: 24 },
-  { ortho: true, off: new THREE.Vector3(1.5, 3.0, 8.4), lead: 7, ahead: 28, behind: 30, shadow: 30 },
-  { ortho: false, off: new THREE.Vector3(0, 3.2, 8.4), lead: 5, ahead: 32, behind: 16, shadow: 26, lookY: 0.3 },
+const VIEWS = [   // in Settings order; Behind is the default
+  { id: 'behind', ortho: false, off: new THREE.Vector3(0, 3.2, 8.4), lead: 5, ahead: 32, behind: 16, shadow: 26, lookY: 0.3 },
+  { id: 'classic', ortho: true, off: CAM_OFF, lead: 4, ahead: AHEAD, behind: BEHIND, shadow: 24 },
+  { id: 'low', ortho: true, off: new THREE.Vector3(1.5, 3.0, 8.4), lead: 7, ahead: 28, behind: 30, shadow: 30 },
 ];
-let viewIdx = clamp(store.get('bl-view', 0), 0, 2);
-const activeView = () => game.where === 'road' ? VIEWS[viewIdx] : VIEWS[0];
+const FARM_VIEW = VIEWS[1];   // the farm always uses the Classic framing
+// Saved under a new key so everyone starts on Behind (the old key held a position in the old order).
+let viewIdx = Math.max(0, VIEWS.findIndex(v => v.id === store.get('bl-view2', 'behind')));
+const activeView = () => game.where === 'road' ? VIEWS[viewIdx] : FARM_VIEW;
 const fog = new THREE.Fog(0xa8dcff, 22, 40);
 const skyCol = new THREE.Color(0xa8dcff);
 function useCamera(c) {
@@ -1831,7 +1879,9 @@ const _t = new THREE.Vector3(), _look = new THREE.Vector3();
 function updateCamera(dt) {
   const V = activeView();
   useCamera(V.ortho ? orthoCam : perspCam);
-  if (game.where === 'farm') _t.set(0, 0, FARM_Z - 1.4);   // the farm: a fixed, framed view
+  const zoom = game.where === 'farm' ? farmCam.zoom : 1;
+  if (orthoCam.zoom !== zoom) { orthoCam.zoom = zoom; orthoCam.updateProjectionMatrix(); }
+  if (game.where === 'farm') _t.set(farmCam.x, 0, FARM_Z - 1.4 + farmCam.z);   // the farm: framed, but you can drag and zoom to look around
   else {
     const desired = P.z - V.lead;
     // Classic and Low only ever move forward; Behind follows the hopper both ways, like a third-person camera.
@@ -1879,12 +1929,19 @@ const POND = new THREE.Vector3(1.3, 0, 1.2);   // pond centre, farm-local
 const farm = { group: new THREE.Group(), pond: new THREE.Group(), fish: [], ducks: [], spray: 0, hero: null, level: store.get('bl-pond', 0) };
 farm.group.position.set(0, 0, FARM_Z);
 farm.group.add(farm.pond);
+// The Bunkhouse: a staked-out plot until it's built, then a log cabin where new hoppers move in.
+const BUNK = new THREE.Vector3(1.15, 0, -3.25);   // centre, farm-local; the door faces the yard
+const BUNK_COST = 10;
+farm.bunk = new THREE.Group();
+farm.bunk.position.copy(BUNK);
+farm.group.add(farm.bunk);
+farm.bunkBuilt = store.get('bl-bunk', false);
 scene.add(farm.group);
 
 function buildFarm() {
   const vb = new VB(0.45);
   const GRASS = 0x9bd85a, PATH = 0xdcc08a, WOOD = 0x9c6b3c;
-  vb.rbox(32, 1, 36, 0, -0.5, 0, GRASS, 0.3);                               // the yard
+  vb.rbox(64, 1, 64, 0, -0.5, 0, GRASS, 0.3);                               // the yard, big enough to zoom out over
   vb.rbox(1.2, 0.04, 9, -1.1, 0.01, 1.5, PATH, 0.3);                         // path from the porch
   for (let i = 0; i < 40; i++) vb.cone(0.035, 0.11, rand(-11, 11), 0.045, rand(-12, 10), 0x7cc24a);  // tufts
 
@@ -1939,6 +1996,60 @@ function buildFarm() {
   const m = vb.mesh();
   farm.group.add(m);
   buildPond();
+  buildBunk();
+}
+
+function buildBunk() {
+  const g = farm.bunk;
+  for (const c of [...g.children]) { g.remove(c); c.geometry?.dispose(); }
+  const v = new VB(0.6);
+  const LOG = 0xc98a4b, LOG_D = 0xa86c34, END = 0xf0c48a, WOOD = 0x8a5a33;
+  if (!farm.bunkBuilt) {                                                     // a plot: dirt, stakes and string, a pile of logs
+    v.rbox(1.9, 0.05, 1.5, 0, 0.0, 0, 0xc9a06a, 0.2);
+    for (const [x, z] of [[-0.9, -0.7], [0.9, -0.7], [0.9, 0.7], [-0.9, 0.7]]) {
+      v.cyl(0.03, 0.03, 0.42, x, 0.21, z, 0xf4ead8);
+      v.ball(0.045, 0.03, 0.045, x, 0.43, z, 0xff7a3c);
+    }
+    for (const [x, z, len, ry] of [[0, -0.7, 1.8, 0], [0, 0.7, 1.8, 0], [-0.9, 0, 1.4, Math.PI / 2], [0.9, 0, 1.4, Math.PI / 2]])
+      v.cyl(0.008, 0.008, len, x, 0.36, z, 0xff7a3c, 0, ry, Math.PI / 2);   // string between the stakes
+    for (const [x, y, z] of [[-0.3, 0.1, 0.1], [-0.3, 0.1, -0.12], [-0.3, 0.28, -0.01]]) {     // log pile
+      v.cyl(0.1, 0.1, 0.9, x, y, z, LOG, 0, 0, Math.PI / 2);
+      for (const sx of [-1, 1]) v.cyl(0.085, 0.085, 0.01, x + sx * 0.455, y, z, END, 0, 0, Math.PI / 2);
+    }
+    v.cyl(0.03, 0.03, 0.7, 0.5, 0.35, 0.45, WOOD);                           // a sign with a sunflower on it
+    v.rbox(0.5, 0.34, 0.05, 0.5, 0.72, 0.47, 0xf4ead8, 0.04);
+    v.cyl(0.09, 0.09, 0.03, 0.5, 0.72, 0.51, 0xffc21a, Math.PI / 2, 0, 0);
+    v.cyl(0.04, 0.04, 0.035, 0.5, 0.72, 0.52, 0x7a4a1c, Math.PI / 2, 0, 0);
+    g.add(v.mesh());
+    return;
+  }
+  const W = 1.8, D = 1.4, H = 1.0, r = 0.09;
+  v.rbox(W + 0.16, 0.12, D + 0.16, 0, 0.06, 0, 0xb4babf, 0.05);              // stone footing
+  const logs = Math.round(H / (r * 2));
+  for (let i = 0; i < logs; i++) {                                           // stacked log walls, ends crossing at the corners
+    const y = 0.12 + r + i * r * 2, c = i % 2 ? LOG : LOG_D;
+    for (const sz of [-1, 1]) v.cyl(r, r, W + 0.24, 0, y, sz * D / 2, c, 0, 0, Math.PI / 2);
+    for (const sx of [-1, 1]) v.cyl(r, r, D + 0.24, sx * W / 2, y + r * 0.5, 0, i % 2 ? LOG_D : LOG, Math.PI / 2, 0, 0);
+  }
+  v.rbox(W - 0.1, H, D - 0.1, 0, 0.12 + H / 2, 0, LOG_D, 0.02);             // fills the gaps between logs
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) for (let i = 0; i < logs; i++)
+    v.cyl(r * 0.8, r * 0.8, 0.02, sx * (W / 2 + 0.121), 0.12 + r + i * r * 2, sz * D / 2, END, 0, 0, Math.PI / 2);   // cut log ends
+  const top = 0.12 + logs * r * 2;
+  v.roof(D + 0.5, W + 0.5, 0.72, 0, top + (D + 0.5) / Math.sqrt(3) / 2 * 0.72, 0, 0x5fb84a);
+  v.add(prim('roofRidge', () => new THREE.CylinderGeometry(0.06, 0.06, 1, 10)), 0x3f8f2f, 0, top + (D + 0.5) / Math.sqrt(3) * 0.72 * 1.45, 0, 0, 0, Math.PI / 2, 1, W + 0.55, 1);
+  v.rbox(0.42, 0.66, 0.06, -0.3, 0.45, D / 2 + 0.09, WOOD, 0.05);           // door
+  v.ball(0.03, 0.03, 0.025, -0.17, 0.45, D / 2 + 0.13, 0xffd23f);
+  v.cyl(0.17, 0.17, 0.05, 0.42, 0.66, D / 2 + 0.09, 0xfff1d8, Math.PI / 2, 0, 0);   // round window
+  v.cyl(0.13, 0.13, 0.06, 0.42, 0.66, D / 2 + 0.1, 0xffe08a, Math.PI / 2, 0, 0);
+  v.rbox(0.03, 0.26, 0.03, 0.42, 0.66, D / 2 + 0.13, WOOD, 0.01);
+  v.rbox(0.26, 0.03, 0.03, 0.42, 0.66, D / 2 + 0.13, WOOD, 0.01);
+  v.rbox(0.36, 0.12, 0.14, 0.42, 0.42, D / 2 + 0.16, WOOD, 0.03);          // flower box
+  for (let i = 0; i < 3; i++) v.ball(0.045, 0.045, 0.045, 0.3 + i * 0.12, 0.5, D / 2 + 0.18, [0xff8a2a, 0xffd93b, 0xff6fae][i]);
+  v.rbox(0.3, 0.8, 0.3, -0.55, top + 0.45, -0.25, 0x9aa0a6, 0.06);          // stone chimney
+  v.rbox(0.9, 0.22, 0.06, 0, top - 0.05, D / 2 + 0.11, 0xf4ead8, 0.05);     // name board over the door
+  for (let i = 0; i < 3; i++) v.ball(0.035, 0.035, 0.02, -0.18 + i * 0.18, top - 0.05, D / 2 + 0.15, [0xff7fb8, 0x5bb4ff, 0x6bd864][i]);
+  v.rbox(0.9, 0.06, 0.5, -0.3, 0.03, D / 2 + 0.36, WOOD, 0.02);            // doorstep
+  g.add(v.mesh());
 }
 
 // Little animated bits for the pond: fish and ducks are their own meshes so they can swim.
@@ -2049,7 +2160,7 @@ function updateFarm(dt) {
 }
 
 // ---------- hoppers wandering the farm ----------
-// Every unlocked hopper (all four for now) strolls around the yard between rounds:
+// Every unlocked hopper strolls around the yard between rounds:
 // waddling from spot to spot, pausing to look around. The one you'll play as has a
 // sunflower bobbing over its head, and gives a happy hop when picked or back home.
 const YARD = { x0: -4.6, x1: 4.6, z0: -3.0, z1: 4.4 };
@@ -2057,6 +2168,7 @@ function blockedAt(x, z) {
   const [rx, rz] = farm.pondR;
   if (((x - POND.x) / (rx + 0.45)) ** 2 + ((z - POND.z) / (rz + 0.45)) ** 2 < 1) return true;   // the pond
   if (x > -3.9 && x < -2.5 && z > 1.5 && z < 3.1) return true;                                    // sunflower patch
+  if (Math.abs(x - BUNK.x) < 1.35 && z > BUNK.z - 1.2 && z < BUNK.z + 0.95) return true;          // the Bunkhouse
   return [[-2.3, 3.6], [-3.3, 0], [4.6, 0]].some(([bx, bz]) => Math.hypot(x - bx, z - bz) < 0.55);  // mailbox, bushes
 }
 function pathClear(ax, az, bx, bz) {
@@ -2080,18 +2192,23 @@ const MARKER_GEO = (() => {                        // a little sunflower that fl
   v.cyl(0.085, 0.085, 0.06, 0, 0, 0.02, 0x7a4a1c, Math.PI / 2, 0, 0);
   return v.geometry();
 })();
+// at = [x, z] to start somewhere particular (a new friend steps out of the Bunkhouse door)
+function addWalker(h, at) {
+  const m = h.build();
+  const w = { id: h.id, m, x: 0, z: 0, tx: 0, tz: 0, wait: rand(0.3, 2.5), ph: rand(0, 6), face: Math.PI + 0.36, hop: 0 };
+  if (at) [w.x, w.z] = at;
+  else do { w.x = rand(YARD.x0, YARD.x1); w.z = rand(YARD.z0, YARD.z1); } while (blockedAt(w.x, w.z));
+  w.tx = w.x; w.tz = w.z;
+  m.group.position.set(w.x, 0, w.z);
+  w.top = new THREE.Box3().setFromObject(m.group).max.y;   // where the marker floats
+  farm.group.add(m.group);
+  farm.walkers.push(w);
+  return w;
+}
 function spawnWalkers() {
   for (const w of farm.walkers || []) farm.group.remove(w.m.group);
-  farm.walkers = HEROES.map(h => {
-    const m = h.build();
-    const w = { id: h.id, m, x: 0, z: 0, tx: 0, tz: 0, wait: rand(0.3, 2.5), ph: rand(0, 6), face: Math.PI + 0.36, hop: 0 };
-    do { w.x = rand(YARD.x0, YARD.x1); w.z = rand(YARD.z0, YARD.z1); } while (blockedAt(w.x, w.z));
-    w.tx = w.x; w.tz = w.z;
-    m.group.position.set(w.x, 0, w.z);
-    w.top = new THREE.Box3().setFromObject(m.group).max.y;   // where the marker floats
-    farm.group.add(m.group);
-    return w;
-  });
+  farm.walkers = [];
+  for (const h of ownedHeroes()) addWalker(h);
   if (!farm.marker) {
     farm.marker = new THREE.Mesh(MARKER_GEO, VMAT);
     farm.marker.castShadow = true;
@@ -2214,8 +2331,10 @@ function goRoad() {   // sunrise, then onto the road at first light
   game.state = 'sunrise';
   closeHeroes();
   closePond();
+  closeBunk();
   closeSettings();
   sfx.rooster();
+  Object.assign(farmCam, { x: 0, z: 0, zoom: 1 });   // home looks like home again after the round
   transition('sunrise', 950, () => {
     newWorld();
     game.where = 'road';
@@ -2279,7 +2398,74 @@ window.addEventListener('pointerup', e => {
   else move(0, dy < 0 ? 1 : -1);
 });
 window.addEventListener('pointercancel', () => { press = null; P.held = false; });
-document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+
+// ---------- exploring the farm: drag to look around, pinch or scroll to zoom, tap things ----------
+const farmCam = { x: 0, z: 0, zoom: 1 };
+const FARM_PAN = { x0: -5, x1: 5, z0: -6, z1: 4.5 }, FARM_ZOOM = [0.75, 1.7];
+const touches = new Map();   // pointerId -> {x, y}
+let farmTap = null, pinch = 0;
+const _ray = new THREE.Raycaster(), _ndc = new THREE.Vector2(), GROUND = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+function groundAt(x, y, out) {
+  _ndc.set(x / window.innerWidth * 2 - 1, -(y / window.innerHeight) * 2 + 1);
+  _ray.setFromCamera(_ndc, camera);
+  return _ray.ray.intersectPlane(GROUND, out);
+}
+const exploring = e => game.state === 'farm' && !game.picking && !e.target.closest('button');
+function zoomFarm(k) {
+  farmCam.zoom = clamp(farmCam.zoom * k, ...FARM_ZOOM);
+  updateCamera(0);
+}
+const _a = new THREE.Vector3(), _b = new THREE.Vector3();
+window.addEventListener('pointerdown', e => {
+  if (!exploring(e)) return;
+  touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  farmTap = touches.size === 1 ? { x: e.clientX, y: e.clientY, id: e.pointerId } : null;
+  pinch = 0;
+});
+window.addEventListener('pointermove', e => {
+  const p = touches.get(e.pointerId);
+  if (!p || game.state !== 'farm') return;
+  if (farmTap && Math.hypot(e.clientX - farmTap.x, e.clientY - farmTap.y) > 10) farmTap = null;   // it's a drag, not a tap
+  if (touches.size === 1 && !farmTap) {            // drag: the ground under your finger follows it
+    if (groundAt(p.x, p.y, _a) && groundAt(e.clientX, e.clientY, _b)) {
+      farmCam.x = clamp(farmCam.x + _a.x - _b.x, FARM_PAN.x0, FARM_PAN.x1);
+      farmCam.z = clamp(farmCam.z + _a.z - _b.z, FARM_PAN.z0, FARM_PAN.z1);
+      updateCamera(0);
+    }
+  }
+  p.x = e.clientX; p.y = e.clientY;
+  if (touches.size === 2) {                        // pinch
+    const [m, n] = [...touches.values()], d = Math.hypot(m.x - n.x, m.y - n.y);
+    if (pinch) zoomFarm(d / pinch);
+    pinch = d;
+  }
+});
+function farmPointerUp(e) {
+  if (!touches.delete(e.pointerId)) return;
+  pinch = 0;
+  if (!farmTap || farmTap.id !== e.pointerId || e.type !== 'pointerup') return;
+  farmTap = null;
+  tapFarm(e.clientX, e.clientY);
+}
+window.addEventListener('pointerup', farmPointerUp);
+window.addEventListener('pointercancel', farmPointerUp);
+window.addEventListener('wheel', e => {
+  if (game.state !== 'farm' || game.picking) return;
+  e.preventDefault();
+  zoomFarm(Math.exp(-e.deltaY * 0.0015));
+}, { passive: false });
+// A tap on the pond or the Bunkhouse opens it; a tap on a hopper gets a happy hop.
+function tapFarm(x, y) {
+  _ndc.set(x / window.innerWidth * 2 - 1, -(y / window.innerHeight) * 2 + 1);
+  _ray.setFromCamera(_ndc, camera);
+  const hit = (obj) => _ray.intersectObject(obj, true).length > 0;
+  const w = farm.walkers.find(w => hit(w.m.group));
+  if (w) { w.hop = 0.5; sfx.hop(w.id); return; }
+  if (hit(farm.bunk)) { openBunk(); return; }
+  if (hit(farm.pond)) openPond();
+}
+// Stop the page itself from scrolling or bouncing, but let panels (pickers, settings) scroll.
+document.addEventListener('touchmove', e => { if (!e.target.closest('.sheet')) e.preventDefault(); }, { passive: false });
 document.addEventListener('gesturestart', e => e.preventDefault());
 document.addEventListener('contextmenu', e => e.preventDefault());
 
@@ -2302,17 +2488,26 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
     return;
   }
+  if (game.picking && bunkOpen()) {   // Bunkhouse: arrows pick a hopper, Enter builds or invites
+    const nav = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[e.code];
+    if (nav) { document.body.classList.add('keys'); bunkNav(nav); }
+    else if (e.code === 'Enter' || e.code === 'Space') bunkAct();
+    else if (e.code === 'Escape') closeBunk();
+    e.preventDefault();
+    return;
+  }
   if (game.picking) {   // arrow keys + Enter work in the picker too
     const nav = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[e.code];
     if (nav) { document.body.classList.add('keys'); heroNav(nav); }
-    else if (e.code === 'Enter' || e.code === 'Space') pickHero(HEROES[heroFocus].id);
+    else if (e.code === 'Enter' || e.code === 'Space') pickHero(shownCards()[heroFocus].dataset.id);
     else if (e.code === 'Escape') closeHeroes();
     e.preventDefault();
     return;
   }
-  if (game.state === 'farm') {          // Enter starts the day, P opens the pond, C picks a hopper
+  if (game.state === 'farm') {          // Enter starts the day, P opens the pond, B the Bunkhouse, C picks a hopper
     if (e.code === 'Enter' || e.code === 'Space') { goRoad(); e.preventDefault(); }
     else if (e.code === 'KeyP') openPond();
+    else if (e.code === 'KeyB') openBunk();
     else if (e.code === 'KeyC') openHeroes();
     else if (e.code === 'KeyO') openSettings();
     return;
@@ -2409,31 +2604,38 @@ HEROES.forEach((h, i) => {
   card.dataset.id = h.id;
   card.style.background = h.bg;
   card.innerHTML = `<img class="cutout" alt="" src="${shots.cards[i]}"><span class="heroName">${heroName(h.id)}</span>`;
+  card.hidden = !owned.has(h.id);   // hoppers still waiting in the Bunkhouse stay hidden
   card.addEventListener('click', () => pickHero(h.id));
   heroGrid.append(card);
 });
-let heroFocus = 0;   // highlighted card when choosing with a controller or arrow keys
-function markHero() {
-  [...heroGrid.children].forEach((c, i) => {
-    c.classList.toggle('on', c.dataset.id === heroId);
-    c.classList.toggle('focus', i === heroFocus);
-  });
+const shownCards = () => [...heroGrid.children].filter(c => !c.hidden);
+// Arrow keys / d-pad through a grid of cards, however many columns fit the screen.
+function gridStep(cards, i, dir) {
+  const cols = Math.max(1, cards.filter(c => c.offsetTop === cards[0].offsetTop).length);
+  const n = i + { left: -1, right: 1, up: -cols, down: cols }[dir];
+  if (n < 0 || n >= cards.length) return i;
+  if ((dir === 'left' || dir === 'right') && Math.floor(n / cols) !== Math.floor(i / cols)) return i;
+  return n;
 }
-function heroNav(dir) {   // the cards sit in a 2-wide grid
-  const step = { left: -1, right: 1, up: -2, down: 2 }[dir];
-  const n = heroFocus + step;
-  if (n >= 0 && n < HEROES.length && !(Math.abs(step) === 1 && Math.floor(n / 2) !== Math.floor(heroFocus / 2))) heroFocus = n;
+const anyPanel = () => !!document.querySelector('.sheet.show');
+let heroFocus = 0;   // highlighted card (among the shown ones) when choosing with a controller or arrow keys
+function markHero() {
+  for (const c of heroGrid.children) c.classList.toggle('on', c.dataset.id === heroId);
+  shownCards().forEach((c, i) => c.classList.toggle('focus', i === heroFocus));
+}
+function heroNav(dir) {
+  heroFocus = gridStep(shownCards(), heroFocus, dir);
   markHero();
 }
 function openHeroes() {
-  heroFocus = Math.max(0, HEROES.findIndex(h => h.id === heroId));
+  heroFocus = Math.max(0, shownCards().findIndex(c => c.dataset.id === heroId));
   markHero();
   $('heroes').classList.add('show');
   game.picking = true;
 }
 function closeHeroes() {
   $('heroes').classList.remove('show');
-  game.picking = false;
+  game.picking = anyPanel();
 }
 function pickHero(id) {
   heroId = id;
@@ -2450,13 +2652,14 @@ $('pondBtn').addEventListener('click', () => { sfx.ensure(); openPond(); });
 
 // ---------- Fish Pond panel ----------
 const pondOpen = () => $('pond').classList.contains('show');
+const needText = short => short <= 0 ? '' : short === 1 ? t('pondNeed1') : t('pondNeedN', { n: short });
 function refreshPond() {
   const cost = pondCost(farm.level), short = cost - game.coins;
   $('pondLevel').textContent = farm.level === 0 ? t('pondMuddy') : t('pondLevel', { n: farm.level });
   $('pondNext').textContent = pondNext(farm.level);
   $('pondCost').textContent = cost;
   $('pondBuy').disabled = short > 0;
-  $('pondNeed').textContent = short <= 0 ? '' : short === 1 ? t('pondNeed1') : t('pondNeedN', { n: short });
+  $('pondNeed').textContent = needText(short);
 }
 function openPond() {
   if (game.state !== 'farm') return;
@@ -2466,7 +2669,7 @@ function openPond() {
 }
 function closePond() {
   $('pond').classList.remove('show');
-  game.picking = $('heroes').classList.contains('show');
+  game.picking = anyPanel();
 }
 function buyPond() {
   if (!upgradePond()) { sfx.bump(); return; }
@@ -2478,6 +2681,107 @@ $('pondBuy').addEventListener('click', buyPond);
 $('pondClose').addEventListener('click', closePond);
 $('pond').addEventListener('click', e => { if (e.target.id === 'pond') closePond(); });
 
+// ---------- Bunkhouse panel ----------
+// Before it's built: what it costs. After: every hopper, a green check on the ones
+// living on the farm and a price on the ones still to invite.
+const bunkOpen = () => $('bunk').classList.contains('show');
+const bunkGrid = $('bunkGrid');
+const FLOWER_SVG = document.querySelector('#coins .flower').outerHTML;
+const CHECK_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#3a2442" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+let bunkFocus = 0;
+HEROES.forEach((h, i) => {
+  const card = document.createElement('button');
+  card.className = 'heroCard';
+  card.dataset.id = h.id;
+  card.style.background = h.bg;
+  card.innerHTML = `<img class="cutout" alt="" src="${shots.cards[i]}"><span class="heroName">${heroName(h.id)}</span><i class="tag"></i>`;
+  card.addEventListener('click', () => { bunkFocus = i; unlockHero(h.id); });
+  bunkGrid.append(card);
+});
+function refreshBunk(msg) {
+  $('bunkPlan').hidden = farm.bunkBuilt;
+  $('bunkHome').hidden = !farm.bunkBuilt;
+  $('bunkCost').textContent = BUNK_COST;
+  $('bunkBuy').disabled = game.coins < BUNK_COST;
+  const nav = document.body.classList.contains('pad') || document.body.classList.contains('keys');
+  [...bunkGrid.children].forEach((c, i) => {
+    const h = HEROES[i], have = owned.has(h.id);
+    c.classList.toggle('locked', !have);
+    c.classList.toggle('short', !have && game.coins < h.price);
+    c.classList.toggle('focus', nav && i === bunkFocus);
+    const tag = c.querySelector('.tag');
+    tag.className = 'tag ' + (have ? 'check' : 'cost');
+    tag.innerHTML = have ? CHECK_SVG : FLOWER_SVG + `<span>${h.price}</span>`;
+    c.setAttribute('aria-label', t(have ? 'aria.lives' : 'aria.unlock', { name: heroName(h.id), n: h.price }));
+  });
+  $('bunkNeed').textContent = msg ?? (farm.bunkBuilt ? '' : needText(BUNK_COST - game.coins));
+}
+function openBunk() {
+  if (game.state !== 'farm') return;
+  closeHeroes();
+  closePond();
+  bunkFocus = Math.max(0, HEROES.findIndex(h => !owned.has(h.id)));
+  refreshBunk();
+  $('bunk').classList.add('show');
+  game.picking = true;
+}
+function closeBunk() {
+  $('bunk').classList.remove('show');
+  game.picking = anyPanel();
+}
+const cheer = (x, z) => {
+  burst(x, 0.4, FARM_Z + z, [0xffd23f, 0xffffff, 0xff8fc8, 0x6bd864, 0xff8a2a], 26, 2.2, 5, 0.09, 0.9);
+  burst(x, 0.1, FARM_Z + z, [0xe8d2a8, 0xffffff], 14, 1.4, 3, 0.14, 0.7, true);
+};
+function buildBunkhouse() {
+  if (farm.bunkBuilt) return;
+  if (game.coins < BUNK_COST) { sfx.bump(); return; }
+  game.coins -= BUNK_COST;
+  store.set('bl-coins', game.coins);
+  farm.bunkBuilt = true;
+  store.set('bl-bunk', true);
+  buildBunk();
+  for (const w of farm.walkers) if (blockedAt(w.x, w.z)) {   // anyone standing on the plot steps aside
+    do { w.x = rand(YARD.x0, YARD.x1); w.z = rand(YARD.z0, YARD.z1); } while (blockedAt(w.x, w.z));
+    w.tx = w.x; w.tz = w.z;
+  }
+  sfx.upgrade();
+  cheer(BUNK.x, BUNK.z);
+  hud();
+  bunkFocus = Math.max(0, HEROES.findIndex(h => !owned.has(h.id)));
+  refreshBunk();
+}
+function unlockHero(id) {
+  const h = HEROES.find(x => x.id === id);
+  if (!farm.bunkBuilt || owned.has(id)) return;
+  if (game.coins < h.price) { sfx.bump(); refreshBunk(needText(h.price - game.coins)); return; }
+  game.coins -= h.price;
+  store.set('bl-coins', game.coins);
+  owned.add(id);
+  store.set('bl-owned', [...owned].filter(x => !STARTERS.includes(x)));
+  heroGrid.querySelector(`[data-id="${id}"]`).hidden = false;
+  const w = addWalker(h, [BUNK.x - 0.3, BUNK.z + 1.15]);   // out the Bunkhouse door, with a happy hop
+  w.hop = 0.5;
+  w.face = 0;
+  w.wait = 1.2;
+  sfx.upgrade();
+  sfx.hop(id);
+  cheer(w.x, w.z);
+  hud();
+  refreshBunk(t('movedIn', { name: heroName(id) }));
+  const c = bunkGrid.children[HEROES.indexOf(h)];
+  c.classList.remove('yay'); void c.offsetWidth; c.classList.add('yay');
+}
+function bunkNav(dir) {
+  bunkFocus = gridStep([...bunkGrid.children], bunkFocus, dir);
+  refreshBunk();
+}
+const bunkAct = () => farm.bunkBuilt ? unlockHero(HEROES[bunkFocus].id) : buildBunkhouse();
+$('bunkBtn').addEventListener('click', () => { sfx.ensure(); openBunk(); });
+$('bunkBuy').addEventListener('click', buildBunkhouse);
+$('bunkClose').addEventListener('click', closeBunk);
+$('bunk').addEventListener('click', e => { if (e.target.id === 'bunk') closeBunk(); });
+
 // ---------- settings (from the farm only) ----------
 // Language, music and effects volume, the road's view angle, and the art style.
 // With a controller or arrow keys: up/down picks a row, left/right changes it.
@@ -2485,7 +2789,7 @@ const settingsOpen = () => $('settings').classList.contains('show');
 const SET_ROWS = ['lang', 'music', 'fx', 'view', 'art'];
 let setFocus = 0;
 // Little diagrams for the views: an eye above the ground, looking down at the hopper.
-const VIEW_ICONS = [[30, 4], [34, 11], [10, 14]].map(([ex, ey]) =>
+const VIEW_ICONS = [[10, 14], [30, 4], [34, 11]].map(([ex, ey]) =>
   '<svg viewBox="0 0 46 28" aria-hidden="true"><path d="M3 24 H43" stroke="#3a2442" stroke-width="2" stroke-linecap="round"/>' +
   `<path d="M${ex} ${ey} L20 21" stroke="#7d58d6" stroke-width="1.6" stroke-dasharray="2.5 2.5" fill="none"/>` +
   '<circle cx="20" cy="21" r="2.6" fill="#ff7fb8" stroke="#3a2442" stroke-width="1.2"/>' +
@@ -2526,7 +2830,7 @@ function setLang(id) {
 }
 function setView(i) {
   viewIdx = i;
-  store.set('bl-view', i);
+  store.set('bl-view2', VIEWS[i].id);
   renderSettings();
 }
 function setLook(name) {
@@ -2544,12 +2848,14 @@ function applyLang() {
   hud();
   setHint();
   if (pondOpen()) refreshPond();
+  if (bunkOpen()) refreshBunk();
   if (settingsOpen()) renderSettings();
 }
 function openSettings() {
   if (game.state !== 'farm') return;
   closeHeroes();
   closePond();
+  closeBunk();
   setFocus = 0;
   renderSettings();
   $('settings').classList.add('show');
@@ -2557,7 +2863,7 @@ function openSettings() {
 }
 function closeSettings() {
   $('settings').classList.remove('show');
-  game.picking = $('heroes').classList.contains('show') || pondOpen();
+  game.picking = anyPanel();
 }
 function settingsNav(dir) {
   if (dir === 'up' || dir === 'down') {
@@ -2633,14 +2939,21 @@ function pollPad() {
     if (pressed(1) || pick) closePond();
     return;
   }
+  if (game.picking && bunkOpen()) {
+    if (dir) bunkNav(dir);
+    if (pressed(0) || pressed(9)) bunkAct();
+    if (pressed(1) || pick) closeBunk();
+    return;
+  }
   if (game.picking) {
     if (dir) heroNav(dir);
-    if (pressed(0) || pressed(9)) pickHero(HEROES[heroFocus].id);
+    if (pressed(0) || pressed(9)) pickHero(shownCards()[heroFocus].dataset.id);
     if (pressed(1) || pick) closeHeroes();
     return;
   }
-  if (game.state === 'farm') {          // A or Start: start the day; Y: hoppers; X: Fish Pond
+  if (game.state === 'farm') {          // A or Start: start the day; Y: hoppers; X: Fish Pond; B: Bunkhouse
     if (pressed(0) || pressed(9)) goRoad();
+    else if (pressed(1)) openBunk();
     else if (pressed(3)) openHeroes();
     else if (pressed(2)) openPond();
     else if (pressed(8)) openSettings();   // Select / View button
