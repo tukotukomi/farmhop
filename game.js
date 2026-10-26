@@ -2772,15 +2772,13 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
     return;
   }
-  if (jam.open) {   // Jam Stage: letter/number rows play, arrows + Enter play a pad, +/- octave, Escape leaves
+  if (jam.open) {   // Jam Stage: Q-Y / A-H / Z-N play, +/- octave, Escape leaves
     if (e.repeat) { e.preventDefault(); return; }
+    setJamInput('keys');
     const row = JAM_KEYS.findIndex(r => r.includes(e.code));
-    const nav = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[e.code];
     if (row >= 0) playPad(row, JAM_KEYS[row].indexOf(e.code));
-    else if (nav) { document.body.classList.add('keys'); jamNav(nav); }
-    else if (e.code === 'Enter' || e.code === 'Space') playFocus();
-    else if (e.code === 'Equal' || e.code === 'NumpadAdd' || e.code === 'BracketRight') setOctave(1);
-    else if (e.code === 'Minus' || e.code === 'NumpadSubtract' || e.code === 'BracketLeft') setOctave(-1);
+    else if (e.code === 'Equal' || e.code === 'NumpadAdd' || e.code === 'BracketRight' || e.code === 'ArrowRight') setOctave(1);
+    else if (e.code === 'Minus' || e.code === 'NumpadSubtract' || e.code === 'BracketLeft' || e.code === 'ArrowLeft') setOctave(-1);
     else if (e.code === 'Escape') closeJam();
     e.preventDefault();
     return;
@@ -3292,10 +3290,12 @@ $('shop').addEventListener('click', e => { if (e.target.id === 'shop') closeShop
 
 // ---------- Jam Stage ----------
 // Build it once (one sunflower); after that a tap opens the jam: your hopper on a
-// little stage with a banjo, and a pad of every hopper's hop sound to play, one row
-// per hopper and one column per note of the game's scale (D pentatonic), so any
-// pads sound good together. + and - shift the octave. Keys 1-6 / Q-Y / A-H / Z-N
-// play the first four rows; a controller moves round the pads with the d-pad.
+// little stage with a banjo, playing along with the soundtrack. The pad is that
+// hopper's instrument: three rows (high, middle, low octave) of the game's scale
+// (D pentatonic), so any pads sound good together; + and - shift the whole range.
+// Only your hopper is on stage, leaving room for friends to jam together one day.
+// Each pad shows how to play it with what you last used: keys Q-Y / A-H / Z-N, or a
+// controller's LB X A Y B RB on the row the d-pad picked; nothing for touch.
 const stageOpen = () => $('stage').classList.contains('show');
 function stageAct() { if (farm.stageBuilt) openJam(); else openStage(); }
 function refreshStage() {
@@ -3334,31 +3334,32 @@ $('stageClose').addEventListener('click', closeStage);
 $('stage').addEventListener('click', e => { if (e.target.id === 'stage') closeStage(); });
 
 const SCALE = [1, 1.1225, 1.2599, 1.4983, 1.6818, 2];   // D E F# A B D
-const JAM_KEYS = ['Digit1 Digit2 Digit3 Digit4 Digit5 Digit6', 'KeyQ KeyW KeyE KeyR KeyT KeyY', 'KeyA KeyS KeyD KeyF KeyG KeyH', 'KeyZ KeyX KeyC KeyV KeyB KeyN'].map(r => r.split(' '));
-const jam = { open: false, oct: 0, focus: 0, t: 0, kick: 0, r: null, scene: null, cam: null, model: null };
+const JAM_ROWS = 3;   // top row an octave up, bottom row an octave down
+const JAM_KEYS = ['KeyQ KeyW KeyE KeyR KeyT KeyY', 'KeyA KeyS KeyD KeyF KeyG KeyH', 'KeyZ KeyX KeyC KeyV KeyB KeyN'].map(r => r.split(' '));
+const PAD_BTNS = [4, 2, 0, 3, 1, 5], PAD_LABELS = ['LB', 'X', 'A', 'Y', 'B', 'RB'];   // controller button for each column
+const jam = { open: false, oct: 0, row: 1, input: null, t: 0, kick: 0, r: null, scene: null, cam: null, model: null };
 const jamPads = $('jamPads');
-HEROES.forEach((h, row) => {   // a row: the hopper's picture, then six pads in their colour
-  const face = document.createElement('img');
-  face.className = 'jamFace cutout';
-  face.alt = '';
-  face.src = shots.cards[row];
-  jamPads.append(face);
-  SCALE.forEach((_, col) => {
-    const pad = document.createElement('button');
-    pad.className = 'pad' + (col === 0 || col === 5 ? ' root' : '');
-    pad.style.setProperty('--c', h.pad);
-    pad.dataset.row = row;
-    pad.dataset.col = col;
-    pad.addEventListener('pointerdown', e => { e.preventDefault(); playPad(row, col); });
-    pad.addEventListener('click', e => { if (e.detail === 0) playPad(row, col); });   // Enter / Space on a focused pad
-    jamPads.append(pad);
+for (let row = 0; row < JAM_ROWS; row++) SCALE.forEach((_, col) => {
+  const pad = document.createElement('button');
+  pad.className = 'pad' + (col === 0 || col === 5 ? ' root' : '');
+  pad.dataset.row = row;
+  pad.dataset.col = col;
+  pad.innerHTML = '<span class="k"></span>';
+  pad.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    if (e.pointerType === 'touch') setJamInput('touch');
+    else if (jam.input === 'pad') setJamInput('keys');   // a mouse: back to the keyboard hints
+    playPad(row, col);
   });
+  pad.addEventListener('click', e => { if (e.detail === 0) playPad(row, col); });   // Enter / Space on a focused pad
+  jamPads.append(pad);
 });
 const padAt = (row, col) => jamPads.querySelector(`.pad[data-row="${row}"][data-col="${col}"]`);
+const padFreq = (row, col) => 293.66 * SCALE[col] * 2 ** (jam.oct + 1 - row);
 function playPad(row, col) {
   sfx.ensure();
-  const h = HEROES[row];
-  sfx.voice(h.id, 293.66 * SCALE[col] * 2 ** jam.oct);
+  const h = hero();
+  sfx.voice(h.id, padFreq(row, col));
   const pad = padAt(row, col);
   pad.classList.remove('hit'); void pad.offsetWidth; pad.classList.add('hit');
   jam.kick = 1;   // the hopper bounces to every note
@@ -3371,13 +3372,30 @@ function playPad(row, col) {
   setTimeout(() => note.remove(), 1400);
 }
 function setOctave(d) {
-  jam.oct = clamp(jam.oct + d, -1, 2);
+  jam.oct = clamp(jam.oct + d, -1, 1);
   $('octN').textContent = (jam.oct > 0 ? '+' : '') + jam.oct;
-  $('octUp').disabled = jam.oct >= 2;
+  $('octUp').disabled = jam.oct >= 1;
   $('octDown').disabled = jam.oct <= -1;
-  sfx.voice(heroId, 293.66 * 2 ** jam.oct);   // hear where you are
+  if (d) sfx.voice(heroId, padFreq(1, 0));   // hear where you are
 }
-// A banjo: round drum with a cream head, a long neck, four strings.
+// Pad labels follow whatever was used last: 'keys', 'pad' (a controller) or 'touch' (none).
+function setJamInput(mode) {
+  if (jam.input === mode) return;
+  jam.input = mode;
+  markJamHints();
+}
+function markJamHints() {
+  const m = jam.input;
+  $('jam').dataset.input = m;
+  jamPads.querySelectorAll('.pad').forEach(p => {
+    const row = +p.dataset.row, col = +p.dataset.col;
+    p.querySelector('.k').textContent = m === 'keys' ? JAM_KEYS[row][col].slice(3) : m === 'pad' && row === jam.row ? PAD_LABELS[col] : '';
+    p.classList.toggle('live', m === 'pad' && row === jam.row);
+  });
+  const hints = { keys: ['=', '−', 'Esc'], pad: ['▶', '◀', 'Start'], touch: ['', '', ''] }[m];
+  ['octUp', 'octDown', 'jamClose'].forEach((id, i) => { $(id).dataset.hint = hints[i]; });
+}
+// A banjo: round drum with a cream head, a long neck, four strings.// A banjo: round drum with a cream head, a long neck, four strings.
 function banjoMesh() {
   const v = new VB(0.8), WOOD = 0x9c6b3c;
   v.cyl(0.14, 0.14, 0.05, 0, 0, 0, 0xfff4e0, Math.PI / 2, 0, 0);
@@ -3423,20 +3441,20 @@ function openJam() {
   jam.model.inner.add(banjoMesh());
   jam.scene.add(jam.model.group);
   jam.open = true;
-  jam.focus = 0;
+  jam.row = 1;
+  jamPads.style.setProperty('--c', hero().pad);   // the pads take your hopper's colour
   $('jam').classList.add('show');
   game.picking = true;
-  music?.setLevel(0.3);   // the soundtrack steps back while you play
   setOctave(0);
   jamResize();
-  markJamFocus();
+  jam.input = null;   // start with hints for the last thing used, or what this device has
+  setJamInput(document.body.classList.contains('pad') ? 'pad' : document.body.classList.contains('keys') || matchMedia('(hover: hover) and (pointer: fine)').matches ? 'keys' : 'touch');
 }
 function closeJam() {
   if (!jam.open) return;
   jam.open = false;
   $('jam').classList.remove('show');
   game.picking = anyPanel();
-  music?.setLevel(1);
 }
 function jamFrame(dt) {
   const m = jam.model;
@@ -3452,17 +3470,6 @@ function jamFrame(dt) {
   for (const tl of m.tails) tl.rotation[tl.userData.axis || 'z'] = tl.userData.side * sway;
   jam.r.render(jam.scene, jam.cam);
 }
-function markJamFocus() {
-  const nav = document.body.classList.contains('pad') || document.body.classList.contains('keys');
-  jamPads.querySelectorAll('.pad').forEach((p, i) => p.classList.toggle('focus', nav && i === jam.focus));
-}
-function jamNav(dir) {
-  const n = HEROES.length * SCALE.length, c = SCALE.length;
-  const f = jam.focus + { left: -1, right: 1, up: -c, down: c }[dir];
-  if (f >= 0 && f < n && !((dir === 'left' || dir === 'right') && Math.floor(f / c) !== Math.floor(jam.focus / c))) jam.focus = f;
-  markJamFocus();
-}
-const playFocus = () => playPad(Math.floor(jam.focus / SCALE.length), jam.focus % SCALE.length);
 $('octUp').addEventListener('click', () => setOctave(1));
 $('octDown').addEventListener('click', () => setOctave(-1));
 $('jamClose').addEventListener('click', closeJam);
@@ -3639,12 +3646,12 @@ function pollPad() {
     if (pressed(1) || pick) closePond();
     return;
   }
-  if (jam.open) {
-    if (dir) jamNav(dir);
-    if (pressed(0) || pressed(2) || pressed(3)) playFocus();
-    if (pressed(5)) setOctave(1);
-    if (pressed(4)) setOctave(-1);
-    if (pressed(1) || pressed(8) || pressed(9)) closeJam();
+  if (jam.open) {   // the six buttons play the row the d-pad picked; left/right shift the octave
+    if (dir || down.some(Boolean)) setJamInput('pad');
+    if (dir === 'up' || dir === 'down') { jam.row = clamp(jam.row + (dir === 'down' ? 1 : -1), 0, JAM_ROWS - 1); markJamHints(); }
+    if (dir === 'left' || dir === 'right') setOctave(dir === 'right' ? 1 : -1);
+    PAD_BTNS.forEach((b, col) => { if (pressed(b)) playPad(jam.row, col); });
+    if (pressed(8) || pressed(9)) closeJam();
     return;
   }
   if (game.picking && stageOpen()) {
