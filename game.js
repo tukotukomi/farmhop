@@ -2919,6 +2919,7 @@ window.addEventListener('keydown', e => {
   }
   if (jam.open) {   // Jam Stage: Q-Y / A-H / Z-N play, +/- octave, Escape leaves
     if (e.repeat) { e.preventDefault(); return; }
+    if (partyOpen()) { if (e.code === 'Escape' || e.code === 'Enter') closeParty(); e.preventDefault(); return; }
     setJamInput('keys');
     const row = JAM_KEYS.findIndex(r => r.includes(e.code));
     const drum = jam.drums ? +Object.keys(DRUM_KEYS).find(d => DRUM_KEYS[d] === e.code) : NaN;
@@ -3495,7 +3496,7 @@ const SCALE = [1, 1.1225, 1.2599, 1.4983, 1.6818, 2];   // D E F# A B D
 const JAM_ROWS = 3;   // top row an octave up, bottom row an octave down
 const JAM_KEYS = ['KeyQ KeyW KeyE KeyR KeyT KeyY', 'KeyA KeyS KeyD KeyF KeyG KeyH', 'KeyZ KeyX KeyC KeyV KeyB KeyN'].map(r => r.split(' '));
 const PAD_BTNS = [4, 2, 0, 3, 1, 5], PAD_LABELS = ['LB', 'X', 'A', 'Y', 'B', 'RB'];   // controller button for each column
-const jam = { open: false, oct: 0, row: 1, input: null, t: 0, kick: 0, r: null, scene: null, cam: null, model: null,
+const jam = { open: false, oct: 0, row: 1, input: null, t: 0, kick: 0, r: null, scene: null, cam: null, model: null, spread: 0,
   sustain: store.get('bl-sustain', 0.35), held: new Map() };   // held: finger / key / button -> release()
 const jamPads = $('jamPads');
 for (let row = 0; row < JAM_ROWS; row++) SCALE.forEach((_, col) => {
@@ -3564,7 +3565,8 @@ function setDrums(on) {
 }
 $('instBtn').addEventListener('click', () => { sfx.ensure(); setDrums(!jam.drums); });
 const padAt = (row, col) => jamPads.querySelector(`.pad[data-row="${row}"][data-col="${col}"]`);
-const padFreq = (row, col) => 293.66 * SCALE[col] * 2 ** (jam.oct + 1 - row);
+const noteFreq = (oct, row, col) => 293.66 * SCALE[col] * 2 ** (oct + 1 - row);
+const padFreq = (row, col) => noteFreq(jam.oct, row, col);
 function playPad(row, col, by) {
   sfx.ensure();
   const h = hero();
@@ -3657,10 +3659,12 @@ function jamResize() {
   jam.r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   jam.r.setSize(w, h, false);
   const a = w / h, half = Math.tan(THREE.MathUtils.degToRad(15));
-  const dist = Math.max(1.2 / half, 1.15 / (half * a));   // fit about 2.4 high and 2.3 wide around the hopper and her banjo
+  const halfW = 1.15 + jam.spread;   // the hopper and her banjo, plus any friends beside her
+  const dist = Math.max(1.2 / half, halfW / (half * a));
   jam.cam.aspect = a;
-  jam.cam.position.set(0, 1.15, dist);
-  jam.cam.lookAt(0, 0.95, 0);   // feet low in the picture, on the wooden floor
+  const lookY = dist * half * 0.76;   // however far back, feet stay low in the picture, on the wooden floor
+  jam.cam.position.set(0, lookY + 0.2, dist);
+  jam.cam.lookAt(0, lookY, 0);
   jam.cam.updateProjectionMatrix();
 }
 function openJam() {
@@ -3682,6 +3686,8 @@ function openJam() {
   }
   $('instBtn').hidden = !ownedDecor.has('drums');
   setDrums(jam.drums);
+  $('partyBtn').hidden = !RELAY;
+  layoutStage();
   jam.open = true;
   jam.row = 1;
   jamPads.style.setProperty('--c', hero().pad);   // the pads take your hopper's colour
@@ -3714,12 +3720,238 @@ function jamFrame(dt) {
   m.group.rotation.y = Math.PI - 0.3 + Math.sin(t * 1.1) * 0.18;
   const sway = Math.sin(t * 4.4) * 0.2 + k * 0.3;
   for (const tl of m.tails) tl.rotation[tl.userData.axis || 'z'] = tl.userData.side * sway;
+  for (const [slot, pl] of party.players) {   // friends on phones bob along, each a little out of step
+    if (!pl.m) continue;
+    pl.kick = Math.max(0, pl.kick - dt * 4);
+    const q = t + slot * 0.37, pk = pl.kick;
+    pl.m.inner.position.y = Math.abs(Math.sin(q * 4.4)) * 0.05 + Math.sin(pk * Math.PI) * 0.12;
+    pl.m.inner.scale.set(1 + pk * 0.06, 1 - pk * 0.08, 1 + pk * 0.06);
+    pl.m.inner.rotation.z = Math.sin(q * 2.2) * 0.06;
+    pl.m.group.rotation.y = Math.PI - (pl.m.group.position.x < 0 ? -0.35 : 0.35) + Math.sin(q * 1.1) * 0.15;
+    const sw = Math.sin(q * 4.4) * 0.2 + pk * 0.3;
+    for (const tl of pl.m.tails) tl.rotation[tl.userData.axis || 'z'] = tl.userData.side * sw;
+  }
   jam.r.render(jam.scene, jam.cam);
 }
 $('octUp').addEventListener('click', () => setOctave(1));
 $('octDown').addEventListener('click', () => setOctave(-1));
 $('jamClose').addEventListener('click', closeJam);
 window.addEventListener('resize', () => { if (jam.open) jamResize(); });
+
+// ---------- jam with phones ----------
+// "Jam with phones" shows a QR code. Each phone that scans it (up to four) opens
+// remote/, picks a hopper from this farm and plays it from its own pads; its
+// hopper joins yours on stage and every note plays here, with the soundtrack.
+// The two meet through a small relay (relay/, address in relay-config.js).
+const DEBUG = new URLSearchParams(location.search).has('debug');
+const RELAY = (DEBUG && new URLSearchParams(location.search).get('relay')) || window.FARMHOP_RELAY_URL || '';
+const party = { on: false, ws: null, room: null, retry: 0, ping: null, timer: null, players: new Map() };   // slot -> player
+const partyOpen = () => !$('party').hidden;
+function partyRoom() {   // kept for the browser session, so a reload keeps the same QR and phones reconnect
+  let r = null;
+  try { r = sessionStorage.getItem('bl-party-room'); } catch {}
+  if (!r) {
+    const b = new Uint8Array(24);
+    crypto.getRandomValues(b);
+    r = btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    try { sessionStorage.setItem('bl-party-room', r); } catch {}
+  }
+  return r;
+}
+const partyLink = () => new URL('remote/', location.href).href.split('#')[0].replace(/\?.*$/, '') + '#r=' + party.room + (DEBUG && RELAY !== window.FARMHOP_RELAY_URL ? '&relay=' + encodeURIComponent(RELAY) : '');
+function partySend(to, obj) { if (party.ws && party.ws.readyState === 1) party.ws.send(to + '|' + JSON.stringify(obj)); }
+function partyStart() {
+  if (!RELAY || party.on) return;
+  party.on = true;
+  party.room = partyRoom();
+  party.retry = 0;
+  partyConnect();
+}
+function partyConnect() {
+  if (!party.on) return;
+  let ws;
+  try { ws = new WebSocket(RELAY.replace(/\/$/, '') + '/room/' + party.room + '?role=host'); } catch { return; }
+  party.ws = ws;
+  ws.onopen = () => {
+    party.retry = 0;
+    clearInterval(party.ping);
+    party.ping = setInterval(() => { if (ws.readyState === 1) ws.send('ping'); }, 25000);
+    renderParty();
+  };
+  ws.onmessage = e => {
+    if (typeof e.data !== 'string' || e.data === 'pong') return;
+    let msg;
+    try { msg = JSON.parse(e.data); } catch { return; }
+    if (msg.t === 'sys') {
+      if (msg.ev === 'welcome') partySend('*', { t: 'who' });   // phones already in the room say hello again
+      else if (msg.ev === 'peer-left' && msg.role === 'player') dropPlayer(msg.p);
+    } else if (msg.t === 'from') {
+      let m;
+      try { m = JSON.parse(msg.m); } catch { return; }
+      onPlayer(msg.p, m);
+    }
+  };
+  ws.onclose = () => {
+    clearInterval(party.ping);
+    if (party.ws === ws) party.ws = null;
+    renderParty();
+    if (!party.on) return;
+    clearTimeout(party.timer);
+    party.timer = setTimeout(partyConnect, Math.min(15000, 1000 * 2 ** party.retry++));
+  };
+  ws.onerror = () => {};
+}
+function partyStop() {
+  partySend('*', { t: 'bye' });
+  party.on = false;
+  clearTimeout(party.timer);
+  clearInterval(party.ping);
+  try { party.ws?.close(); } catch {}
+  party.ws = null;
+  for (const slot of [...party.players.keys()]) dropPlayer(slot);
+  try { sessionStorage.removeItem('bl-party-room'); } catch {}
+  party.room = null;
+  renderParty();
+}
+const taken = () => [heroId, ...[...party.players.values()].map(p => p.hero)];
+function sendLobby(slot) {
+  partySend(slot, { t: 'lobby', heroes: ownedHeroes().map(h => ({ id: h.id, pad: h.pad })), taken: taken() });
+}
+function lobbyAll() { for (const [slot, p] of party.players) if (!p.hero) sendLobby(slot); }
+function onPlayer(slot, m) {
+  const pl = party.players.get(slot);
+  if (m.t === 'hello' || m.t === 'pick') {
+    const want = m.t === 'pick' ? m.hero : m.hero;
+    if (want && owned.has(want)) assign(slot, want);
+    else { party.players.set(slot, { hero: null, kick: 0 }); sendLobby(slot); renderParty(); }
+    return;
+  }
+  if (m.t === 'leave') { dropPlayer(slot); party.players.set(slot, { hero: null, kick: 0 }); renderParty(); return; }
+  if (!pl || !pl.hero) return;
+  if (m.t === 'oct') pl.oct = clamp(+m.v || 0, -1, 1);
+  else if (m.t === 'sus') pl.sus = clamp(+m.v || 0, 0, 1);
+  else if (m.t === 'mode') { pl.drums = !!m.drums && ownedDecor.has('drums'); if (pl.banjo) pl.banjo.visible = !pl.drums; }
+  else if (!jam.open) return;   // notes only sound while the Jam Stage is open
+  else if (m.t === 'note') {
+    const r = clamp(m.r | 0, 0, JAM_ROWS - 1), c = clamp(m.c | 0, 0, SCALE.length - 1), key = 'r' + slot + '-' + r + '-' + c;
+    if (!m.on) { letGo(key); return; }
+    sfx.ensure();
+    const f = noteFreq(pl.oct, r, c);
+    sfx.voice(pl.hero, f, true);
+    letGo(key);
+    const release = sfx.hold(pl.hero, f, pl.sus);
+    if (release) jam.held.set(key, release);
+    pl.kick = 1;
+    floatNote(HEROES.find(h => h.id === pl.hero).pad, pl.m?.group.position.x);
+  } else if (m.t === 'drum') {
+    sfx.ensure();
+    sfx.drum(clamp(m.d | 0, 0, 7));
+    pl.kick = 1;
+    jam.boom = 1;
+    floatNote(DRUM_COLORS[m.d | 0], pl.m?.group.position.x);
+  }
+}
+function assign(slot, hero) {
+  const old = party.players.get(slot);
+  if (old?.m) { jam.scene?.remove(old.m.group); disposeHero(old.m); }
+  const pl = { hero, oct: 0, sus: 0.35, drums: false, kick: 0, m: null, banjo: null };
+  party.players.set(slot, pl);
+  if (jam.scene) addPlayerModel(pl);
+  partySend(slot, { t: 'joined', hero, pad: HEROES.find(h => h.id === hero).pad, drums: ownedDecor.has('drums') });
+  lobbyAll();
+  layoutStage();
+  renderParty();
+}
+function addPlayerModel(pl) {
+  pl.m = HEROES.find(h => h.id === pl.hero).build();
+  pl.banjo = banjoMesh();
+  pl.banjo.visible = !pl.drums;
+  pl.m.inner.add(pl.banjo);
+  jam.scene.add(pl.m.group);
+}
+function dropPlayer(slot) {
+  const pl = party.players.get(slot);
+  if (!pl) return;
+  for (const key of [...jam.held.keys()]) if (key.startsWith('r' + slot + '-')) letGo(key);
+  if (pl.m) { jam.scene?.remove(pl.m.group); disposeHero(pl.m); }
+  party.players.delete(slot);
+  lobbyAll();
+  layoutStage();
+  renderParty();
+}
+// Everyone in a row across the stage, yours in the middle; the drum kit moves to the back.
+function layoutStage() {
+  if (!jam.scene || !jam.model) return;
+  for (const pl of party.players.values()) if (pl.hero && !pl.m) addPlayerModel(pl);
+  const cast = [jam.model, ...[...party.players.entries()].sort((a, b) => a[0] - b[0]).map(e => e[1].m).filter(Boolean)];
+  const order = cast.map((_, i) => i === 0 ? 0 : (i % 2 ? -1 : 1) * Math.ceil(i / 2));   // middle, left, right, further left...
+  cast.forEach((m, i) => { m.group.position.x = order[i] * 1.05; });
+  jam.spread = Math.max(0, ...order.map(o => Math.abs(o) * 1.05));
+  if (jam.kit) {   // the drum kit stands at the right end of the row, just behind
+    const right = Math.max(...order) * 1.05;
+    jam.kit.position.set(right + 0.74, 0, -0.75);
+    jam.spread = Math.max(jam.spread, right + 0.74 + 0.4 - 1.15);
+  }
+  if (jam.open) jamResize();
+}
+function floatNote(color, x = 0) {
+  const note = document.createElement('span');
+  note.className = 'jamNote';
+  note.textContent = pick(['♪', '♫', '♩', '♬']);
+  note.style.color = color;
+  note.style.left = clamp(50 + x / (1.15 + jam.spread) * 45 + (Math.random() - 0.5) * 12, 4, 92) + '%';
+  $('jamNotes').append(note);
+  setTimeout(() => note.remove(), 1400);
+}
+// The QR panel and the row of friends on stage.
+let qrLib = null;
+function loadQr() {
+  return qrLib ||= new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'vendor/qrcode.js';
+    s.onload = () => resolve(window.qrcode);
+    s.onerror = () => { qrLib = null; reject(); };
+    document.head.append(s);
+  });
+}
+let qrFor = '';
+function renderParty() {
+  const list = [...party.players.entries()].filter(([, p]) => p.hero).sort((a, b) => a[0] - b[0]);
+  const chip = ([slot, p]) => `<span class="partyChip" style="--c:${HEROES.find(h => h.id === p.hero).pad}"><b>${slot}</b>${heroName(p.hero)}</span>`;
+  $('partyChips').innerHTML = list.map(chip).join('');
+  $('partyList').innerHTML = list.length ? list.map(chip).join('') : '<span class="partyNone"></span>';
+  const none = $('partyList').querySelector('.partyNone');
+  if (none) none.textContent = t('party.none');
+  $('partyBtn').classList.toggle('live', party.on);
+  $('partyCount').textContent = list.length ? list.length : '';
+  if (!party.on || !partyOpen()) return;
+  const link = partyLink();
+  if (qrFor !== link) {
+    qrFor = link;
+    $('partyQr').innerHTML = '';
+    loadQr().then(qrcode => {
+      if (qrFor !== link) return;
+      const qr = qrcode(0, 'M');
+      qr.addData(link);
+      qr.make();
+      $('partyQr').innerHTML = qr.createSvgTag({ cellSize: 5, margin: 3, scalable: true });
+    }).catch(() => { $('partyQr').textContent = link; });
+  }
+  $('partyStatus').textContent = party.ws?.readyState === 1 ? '' : t('remote.connecting');
+}
+function openParty() {
+  partyStart();
+  $('party').hidden = false;
+  renderParty();
+}
+const closeParty = () => { $('party').hidden = true; };
+$('partyBtn').addEventListener('click', () => { sfx.ensure(); openParty(); });
+$('partyDone').addEventListener('click', closeParty);
+$('partyStop').addEventListener('click', () => { partyStop(); closeParty(); });
+$('partyCopy').addEventListener('click', () => {
+  navigator.clipboard?.writeText(partyLink()).then(() => { $('partyCopy').textContent = t('party.copied'); setTimeout(() => { $('partyCopy').textContent = t('party.copy'); }, 1500); }).catch(() => {});
+});
+if (RELAY) try { if (sessionStorage.getItem('bl-party-room')) partyStart(); } catch {}   // a reload mid-jam picks the phones back up
 
 // ---------- settings (from the farm only) ----------
 // Language, music and effects volume, the road's view angle, and the art style.
@@ -3974,4 +4206,4 @@ setHint();
 hud();
 applyLang();
 requestAnimationFrame(frame);
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam };

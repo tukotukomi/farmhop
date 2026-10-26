@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#241830">
+<title>Farm Hop Jam</title>
+<link rel="icon" href="../icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Noto+Sans+SC:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="remote.css">
+</head>
+<body>
+<header class="bar">
+  <div class="who"><span id="dot" class="dot"></span><span id="whoName">Farm Hop</span></div>
+  <span id="status" class="status" role="status"></span>
+  <button id="changeBtn" class="chip" hidden></button>
+</header>
+
+<main>
+  <p id="msg" class="msg" hidden></p>
+
+  <section id="picker" hidden>
+    <h2 id="pickTitle"></h2>
+    <div id="pickGrid"></div>
+  </section>
+
+  <section id="deck" hidden>
+    <div class="play">
+      <div id="pads" class="pads"></div>
+      <div id="drums" class="pads drums" hidden></div>
+      <label id="susRow" class="sus"><span id="susLabel"></span><input id="sus" type="range" min="0" max="100" step="5"></label>
+    </div>
+    <aside class="side">
+      <button id="instBtn" class="round inst" hidden></button>
+      <button id="octUp" class="round">+</button>
+      <div class="oct"><b id="octN">0</b><small id="octLabel"></small></div>
+      <button id="octDown" class="round">&minus;</button>
+    </aside>
+  </section>
+</main>
+
+<script src="../relay-config.js"></script>
+<script type="module" src="remote.js"></script>
+</body>
+</html>
