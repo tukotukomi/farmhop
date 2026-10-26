@@ -700,11 +700,11 @@ function buildTuko() {
 }
 
 const HEROES = [
-  { id: 'betty', name: 'Betty Lou', build: () => buildGirl(), bg: '#ffd6ec' },
-  { id: 'axolotl', name: 'Axolotl Princess', build: buildAxolotl, bg: '#d9f2ff' },
-  { id: 'catstar', name: 'Catstar', build: buildCatstar, bg: '#fff1b8' },
-  { id: 'leafwish', name: 'LeafWish', build: buildLeafWish, bg: '#e6dcff' },
-  { id: 'tuko', name: 'Tuko', build: buildTuko, bg: '#ffe1c4', price: 20 },
+  { id: 'betty', name: 'Betty Lou', build: () => buildGirl(), bg: '#ffd6ec', pad: '#ff7fb8' },
+  { id: 'axolotl', name: 'Axolotl Princess', build: buildAxolotl, bg: '#d9f2ff', pad: '#7fd0ff' },
+  { id: 'catstar', name: 'Catstar', build: buildCatstar, bg: '#fff1b8', pad: '#ffd24a' },
+  { id: 'leafwish', name: 'LeafWish', build: buildLeafWish, bg: '#e6dcff', pad: '#7ad653' },
+  { id: 'tuko', name: 'Tuko', build: buildTuko, bg: '#ffe1c4', price: 20, pad: '#ff9a3c' },
 ];
 const STARTERS = ['betty', 'axolotl', 'catstar', 'leafwish'];   // owned from the start; the rest live in the Bunkhouse
 const owned = new Set([...STARTERS, ...store.get('bl-owned', [])].filter(id => HEROES.some(h => h.id === id)));
@@ -1101,9 +1101,10 @@ const sfx = (() => {
     // Each hopper has its own hop, soft and musical rather than a bright square chirp.
     // The notes walk a D-major pentatonic line (the soundtrack's key), so a run of
     // hops plays a little tune.
-    hop(id) {
+    hop(id) { this.voice(id, HOP_TUNE[hopStep++ % HOP_TUNE.length]); },
+    voice(id, n) {   // one hopper's hop sound at pitch n; the Jam Stage pads play these too
       if (!ctx || muted) return;
-      const n = HOP_TUNE[hopStep++ % HOP_TUNE.length], t = ctx.currentTime;
+      const t = ctx.currentTime;
       if (id === 'axolotl') {                                   // a watery bubble bloop, then a smaller one
         sweep('sine', n * 0.45, n * 1.6, t, 0.09, 0.16);
         sweep('sine', n * 0.7, n * 2.2, t + 0.055, 0.07, 0.07);
@@ -2008,6 +2009,9 @@ farm.group.position.set(0, 0, FARM_Z);
 // The Bunkhouse: a staked-out plot until it's built, then a log cabin where new hoppers move in.
 const BUNK_COST = 10;
 farm.bunkBuilt = store.get('bl-bunk', false);
+// The Jam Stage: a plot until it's built, then a little stage where your hopper plays the banjo.
+const STAGE_COST = 1;
+farm.stageBuilt = store.get('bl-stage', false);
 scene.add(farm.group);
 
 // ---------- the farm layout ----------
@@ -2023,6 +2027,7 @@ const PIECES = {
   barn: { build: buildBarn, foot: [-2.05, 1.6, -1.6, 1.95], at: [4, -8.5, 0] },
   pond: { build: g => { farm.pond = g; buildPond(); }, foot: [-2.8, 2.8, -2.1, 2.1], at: [2, 2, 0], pond: true },   // room for its biggest size
   bunk: { build: g => { farm.bunk = g; buildBunk(); }, foot: [-1.3, 1.3, -1.1, 1.45], block: [-1.3, 1.3, -1.1, 1.0], at: [0.5, -3.5, 0] },
+  stage: { build: g => { farm.stage = g; buildStage(); }, foot: [-1.3, 1.3, -1.0, 1.25], block: [-1.3, 1.3, -1.0, 1.0], at: [-4.5, -1.5, 0] },
   flowers: { build: buildFlowers, foot: [-0.75, 0.75, -0.75, 0.75], at: [-4.5, 2.5, 0] },
   mailbox: { build: buildMailbox, foot: [-0.35, 0.35, -0.35, 0.35], at: [-3, 6, 0] },
   scarecrow: { build: buildScarecrow, foot: [-0.75, 0.75, -0.45, 0.45], decor: true, price: 10, bg: '#fff1b8' },
@@ -2194,6 +2199,48 @@ function buildSwing(g) {   // a wooden A-frame with a pink seat that sways
   seat.position.y = 1.5;
   g.add(seat);
   return t => { seat.rotation.x = Math.sin(t * 1.7) * 0.28; };
+}
+
+function buildStage() {
+  const g = farm.stage;
+  if (!g) return;
+  for (const c of [...g.children]) { g.remove(c); c.geometry?.dispose(); }
+  const v = new VB(0.6), WOOD = 0x9c6b3c, WOOD_D = 0x7a4f2c, CURTAIN = 0x7d58d6, CURTAIN_L = 0x9b74ee;
+  if (!farm.stageBuilt) {                                                     // a plot with a sign that has a music note on it
+    v.rbox(2.3, 0.05, 1.8, 0, 0, 0, 0xc9a06a, 0.2);
+    for (const [x, z] of [[-1.1, -0.85], [1.1, -0.85], [1.1, 0.85], [-1.1, 0.85]]) {
+      v.cyl(0.03, 0.03, 0.42, x, 0.21, z, 0xf4ead8);
+      v.ball(0.045, 0.03, 0.045, x, 0.43, z, 0xbd96ff);
+    }
+    v.cyl(0.03, 0.03, 0.7, 0, 0.35, 0.5, WOOD);
+    v.rbox(0.56, 0.4, 0.05, 0, 0.75, 0.52, 0xf4ead8, 0.05);
+    v.ball(0.07, 0.055, 0.03, -0.05, 0.66, 0.56, 0x3a2442);                   // a note: head, stem, flag
+    v.rbox(0.02, 0.24, 0.02, 0.01, 0.78, 0.56, 0x3a2442, 0.005);
+    v.rbox(0.09, 0.03, 0.02, 0.05, 0.88, 0.56, 0x3a2442, 0.005, 0, 0, -0.5);
+    g.add(v.mesh());
+    return;
+  }
+  v.rbox(2.4, 0.3, 1.8, 0, 0.15, 0, WOOD, 0.05);                              // the stage floor
+  for (let i = -3; i <= 3; i++) v.rbox(0.02, 0.01, 1.78, i * 0.33, 0.305, 0, WOOD_D, 0.005);
+  v.rbox(0.8, 0.15, 0.32, 0, 0.075, 1.02, WOOD_D, 0.04);                       // step up
+  v.rbox(2.4, 1.5, 0.12, 0, 1.05, -0.85, CURTAIN, 0.04);                       // curtain at the back, in folds
+  for (let i = 0; i < 9; i++) v.cyl(0.11, 0.11, 1.45, -1.05 + i * 0.26, 1.03, -0.76, i % 2 ? CURTAIN : CURTAIN_L);
+  v.rbox(1.5, 0.36, 0.08, 0, 1.92, -0.74, 0xfff1d8, 0.08);                     // a sign over the stage, with stars
+  [[-0.5, 0xff7fb8], [-0.17, 0x7fd0ff], [0.17, 0xffd24a], [0.5, 0x7ad653]].forEach(([x, c]) => v.ball(0.07, 0.07, 0.03, x, 1.92, -0.69, c));
+  for (const s of [-1, 1]) {
+    v.cyl(0.05, 0.05, 1.8, s * 1.13, 1.1, 0.82, WOOD_D);                       // front posts
+    v.rbox(0.38, 0.55, 0.32, s * 0.82, 0.58, -0.4, 0x3a2f45, 0.05);            // speakers
+    v.cyl(0.12, 0.12, 0.03, s * 0.82, 0.5, -0.23, 0x1d1626, Math.PI / 2, 0, 0);
+    v.cyl(0.06, 0.06, 0.03, s * 0.82, 0.73, -0.23, 0x1d1626, Math.PI / 2, 0, 0);
+  }
+  for (let i = 0; i <= 10; i++) {                                              // string lights between the posts
+    const x = -1.13 + i * 0.226, y = 1.95 - Math.sin(i / 10 * Math.PI) * 0.22;
+    v.ball(0.045, 0.06, 0.045, x, y, 0.82, [0xffd24a, 0xff7fb8, 0x7fd0ff, 0x7ad653][i % 4]);
+  }
+  v.cyl(0.015, 0.015, 0.9, 0.4, 0.75, 0.35, 0x9aa0a6);                        // a mic on a stand
+  v.cyl(0.12, 0.14, 0.03, 0.4, 0.31, 0.35, 0x9aa0a6);
+  v.ball(0.05, 0.065, 0.05, 0.4, 1.23, 0.35, 0x3a2f45);
+  g.add(v.mesh());
 }
 
 function buildBunk() {
@@ -2688,6 +2735,7 @@ function tapFarm(x, y) {
   const w = farm.walkers.find(w => hit(w.m.group));
   if (w) { w.hop = 0.5; sfx.hop(w.id); return; }
   if (hit(farm.pieces.bunk.group)) { openBunk(); return; }
+  if (hit(farm.pieces.stage.group)) { stageAct(); return; }
   if (hit(farm.pieces.pond.group)) openPond();
 }
 // Stop the page itself from scrolling or bouncing, but let panels (pickers, settings) scroll.
@@ -2721,6 +2769,25 @@ window.addEventListener('keydown', e => {
   if (game.picking && pondOpen()) {   // Fish Pond panel: Enter buys, Escape closes
     if (e.code === 'Enter' || e.code === 'Space') buyPond();
     else if (e.code === 'Escape') closePond();
+    e.preventDefault();
+    return;
+  }
+  if (jam.open) {   // Jam Stage: letter/number rows play, arrows + Enter play a pad, +/- octave, Escape leaves
+    if (e.repeat) { e.preventDefault(); return; }
+    const row = JAM_KEYS.findIndex(r => r.includes(e.code));
+    const nav = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[e.code];
+    if (row >= 0) playPad(row, JAM_KEYS[row].indexOf(e.code));
+    else if (nav) { document.body.classList.add('keys'); jamNav(nav); }
+    else if (e.code === 'Enter' || e.code === 'Space') playFocus();
+    else if (e.code === 'Equal' || e.code === 'NumpadAdd' || e.code === 'BracketRight') setOctave(1);
+    else if (e.code === 'Minus' || e.code === 'NumpadSubtract' || e.code === 'BracketLeft') setOctave(-1);
+    else if (e.code === 'Escape') closeJam();
+    e.preventDefault();
+    return;
+  }
+  if (game.picking && stageOpen()) {   // Jam Stage plot: Enter builds, Escape closes
+    if (e.code === 'Enter' || e.code === 'Space') buildJamStage();
+    else if (e.code === 'Escape') closeStage();
     e.preventDefault();
     return;
   }
@@ -2763,6 +2830,7 @@ window.addEventListener('keydown', e => {
     else if (e.code === 'KeyP') openPond();
     else if (e.code === 'KeyB') openBunk();
     else if (e.code === 'KeyE') enterDecor();
+    else if (e.code === 'KeyJ') stageAct();
     else if (e.code === 'KeyC') openHeroes();
     else if (e.code === 'KeyO') openSettings();
     return;
@@ -2810,12 +2878,13 @@ function step(dt) {
   if (music && Math.abs(game.light - (music.day ?? -1)) > 0.02) { music.day = game.light; music.setDay(game.light); }
   updateFlies(dt);
   hudDay();
-  renderCel();
+  if (!jam.open) renderCel();   // the Jam Stage covers the whole screen and draws its own picture
 }
 function frame(now) {
   pollPad();
   const dt = (now - last) / 1000;
   if (!game.frozen) { watchFrames(dt); step(Math.min(0.05, dt)); }   // frozen: tests drive the frames themselves
+  if (jam.open) jamFrame(Math.min(0.05, dt));
   last = now;
   requestAnimationFrame(frame);
 }
@@ -3221,6 +3290,184 @@ function buyDecor(id) {
 $('shopClose').addEventListener('click', closeShop);
 $('shop').addEventListener('click', e => { if (e.target.id === 'shop') closeShop(); });
 
+// ---------- Jam Stage ----------
+// Build it once (one sunflower); after that a tap opens the jam: your hopper on a
+// little stage with a banjo, and a pad of every hopper's hop sound to play, one row
+// per hopper and one column per note of the game's scale (D pentatonic), so any
+// pads sound good together. + and - shift the octave. Keys 1-6 / Q-Y / A-H / Z-N
+// play the first four rows; a controller moves round the pads with the d-pad.
+const stageOpen = () => $('stage').classList.contains('show');
+function stageAct() { if (farm.stageBuilt) openJam(); else openStage(); }
+function refreshStage() {
+  $('stageCost').textContent = STAGE_COST;
+  $('stageBuy').disabled = game.coins < STAGE_COST;
+  $('stageNeed').textContent = needText(STAGE_COST - game.coins);
+}
+function openStage() {
+  if (game.state !== 'farm') return;
+  closeHeroes(); closePond(); closeBunk();
+  refreshStage();
+  $('stage').classList.add('show');
+  game.picking = true;
+}
+function closeStage() {
+  $('stage').classList.remove('show');
+  game.picking = anyPanel();
+}
+function buildJamStage() {
+  if (farm.stageBuilt) return;
+  if (game.coins < STAGE_COST) { sfx.bump(); return; }
+  game.coins -= STAGE_COST;
+  store.set('bl-coins', game.coins);
+  farm.stageBuilt = true;
+  store.set('bl-stage', true);
+  buildStage();
+  settleWalkers();
+  sfx.upgrade();
+  cheer(farm.pieces.stage.x, farm.pieces.stage.z);
+  hud();
+  closeStage();
+  setTimeout(openJam, 700);   // straight up on stage
+}
+$('stageBuy').addEventListener('click', buildJamStage);
+$('stageClose').addEventListener('click', closeStage);
+$('stage').addEventListener('click', e => { if (e.target.id === 'stage') closeStage(); });
+
+const SCALE = [1, 1.1225, 1.2599, 1.4983, 1.6818, 2];   // D E F# A B D
+const JAM_KEYS = ['Digit1 Digit2 Digit3 Digit4 Digit5 Digit6', 'KeyQ KeyW KeyE KeyR KeyT KeyY', 'KeyA KeyS KeyD KeyF KeyG KeyH', 'KeyZ KeyX KeyC KeyV KeyB KeyN'].map(r => r.split(' '));
+const jam = { open: false, oct: 0, focus: 0, t: 0, kick: 0, r: null, scene: null, cam: null, model: null };
+const jamPads = $('jamPads');
+HEROES.forEach((h, row) => {   // a row: the hopper's picture, then six pads in their colour
+  const face = document.createElement('img');
+  face.className = 'jamFace cutout';
+  face.alt = '';
+  face.src = shots.cards[row];
+  jamPads.append(face);
+  SCALE.forEach((_, col) => {
+    const pad = document.createElement('button');
+    pad.className = 'pad' + (col === 0 || col === 5 ? ' root' : '');
+    pad.style.setProperty('--c', h.pad);
+    pad.dataset.row = row;
+    pad.dataset.col = col;
+    pad.addEventListener('pointerdown', e => { e.preventDefault(); playPad(row, col); });
+    pad.addEventListener('click', e => { if (e.detail === 0) playPad(row, col); });   // Enter / Space on a focused pad
+    jamPads.append(pad);
+  });
+});
+const padAt = (row, col) => jamPads.querySelector(`.pad[data-row="${row}"][data-col="${col}"]`);
+function playPad(row, col) {
+  sfx.ensure();
+  const h = HEROES[row];
+  sfx.voice(h.id, 293.66 * SCALE[col] * 2 ** jam.oct);
+  const pad = padAt(row, col);
+  pad.classList.remove('hit'); void pad.offsetWidth; pad.classList.add('hit');
+  jam.kick = 1;   // the hopper bounces to every note
+  const note = document.createElement('span');   // and a note floats up off the stage
+  note.className = 'jamNote';
+  note.textContent = pick(['♪', '♫', '♩', '♬']);
+  note.style.color = h.pad;
+  note.style.left = (12 + Math.random() * 76) + '%';
+  $('jamNotes').append(note);
+  setTimeout(() => note.remove(), 1400);
+}
+function setOctave(d) {
+  jam.oct = clamp(jam.oct + d, -1, 2);
+  $('octN').textContent = (jam.oct > 0 ? '+' : '') + jam.oct;
+  $('octUp').disabled = jam.oct >= 2;
+  $('octDown').disabled = jam.oct <= -1;
+  sfx.voice(heroId, 293.66 * 2 ** jam.oct);   // hear where you are
+}
+// A banjo: round drum with a cream head, a long neck, four strings.
+function banjoMesh() {
+  const v = new VB(0.8), WOOD = 0x9c6b3c;
+  v.cyl(0.14, 0.14, 0.05, 0, 0, 0, 0xfff4e0, Math.PI / 2, 0, 0);
+  v.torus(0.14, 0.028, Math.PI * 2, 0, 0, 0, WOOD);
+  v.rbox(0.06, 0.52, 0.035, 0, 0.38, -0.005, 0x7a4a1c, 0.012);
+  v.rbox(0.09, 0.12, 0.04, 0, 0.68, -0.005, 0x5a3420, 0.02);
+  for (const s of [-1, 1]) for (const y of [0.64, 0.71]) v.ball(0.016, 0.016, 0.016, s * 0.06, y, -0.005, 0xfff1d8);
+  for (const x of [-0.018, -0.006, 0.006, 0.018]) v.cyl(0.003, 0.003, 0.72, x, 0.27, -0.03, 0xe8e8f0);
+  v.rbox(0.07, 0.02, 0.02, 0, -0.04, -0.035, WOOD, 0.005);
+  const m = v.mesh();
+  m.position.set(0.02, 0.4, -0.24);   // across the chest
+  m.rotation.z = -0.85;
+  return m;
+}
+function jamSetup() {
+  if (jam.r) return;
+  jam.r = new THREE.WebGLRenderer({ canvas: $('jamCanvas'), alpha: true, antialias: true });
+  jam.scene = new THREE.Scene();
+  jam.scene.add(new THREE.HemisphereLight(0xfff4ec, 0x7d6fa8, 1.4));
+  const key = new THREE.DirectionalLight(0xfff3dc, 2.4);   // the spotlight from above
+  key.position.set(-1.5, 6, 5);
+  jam.scene.add(key);
+  jam.cam = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
+}
+function jamResize() {
+  const c = $('jamCanvas'), w = c.clientWidth, h = c.clientHeight;
+  if (!w || !h) return;
+  jam.r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  jam.r.setSize(w, h, false);
+  const a = w / h, half = Math.tan(THREE.MathUtils.degToRad(15));
+  const dist = Math.max(1.2 / half, 1.15 / (half * a));   // fit about 2.4 high and 2.3 wide around the hopper and her banjo
+  jam.cam.aspect = a;
+  jam.cam.position.set(0, 1.15, dist);
+  jam.cam.lookAt(0, 0.95, 0);   // feet low in the picture, on the wooden floor
+  jam.cam.updateProjectionMatrix();
+}
+function openJam() {
+  if (game.state !== 'farm' || !farm.stageBuilt) return;
+  closeHeroes(); closePond(); closeBunk(); closeStage();
+  jamSetup();
+  if (jam.model) { jam.scene.remove(jam.model.group); disposeHero(jam.model); }
+  jam.model = hero().build();
+  jam.model.inner.add(banjoMesh());
+  jam.scene.add(jam.model.group);
+  jam.open = true;
+  jam.focus = 0;
+  $('jam').classList.add('show');
+  game.picking = true;
+  music?.setLevel(0.3);   // the soundtrack steps back while you play
+  setOctave(0);
+  jamResize();
+  markJamFocus();
+}
+function closeJam() {
+  if (!jam.open) return;
+  jam.open = false;
+  $('jam').classList.remove('show');
+  game.picking = anyPanel();
+  music?.setLevel(1);
+}
+function jamFrame(dt) {
+  const m = jam.model;
+  if (!m) return;
+  jam.t += dt;
+  jam.kick = Math.max(0, jam.kick - dt * 4);
+  const t = jam.t, k = jam.kick;
+  m.inner.position.y = Math.abs(Math.sin(t * 4.4)) * 0.05 + Math.sin(k * Math.PI) * 0.12;   // bob along, bounce on a note
+  m.inner.scale.set(1 + k * 0.06, 1 - k * 0.08, 1 + k * 0.06);
+  m.inner.rotation.z = Math.sin(t * 2.2) * 0.06;
+  m.group.rotation.y = Math.PI - 0.3 + Math.sin(t * 1.1) * 0.18;
+  const sway = Math.sin(t * 4.4) * 0.2 + k * 0.3;
+  for (const tl of m.tails) tl.rotation[tl.userData.axis || 'z'] = tl.userData.side * sway;
+  jam.r.render(jam.scene, jam.cam);
+}
+function markJamFocus() {
+  const nav = document.body.classList.contains('pad') || document.body.classList.contains('keys');
+  jamPads.querySelectorAll('.pad').forEach((p, i) => p.classList.toggle('focus', nav && i === jam.focus));
+}
+function jamNav(dir) {
+  const n = HEROES.length * SCALE.length, c = SCALE.length;
+  const f = jam.focus + { left: -1, right: 1, up: -c, down: c }[dir];
+  if (f >= 0 && f < n && !((dir === 'left' || dir === 'right') && Math.floor(f / c) !== Math.floor(jam.focus / c))) jam.focus = f;
+  markJamFocus();
+}
+const playFocus = () => playPad(Math.floor(jam.focus / SCALE.length), jam.focus % SCALE.length);
+$('octUp').addEventListener('click', () => setOctave(1));
+$('octDown').addEventListener('click', () => setOctave(-1));
+$('jamClose').addEventListener('click', closeJam);
+window.addEventListener('resize', () => { if (jam.open) jamResize(); });
+
 // ---------- settings (from the farm only) ----------
 // Language, music and effects volume, the road's view angle, and the art style.
 // With a controller or arrow keys: up/down picks a row, left/right changes it.
@@ -3300,6 +3547,7 @@ function applyLang() {
   if (pondOpen()) refreshPond();
   if (bunkOpen()) refreshBunk();
   if (shopOpen()) refreshShop();
+  if (stageOpen()) refreshStage();
   if (settingsOpen()) renderSettings();
 }
 function openSettings() {
@@ -3391,6 +3639,19 @@ function pollPad() {
     if (pressed(1) || pick) closePond();
     return;
   }
+  if (jam.open) {
+    if (dir) jamNav(dir);
+    if (pressed(0) || pressed(2) || pressed(3)) playFocus();
+    if (pressed(5)) setOctave(1);
+    if (pressed(4)) setOctave(-1);
+    if (pressed(1) || pressed(8) || pressed(9)) closeJam();
+    return;
+  }
+  if (game.picking && stageOpen()) {
+    if (pressed(0) || pressed(9)) buildJamStage();
+    if (pressed(1)) closeStage();
+    return;
+  }
   if (game.picking && shopOpen()) {
     if (dir) { shopFocus = gridStep([...shopGrid.children], shopFocus, dir); refreshShop(); }
     if (pressed(0) || pressed(9)) buyDecor(DECOR[shopFocus]);
@@ -3421,6 +3682,7 @@ function pollPad() {
     if (pressed(0) || pressed(9)) goRoad();
     else if (pressed(1)) openBunk();
     else if (pressed(5)) enterDecor();     // RB
+    else if (pressed(4)) stageAct();       // LB
     else if (pressed(3)) openHeroes();
     else if (pressed(2)) openPond();
     else if (pressed(8)) openSettings();   // Select / View button

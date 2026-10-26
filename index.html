@@ -138,6 +138,36 @@
   </div>
 </div>
 
+<div id="stage" class="sheet" role="dialog" aria-modal="true" aria-labelledby="stageTitle">
+  <div class="panel pondPanel">
+    <h2 id="stageTitle" data-i18n="jamStage">Jam Stage</h2>
+    <p class="bunkWho" data-i18n="stagePlan">Build a little stage so your hoppers can jam.</p>
+    <button id="stageBuy" class="buyBtn bubble">
+      <span data-i18n="build">Build</span>
+      <span class="price"><svg class="flower" viewBox="0 0 24 24" aria-hidden="true"><g stroke="#3a2442" stroke-width="1.4" stroke-linejoin="round"><path d="M12 1.5l2.6 4.2 4.8-1.2-1.2 4.8 4.3 2.7-4.3 2.7 1.2 4.8-4.8-1.2L12 22.5l-2.6-4.2-4.8 1.2 1.2-4.8L1.5 12l4.3-2.7-1.2-4.8 4.8 1.2z" fill="#ffcc1a"/><circle cx="12" cy="12" r="4.4" fill="#7a4a1c"/></g></svg><span id="stageCost">1</span></span>
+    </button>
+    <p id="stageNeed" class="pondNeed"></p>
+    <button id="stageClose" class="closeBtn bubble" data-i18n-aria="aria.close" aria-label="Close">&#x2715;</button>
+  </div>
+</div>
+
+<div id="jam" role="dialog" aria-modal="true" aria-labelledby="jamTitle">
+  <div class="jamStage">
+    <h2 id="jamTitle" class="pill" data-i18n="jamStage">Jam Stage</h2>
+    <canvas id="jamCanvas"></canvas>
+    <div id="jamNotes" aria-hidden="true"></div>
+  </div>
+  <div class="jamDeck">
+    <div id="jamPads"></div>
+    <div class="octave">
+      <button id="octUp" class="octBtn bubble" data-i18n-aria="aria.octUp" aria-label="Octave up">+</button>
+      <div class="octBox"><span id="octN">0</span><small data-i18n="octave">Octave</small></div>
+      <button id="octDown" class="octBtn bubble" data-i18n-aria="aria.octDown" aria-label="Octave down">&minus;</button>
+    </div>
+  </div>
+  <button id="jamClose" class="closeBtn bubble" data-i18n-aria="aria.close" aria-label="Close">&#x2715;</button>
+</div>
+
 <div id="settings" class="sheet" role="dialog" aria-modal="true" aria-labelledby="setTitle">
   <div class="panel setPanel">
     <h2 id="setTitle" data-i18n="settings">Settings</h2>
