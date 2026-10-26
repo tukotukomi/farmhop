@@ -1197,6 +1197,47 @@ const sfx = (() => {
       const cap = setTimeout(release, 12000);   // never ring forever if a release is missed
       return release;
     },
+    // The Jam Stage drum kit, all synthesised: 0 kick, 1 snare, 2 closed hi-hat,
+    // 3 open hi-hat, 4 clap, 5 low tom, 6 high tom, 7 cowbell.
+    drum(i) {
+      if (!ctx || muted) return;
+      const t = ctx.currentTime;
+      const hit = (type, f0, f1, drop, dur, vol) => {   // a pitched thump that drops
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = type;
+        o.frequency.setValueAtTime(f0, t);
+        o.frequency.exponentialRampToValueAtTime(f1, t + drop);
+        g.gain.setValueAtTime(vol, t);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        o.connect(g).connect(master);
+        o.start(t); o.stop(t + dur + 0.02);
+      };
+      const hiss = (type, freq, q, dur, vol, at = 0) => {   // filtered noise: hats, snare wires, claps
+        const s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+        s.buffer = noiseBuf;
+        f.type = type; f.frequency.value = freq; f.Q.value = q;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.setValueAtTime(vol, t + at);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + at + dur);
+        s.connect(f).connect(g).connect(master);
+        s.start(t, Math.random() * 0.5); s.stop(t + at + dur + 0.02);
+      };
+      if (i === 0) { hit('sine', 165, 42, 0.11, 0.4, 0.95); hiss('lowpass', 3000, 0.7, 0.012, 0.3); }
+      else if (i === 1) { hit('triangle', 210, 165, 0.05, 0.13, 0.35); hiss('bandpass', 2300, 0.8, 0.19, 0.5); }
+      else if (i === 2) hiss('highpass', 7500, 0.7, 0.05, 0.32);
+      else if (i === 3) hiss('highpass', 7000, 0.7, 0.4, 0.26);
+      else if (i === 4) { for (const at of [0, 0.011, 0.022]) hiss('bandpass', 1300, 1.2, 0.03, 0.45, at); hiss('bandpass', 1200, 1, 0.16, 0.32, 0.033); }
+      else if (i === 5) hit('sine', 150, 92, 0.22, 0.36, 0.65);
+      else if (i === 6) hit('sine', 245, 160, 0.17, 0.28, 0.6);
+      else {
+        const f = ctx.createBiquadFilter(), g = ctx.createGain();
+        f.type = 'bandpass'; f.frequency.value = 820; f.Q.value = 1.2;
+        g.gain.setValueAtTime(0.22, t);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+        f.connect(g).connect(master);
+        for (const fr of [545, 815]) { const o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = fr; o.connect(f); o.start(t); o.stop(t + 0.34); }
+      }
+    },
     bump() { tone(220, 150, 0.07, 'square', 0.07); },
     pick() { tone(587, 880, 0.08, 'triangle', 0.07); },
     place() { tone(880, null, 0.05, 'triangle', 0.07); tone(1175, null, 0.12, 'triangle', 0.06, 0.05); },
@@ -2102,6 +2143,7 @@ const PIECES = {
   mailbox: { build: buildMailbox, foot: [-0.35, 0.35, -0.35, 0.35], at: [-3, 6, 0] },
   scarecrow: { build: buildScarecrow, foot: [-0.75, 0.75, -0.45, 0.45], decor: true, price: 10, bg: '#fff1b8' },
   swing: { build: buildSwing, foot: [-1.05, 1.05, -0.9, 0.9], decor: true, price: 10, bg: '#d9f2ff' },
+  drums: { build: buildDrumKit, decor: true, onStage: true, price: 1, bg: '#ffd6ec' },   // sits on the Jam Stage, not in the yard
 };
 const DECOR = Object.keys(PIECES).filter(id => PIECES[id].decor);
 const ownedDecor = new Set(store.get('bl-decor', []).filter(id => DECOR.includes(id)));
@@ -2177,7 +2219,7 @@ function buildFarm() {
   for (let z = B.z0; z <= B.z1 + 1.5; z += 1.4) for (const x of [B.x1 + 1.2, B.x1 + 2.5, B.x1 + 3.9]) for (const sx of [-1, 1]) pick(ALL_TREES)(vb, sx * x + rand(-0.3, 0.3), z + rand(-0.3, 0.3));
   bush(vb, B.x0 - 0.5, 3.4); bush(vb, B.x1 + 0.5, -1.6);
   farm.group.add(vb.mesh());
-  for (const id of Object.keys(PIECES)) if (!PIECES[id].decor || ownedDecor.has(id)) addPiece(id);
+  for (const id of Object.keys(PIECES)) if (!PIECES[id].onStage && (!PIECES[id].decor || ownedDecor.has(id))) addPiece(id);
 }
 
 // farmhouse: cream walls, red gable roof, porch, door and windows, a path to the door
@@ -2310,6 +2352,32 @@ function buildStage() {
   v.cyl(0.015, 0.015, 0.9, 0.4, 0.75, 0.35, 0x9aa0a6);                        // a mic on a stand
   v.cyl(0.12, 0.14, 0.03, 0.4, 0.31, 0.35, 0x9aa0a6);
   v.ball(0.05, 0.065, 0.05, 0.4, 1.23, 0.35, 0x3a2f45);
+  g.add(v.mesh());
+  if (ownedDecor.has('drums')) {   // the drum kit, at the back of the stage between the speakers
+    const kit = new THREE.Group();
+    buildDrumKit(kit);
+    kit.position.set(-0.15, 0.3, -0.3);
+    kit.scale.setScalar(0.85);
+    g.add(kit);
+  }
+}
+// A little red drum kit: bass drum with a star on it, snare, a tom, hi-hat and a crash.
+function buildDrumKit(g) {
+  const v = new VB(0.6), RED = 0xd8473a, HEAD = 0xfff4e0, METAL = 0x9aa0a6, BRASS = 0xe8c45c;
+  v.cyl(0.32, 0.32, 0.3, 0, 0.33, 0, RED, Math.PI / 2, 0, 0);                  // bass drum, facing out
+  v.cyl(0.29, 0.29, 0.02, 0, 0.33, 0.155, HEAD, Math.PI / 2, 0, 0);
+  v.torus(0.31, 0.022, Math.PI * 2, 0, 0.33, 0.16, 0xf4ead8);
+  v.ball(0.07, 0.07, 0.02, 0, 0.33, 0.17, 0xffd24a);
+  v.cyl(0.13, 0.13, 0.13, -0.12, 0.74, 0.04, RED, 0.45, 0, 0);                 // a tom on top
+  v.cyl(0.12, 0.12, 0.01, -0.12, 0.8, 0.07, HEAD, 0.45, 0, 0);
+  v.cyl(0.016, 0.016, 0.5, 0.42, 0.25, 0.18, METAL);                          // snare on its stand
+  v.cyl(0.16, 0.16, 0.12, 0.42, 0.53, 0.18, 0xf4ead8);
+  v.cyl(0.155, 0.155, 0.01, 0.42, 0.595, 0.18, HEAD);
+  v.cyl(0.016, 0.016, 0.85, -0.46, 0.43, 0.16, METAL);                        // hi-hat
+  v.cyl(0.18, 0.18, 0.012, -0.46, 0.85, 0.16, BRASS);
+  v.cyl(0.18, 0.18, 0.012, -0.46, 0.83, 0.16, BRASS);
+  v.cyl(0.016, 0.016, 1.05, 0.38, 0.52, -0.2, METAL);                         // crash cymbal, tipped toward you
+  v.cyl(0.24, 0.24, 0.012, 0.38, 1.05, -0.2, BRASS, 0.3, 0, 0);
   g.add(v.mesh());
 }
 
@@ -2847,7 +2915,10 @@ window.addEventListener('keydown', e => {
     if (e.repeat) { e.preventDefault(); return; }
     setJamInput('keys');
     const row = JAM_KEYS.findIndex(r => r.includes(e.code));
-    if (row >= 0) playPad(row, JAM_KEYS[row].indexOf(e.code), 'k' + e.code);
+    const drum = jam.drums ? +Object.keys(DRUM_KEYS).find(d => DRUM_KEYS[d] === e.code) : NaN;
+    if (e.code === 'Tab') setDrums(!jam.drums);
+    else if (jam.drums) { if (!isNaN(drum)) playDrum(drum); else if (e.code === 'Escape') closeJam(); }
+    else if (row >= 0) playPad(row, JAM_KEYS[row].indexOf(e.code), 'k' + e.code);
     else if (e.code === 'Equal' || e.code === 'NumpadAdd' || e.code === 'BracketRight' || e.code === 'ArrowRight') setOctave(1);
     else if (e.code === 'Minus' || e.code === 'NumpadSubtract' || e.code === 'BracketLeft' || e.code === 'ArrowLeft') setOctave(-1);
     else if (e.code === 'Escape') closeJam();
@@ -3335,6 +3406,7 @@ function closeShop() {
   game.picking = anyPanel();
 }
 function buyDecor(id) {
+  if (ownedDecor.has(id) && PIECES[id].onStage) { closeShop(); return; }
   if (ownedDecor.has(id)) {   // already on the farm: go and pick it up
     closeShop();
     selectPiece(id);
@@ -3347,6 +3419,15 @@ function buyDecor(id) {
   store.set('bl-coins', game.coins);
   ownedDecor.add(id);
   store.set('bl-decor', [...ownedDecor]);
+  if (PIECES[id].onStage) {   // the drum kit goes straight onto the Jam Stage
+    buildStage();
+    hud();
+    sfx.upgrade();
+    const sp = farm.pieces.stage;
+    cheer(sp.x, sp.z);
+    refreshShop(t('drumsHere'));
+    return;
+  }
   const p = addPiece(id, [snap(farmCam.x), snap(farmCam.z - 1.4), 0]);   // the nearest free spot to the middle of the view
   saveLayout();
   settleWalkers();
@@ -3428,6 +3509,54 @@ for (let row = 0; row < JAM_ROWS; row++) SCALE.forEach((_, col) => {
   pad.addEventListener('click', e => { if (e.detail === 0) playPad(row, col); });   // Enter / Space on a focused pad
   jamPads.append(pad);
 });
+// The drum pads: two rows of four. Bottom row kick, snare, closed and open hi-hat;
+// top row clap, low tom, high tom, cowbell. Index = the sfx.drum() sound.
+const DRUM_GRID = [4, 5, 6, 7, 0, 1, 2, 3];   // pad order, top-left first
+const DRUM_KEYS = { 4: 'KeyQ', 5: 'KeyW', 6: 'KeyE', 7: 'KeyR', 0: 'KeyA', 1: 'KeyS', 2: 'KeyD', 3: 'KeyF' };
+const DRUM_BTNS = { 0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 6, 6: 7, 7: 5 };   // drum -> controller button: A B X Y, LB LT RT RB
+const BTN_LABELS = { 0: 'A', 1: 'B', 2: 'X', 3: 'Y', 4: 'LB', 5: 'RB', 6: 'LT', 7: 'RT' };
+const DRUM_COLORS = ['#ff6b6b', '#fff1d8', '#ffd24a', '#ffe68a', '#ff7fb8', '#7fd0ff', '#a6e3ff', '#bd96ff'];
+const drumPads = $('drumPads');
+DRUM_GRID.forEach(d => {
+  const pad = document.createElement('button');
+  pad.className = 'pad drumPad';
+  pad.dataset.drum = d;
+  pad.style.setProperty('--c', DRUM_COLORS[d]);
+  pad.innerHTML = '<span class="dn"></span><span class="k"></span>';
+  pad.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    if (e.pointerType === 'touch') setJamInput('touch');
+    else if (jam.input === 'pad') setJamInput('keys');
+    playDrum(d);
+  });
+  pad.addEventListener('click', e => { if (e.detail === 0) playDrum(d); });
+  drumPads.append(pad);
+});
+function playDrum(d) {
+  sfx.ensure();
+  sfx.drum(d);
+  const pad = drumPads.querySelector(`[data-drum="${d}"]`);
+  pad.classList.remove('hit'); void pad.offsetWidth; pad.classList.add('hit');
+  jam.kick = 1;
+  jam.boom = 1;   // the kit on stage jumps too
+  const note = document.createElement('span');
+  note.className = 'jamNote';
+  note.textContent = pick(['♪', '♫', '✦']);
+  note.style.color = DRUM_COLORS[d];
+  note.style.left = (12 + Math.random() * 76) + '%';
+  $('jamNotes').append(note);
+  setTimeout(() => note.remove(), 1400);
+}
+// Flip between the hopper's own sounds and the drum kit (once the kit is bought).
+function setDrums(on) {
+  jam.drums = on && ownedDecor.has('drums');
+  letGoAll();
+  $('jam').classList.toggle('drums', jam.drums);
+  if (jam.banjo) jam.banjo.visible = !jam.drums;   // the banjo goes down while you drum
+  $('instBtn').setAttribute('aria-label', jam.drums ? t('aria.instHopper', { name: heroName(heroId) }) : t('aria.instDrums'));
+  $('instFace').src = jam.drums ? shots.cards[HEROES.indexOf(hero())] : shots.decor[DECOR.indexOf('drums')];
+}
+$('instBtn').addEventListener('click', () => { sfx.ensure(); setDrums(!jam.drums); });
 const padAt = (row, col) => jamPads.querySelector(`.pad[data-row="${row}"][data-col="${col}"]`);
 const padFreq = (row, col) => 293.66 * SCALE[col] * 2 ** (jam.oct + 1 - row);
 function playPad(row, col, by) {
@@ -3482,8 +3611,14 @@ function markJamHints() {
     p.querySelector('.k').textContent = m === 'keys' ? JAM_KEYS[row][col].slice(3) : m === 'pad' && row === jam.row ? PAD_LABELS[col] : '';
     p.classList.toggle('live', m === 'pad' && row === jam.row);
   });
-  const hints = { keys: ['=', '−', 'Esc', ''], pad: ['▶', '◀', 'Start', 'LT · RT'], touch: ['', '', '', ''] }[m];
-  ['octUp', 'octDown', 'jamClose', 'sustainRow'].forEach((id, i) => { $(id).dataset.hint = hints[i]; });
+  const hints = { keys: ['=', '−', 'Esc', '', 'Tab'], pad: ['▶', '◀', 'Start', 'LT · RT', 'Select'], touch: ['', '', '', '', ''] }[m];
+  ['octUp', 'octDown', 'jamClose', 'sustainRow', 'instBtn'].forEach((id, i) => { $(id).dataset.hint = hints[i]; });
+  const names = t('drumNames');
+  drumPads.querySelectorAll('.pad').forEach(p => {
+    const d = +p.dataset.drum;
+    p.querySelector('.dn').textContent = names[d];
+    p.querySelector('.k').textContent = m === 'keys' ? DRUM_KEYS[d].slice(3) : m === 'pad' ? BTN_LABELS[DRUM_BTNS[d]] : '';
+  });
 }
 // A banjo: round drum with a cream head, a long neck, four strings.// A banjo: round drum with a cream head, a long neck, four strings.
 function banjoMesh() {
@@ -3528,8 +3663,19 @@ function openJam() {
   jamSetup();
   if (jam.model) { jam.scene.remove(jam.model.group); disposeHero(jam.model); }
   jam.model = hero().build();
-  jam.model.inner.add(banjoMesh());
+  jam.banjo = banjoMesh();
+  jam.model.inner.add(jam.banjo);
   jam.scene.add(jam.model.group);
+  if (ownedDecor.has('drums') && !jam.kit) {   // the drum kit stands behind, beside the hopper
+    jam.kit = new THREE.Group();
+    buildDrumKit(jam.kit);
+    jam.kit.position.set(0.74, 0, -0.75);
+    jam.kit.rotation.y = -0.35;
+    jam.kit.scale.setScalar(0.72);
+    jam.scene.add(jam.kit);
+  }
+  $('instBtn').hidden = !ownedDecor.has('drums');
+  setDrums(jam.drums);
   jam.open = true;
   jam.row = 1;
   jamPads.style.setProperty('--c', hero().pad);   // the pads take your hopper's colour
@@ -3553,6 +3699,8 @@ function jamFrame(dt) {
   if (!m) return;
   jam.t += dt;
   jam.kick = Math.max(0, jam.kick - dt * 4);
+  jam.boom = Math.max(0, (jam.boom || 0) - dt * 6);
+  if (jam.kit) jam.kit.scale.set(0.72 + jam.boom * 0.05, 0.72 - jam.boom * 0.04, 0.72 + jam.boom * 0.05);
   const t = jam.t, k = jam.kick;
   m.inner.position.y = Math.abs(Math.sin(t * 4.4)) * 0.05 + Math.sin(k * Math.PI) * 0.12;   // bob along, bounce on a note
   m.inner.scale.set(1 + k * 0.06, 1 - k * 0.08, 1 + k * 0.06);
@@ -3742,6 +3890,12 @@ function pollPad() {
     if (dir || down.some(Boolean)) setJamInput('pad');
     if (dir === 'up' || dir === 'down') { jam.row = clamp(jam.row + (dir === 'down' ? 1 : -1), 0, JAM_ROWS - 1); markJamHints(); }
     if (dir === 'left' || dir === 'right') setOctave(dir === 'right' ? 1 : -1);
+    if (pressed(8) && ownedDecor.has('drums')) { setDrums(!jam.drums); return; }   // Select: drums / hopper
+    if (jam.drums) {
+      for (const d in DRUM_BTNS) if (pressed(DRUM_BTNS[d])) playDrum(+d);
+      if (pressed(9)) closeJam();
+      return;
+    }
     PAD_BTNS.forEach((b, col) => {
       if (pressed(b)) playPad(jam.row, col, 'b' + b);
       if (released(b)) letGo('b' + b);
