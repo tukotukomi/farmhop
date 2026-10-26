@@ -5,6 +5,19 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { createMusic } from './music.js';
+import { STRINGS, LANGS } from './lang.js';
+
+// ---------- language ----------
+// English, Spanish or Mandarin; the device's language picks the first time, Settings after that.
+const guessLang = () => { const n = (navigator.language || 'en').toLowerCase(); return n.startsWith('es') ? 'es' : n.startsWith('zh') ? 'zh' : 'en'; };
+let lang = (() => { try { const v = JSON.parse(localStorage.getItem('bl-lang')); return STRINGS[v] ? v : guessLang(); } catch { return guessLang(); } })();
+// t('death.squash'), t('best', { n: 3 }): falls back to English for anything missing.
+function t(key, vars = {}) {
+  const get = L => key.split('.').reduce((o, k) => (o == null ? o : o[k]), STRINGS[L]);
+  const s = get(lang) ?? get('en') ?? key;
+  return typeof s === 'string' ? s.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '') : s;
+}
+const heroName = id => t('heroes.' + id);
 
 // ---------- tuning ----------
 const COLS = 4;                 // playable columns either side of centre
@@ -15,7 +28,13 @@ const HOP_T = 0.13;             // seconds per hop
 const CAM_OFF = new THREE.Vector3(2.4, 5.6, 7.2); // behind-right, a low 36° look across the fields
 const _feet = new THREE.Vector3();
 // Is a spot on the ground (x, z) below the bottom edge of the screen? Hoppers can't back off-screen.
-const belowScreen = (x, z) => _feet.set(x, 0, z).project(camera).y < -0.92;
+const _view = new THREE.Vector3();
+const belowScreen = (x, z) => {
+  _feet.set(x, 0, z);
+  // The Behind camera follows the hopper back, so there only stepping under or behind it is ruled out.
+  if (camera.isPerspectiveCamera) return _view.copy(_feet).applyMatrix4(camera.matrixWorldInverse).z > -1.5;
+  return _feet.project(camera).y < -0.92;
+};
 const RAINBOW = [0xff4b4b, 0xff9a2e, 0xffd93b, 0x5fd35f, 0x46a6ff, 0x9b6bff];
 const GREENS = [0x5cb83a, 0x4faa38, 0x68c444, 0x55b03f];
 
@@ -53,7 +72,10 @@ renderer.shadowMap.type = THREE.PCFShadowMap;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x2f6e3a);
-const camera = new THREE.OrthographicCamera(-5, 5, 5, -5, -60, 120);
+const orthoCam = new THREE.OrthographicCamera(-5, 5, 5, -5, -60, 120);
+const perspCam = new THREE.PerspectiveCamera(60, 1, 0.3, 80);
+let camera = orthoCam;   // the active camera: orthoCam for the farm, Classic and Low; perspCam for Behind
+const GROUND_BG = scene.background;
 
 const hemi = new THREE.HemisphereLight(0xfff4ec, 0x7d6fa8, 1.15);
 scene.add(hemi);
@@ -93,7 +115,7 @@ const INK = new THREE.Color(0x2b1d33);
 const rtColor = new THREE.WebGLRenderTarget(1, 1, { samples: 4, stencilBuffer: true });
 rtColor.texture.colorSpace = THREE.SRGBColorSpace;
 const rtNormal = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
-rtNormal.depthTexture = new THREE.DepthTexture(1, 1);
+rtNormal.depthTexture = new THREE.DepthTexture(1, 1, THREE.FloatType);   // float depth: precise enough for perspective outlines
 const normalMat = new THREE.MeshNormalMaterial();
 const postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 const postMat = new THREE.ShaderMaterial({
@@ -104,6 +126,8 @@ const postMat = new THREE.ShaderMaterial({
     texel: { value: new THREE.Vector2() },
     texelN: { value: new THREE.Vector2() },
     depthRange: { value: camera.far - camera.near },
+    persp: { value: 0 }, cnear: { value: 0.3 }, cfar: { value: 80 },
+    fadeNear: { value: 20 }, fadeFar: { value: 38 },
     ink: { value: INK },
     inkMix: { value: 0.9 },
     grade: { value: new THREE.Color(1, 1, 1) },   // time-of-day tint over the whole picture
@@ -114,11 +138,18 @@ const postMat = new THREE.ShaderMaterial({
     uniform sampler2D tColor, tNormal, tDepth;
     uniform vec2 texel, texelN;  // silhouette lines vs thinner interior lines
     uniform float depthRange;
+    uniform float persp, cnear, cfar, fadeNear, fadeFar;
     uniform vec3 ink;
     uniform float inkMix, sat;
     uniform vec3 grade;
     varying vec2 vUv;
-    float D(vec2 uv) { return texture2D(tDepth, uv).x * depthRange; }
+    // Orthographic depth is linear, so a flat (even sloped) surface has zero second
+    // difference. With perspective the raw depth buffer is linear in 1/distance, which
+    // keeps that property; the result is rescaled to world units below.
+    float D(vec2 uv) {
+      float d = texture2D(tDepth, uv).x;
+      return persp > 0.5 ? (cfar - d * (cfar - cnear)) / (cnear * cfar) : d * depthRange;
+    }
     vec3 N(vec2 uv) { return texture2D(tNormal, uv).xyz; }
     void main() {
       vec3 col = texture2D(tColor, vUv).rgb;
@@ -131,7 +162,13 @@ const postMat = new THREE.ShaderMaterial({
       vec2 nx = vec2(texelN.x, 0.), ny = vec2(0., texelN.y);
       float ne = max(max(distance(nc, N(vUv + nx)), distance(nc, N(vUv - nx))),
                      max(distance(nc, N(vUv + ny)), distance(nc, N(vUv - ny))));
-      float edge = max(smoothstep(0.04, 0.09, de), smoothstep(0.25, 0.45, ne));
+      float fade = 1.0;
+      if (persp > 0.5) {
+        float L = 1.0 / dc;   // distance from the camera
+        de *= L * L;
+        fade = 1.0 - smoothstep(fadeNear, fadeFar, L);   // far lanes melt into the fog without ink
+      }
+      float edge = max(smoothstep(0.04, 0.09, de), smoothstep(0.25, 0.45, ne)) * fade;
       gl_FragColor = vec4(mix(col, ink, edge * inkMix), 1.);
       #include <colorspace_fragment>
     }`,
@@ -193,10 +230,10 @@ const dayDrain = r => DAY_GAIN * (0.22 + 0.12 * warm(r) + 0.3 * diff(r));
 // Lighting keyframes: daylight, sun colour, sun strength, sky, ground bounce,
 // ambient strength, whole-picture tint, sun height (lower = longer shadows).
 const DAY_KEYS = [
-  [1.0, 0xfff3dc, 1.0, 0xfff4ec, 0x7d6fa8, 1.0, 0xffffff, 12],    // midday
-  [0.45, 0xffcf94, 1.0, 0xffe4c8, 0x8a6fa8, 0.95, 0xfff0dc, 7],    // golden hour
-  [0.2, 0xffd6c4, 0.8, 0xdcc8ff, 0x6a5aa0, 0.9, 0xece4fa, 4],    // dusk: lavender, grass stays green
-  [0.0, 0xa8bcff, 0.5, 0x7088d0, 0x30306a, 0.72, 0x93a8ee, 6],    // night, moonlit blue
+  [1.0, 0xfff3dc, 1.0, 0xfff4ec, 0x7d6fa8, 1.0, 0xffffff, 12, 0xa8dcff],    // midday
+  [0.45, 0xffcf94, 1.0, 0xffe4c8, 0x8a6fa8, 0.95, 0xfff0dc, 7, 0xffd8b0],    // golden hour
+  [0.2, 0xffd6c4, 0.8, 0xdcc8ff, 0x6a5aa0, 0.9, 0xece4fa, 4, 0xcdb6f0],    // dusk: lavender, grass stays green
+  [0.0, 0xa8bcff, 0.5, 0x7088d0, 0x30306a, 0.72, 0x93a8ee, 6, 0x2c3470],    // night, moonlit blue
 ];
 const _ca = new THREE.Color(), _cb = new THREE.Color();
 const mixHex = (a, b, t, out) => out.copy(_ca.setHex(a)).lerp(_cb.setHex(b), t);
@@ -213,6 +250,8 @@ function updateDay() {
   hemi.intensity = look.hemi * lerp(A[5], B[5], t);
   mixHex(A[6], B[6], t, postMat.uniforms.grade.value);
   SUN_OFF.y = lerp(A[7], B[7], t);
+  mixHex(A[8], B[8], t, skyCol);   // the sky behind the Behind view, and its fog
+  fog.color.copy(skyCol);
 }
 
 // Fireflies come out at dusk: little glowing dots drifting around the hopper.
@@ -819,17 +858,25 @@ const GATE_GEO = (() => {
 // ---------- audio (tiny synth, no files) ----------
 let music = null;   // created with the audio context on the first tap
 const sfx = (() => {
-  let ctx = null, master = null, noiseBuf = null;
+  // Signal flow: effects -> master (effects volume) -> out (mute); music -> musicBus (music volume) -> out.
+  let ctx = null, master = null, out = null, musicBus = null, noiseBuf = null;
   let muted = store.get('bl-mute', false);
+  const vol = { music: store.get('bl-vol-music', 0.8), fx: store.get('bl-vol-fx', 0.9) };
   function ensure() {
     if (!ctx) {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return;
       ctx = new AC();
+      out = ctx.createGain();
+      out.gain.value = muted ? 0 : 0.55;
+      out.connect(ctx.destination);
       master = ctx.createGain();
-      master.gain.value = muted ? 0 : 0.55;
-      master.connect(ctx.destination);
-      music = createMusic(ctx, master);   // the farm tune shares the master volume, so mute covers it
+      master.gain.value = vol.fx;
+      master.connect(out);
+      musicBus = ctx.createGain();
+      musicBus.gain.value = vol.music;
+      musicBus.connect(out);
+      music = createMusic(ctx, musicBus);   // the sound button mutes both
       music.start();
       noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
       const d = noiseBuf.getChannelData(0);
@@ -926,8 +973,15 @@ const sfx = (() => {
     toggle() {
       muted = !muted;
       store.set('bl-mute', muted);
-      if (master) master.gain.value = muted ? 0 : 0.55;
+      if (out) out.gain.value = muted ? 0 : 0.55;
       return muted;
+    },
+    get volumes() { return { ...vol }; },
+    setVolume(which, v) {   // which: 'music' or 'fx', v: 0..1
+      vol[which] = v;
+      store.set(which === 'music' ? 'bl-vol-music' : 'bl-vol-fx', v);
+      const bus = which === 'music' ? musicBus : master;
+      if (bus) bus.gain.setTargetAtTime(v, ctx.currentTime, 0.05);
     },
     // Each hopper has its own hop, soft and musical rather than a bright square chirp.
     // The notes walk a D-major pentatonic line (the soundtrack's key), so a run of
@@ -1591,17 +1645,6 @@ function land() {
   if (P.queue) { const q = P.queue; P.queue = null; move(...q); }
 }
 
-const DEATH_MSG = {
-  squash: 'Flattened by a tractor!',
-  bonk: 'Bonked by a cow!',
-  launch: 'Launched by a bull!',
-  splash: "Splash! {name} can't swim!",
-  swept: 'Swept down the creek!',
-  night: 'The sun set on the farming day!',
-  goose: 'Chased off by geese!',
-  harvest: 'Baled up by a combine!',
-  dusted: 'Buzzed by a crop duster!',
-};
 // Which death each moving thing causes, and which animation each death uses.
 const HIT_BY = { bull: 'launch', cow: 'bonk', geese: 'goose', combine: 'harvest', plane: 'dusted' };
 const FLAT = new Set(['squash', 'harvest']), KNOCK = new Set(['bonk', 'goose']), FLY = new Set(['launch', 'dusted']);
@@ -1741,6 +1784,32 @@ function updatePlayer(dt) {
 }
 
 // ---------- camera ----------
+// Three ways to watch the road (Settings > View); the farm always uses the first.
+//   Classic: orthographic, about 36 degrees down, from behind and to the right.
+//   Low:     orthographic, about 20 degrees down, halfway to the ground.
+//   Behind:  a perspective camera just behind the hopper, about 20 degrees down,
+//            with sky above the fields and distant lanes fading into it.
+// lead = how far ahead of the hopper the camera looks; ahead/behind = rows kept loaded.
+const VIEWS = [
+  { ortho: true, off: CAM_OFF, lead: 4, ahead: AHEAD, behind: BEHIND, shadow: 24 },
+  { ortho: true, off: new THREE.Vector3(1.5, 3.0, 8.4), lead: 7, ahead: 28, behind: 30, shadow: 30 },
+  { ortho: false, off: new THREE.Vector3(0, 3.2, 8.4), lead: 5, ahead: 32, behind: 16, shadow: 26, lookY: 0.3 },
+];
+let viewIdx = clamp(store.get('bl-view', 0), 0, 2);
+const activeView = () => game.where === 'road' ? VIEWS[viewIdx] : VIEWS[0];
+const fog = new THREE.Fog(0xa8dcff, 22, 40);
+const skyCol = new THREE.Color(0xa8dcff);
+function useCamera(c) {
+  if (camera === c) return;
+  camera = c;
+  const persp = !!c.isPerspectiveCamera, u = postMat.uniforms;
+  u.persp.value = persp ? 1 : 0;
+  u.cnear.value = c.near;
+  u.cfar.value = c.far;
+  u.depthRange.value = c.far - c.near;
+  scene.fog = persp ? fog : null;
+  scene.background = persp ? skyCol : GROUND_BG;
+}
 function resize() {
   const w = window.innerWidth, h = window.innerHeight, a = w / h;
   renderer.setSize(w, h, false);
@@ -1748,22 +1817,32 @@ function resize() {
   let halfW, halfH;
   if (a < 1) { halfW = 4.3; halfH = halfW / a; }
   else { halfH = 6.2; halfW = Math.min(halfH * a, 11); halfH = halfW / a; }
-  Object.assign(camera, { left: -halfW, right: halfW, top: halfH, bottom: -halfH });
-  camera.updateProjectionMatrix();
+  Object.assign(orthoCam, { left: -halfW, right: halfW, top: halfH, bottom: -halfH });
+  orthoCam.updateProjectionMatrix();
+  perspCam.aspect = a;
+  perspCam.fov = a < 1 ? 78 : 52;   // tall phone screens need a wider lens to see the lanes ahead
+  perspCam.updateProjectionMatrix();
 }
 window.addEventListener('resize', resize);
 
-const _t = new THREE.Vector3();
+const _t = new THREE.Vector3(), _look = new THREE.Vector3();
 function updateCamera(dt) {
+  const V = activeView();
+  useCamera(V.ortho ? orthoCam : perspCam);
   if (game.where === 'farm') _t.set(0, 0, FARM_Z - 1.4);   // the farm: a fixed, framed view
   else {
-    const desired = P.z - 4;
-    if (P.alive && desired < game.camZ) game.camZ += (desired - game.camZ) * Math.min(1, dt * 5);
-    if (P.alive) game.camX += (clamp(P.x, -2.5, 2.5) * 0.6 - game.camX) * Math.min(1, dt * 3);
+    const desired = P.z - V.lead;
+    // Classic and Low only ever move forward; Behind follows the hopper both ways, like a third-person camera.
+    if (P.alive && (desired < game.camZ || !V.ortho)) game.camZ += (desired - game.camZ) * Math.min(1, dt * 5);
+    // Classic and Low drift gently with the hopper; Behind keeps the hopper centred.
+    const follow = V.ortho ? clamp(P.x, -2.5, 2.5) * 0.6 : P.x;
+    if (P.alive) game.camX += (follow - game.camX) * Math.min(1, dt * (V.ortho ? 3 : 6));
     _t.set(game.camX, 0, game.camZ);
   }
-  camera.position.copy(_t).add(CAM_OFF);
-  camera.lookAt(_t);
+  camera.position.copy(_t).add(V.off);
+  _look.copy(_t);
+  _look.y = V.lookY || 0;
+  camera.lookAt(_look);
   if (game.shake > 0.002) {             // the ground rumbles when bulls are about to charge
     camera.position.x += (Math.random() - 0.5) * game.shake * 0.18;
     camera.position.y += (Math.random() - 0.5) * game.shake * 0.18;
@@ -1771,13 +1850,18 @@ function updateCamera(dt) {
   }
   sun.position.copy(_t).add(SUN_OFF);
   sun.target.position.copy(_t);
+  const sc = sun.shadow.camera;
+  if (sc.right !== V.shadow) {
+    Object.assign(sc, { left: -V.shadow, right: V.shadow, top: V.shadow, bottom: -V.shadow });
+    sc.updateProjectionMatrix();
+  }
   camera.updateMatrixWorld();
 }
 
 function ensureLanes() {
-  const camRow = Math.round(-game.camZ);
-  while (genRow <= camRow + AHEAD) addLane(genRow++);
-  for (const lane of [...lanes.values()]) if (lane.r < camRow - BEHIND) removeLane(lane);
+  const V = activeView(), camRow = Math.round(-game.camZ);
+  while (genRow <= camRow + V.ahead) addLane(genRow++);
+  for (const lane of [...lanes.values()]) if (lane.r < camRow - V.behind) removeLane(lane);
 }
 
 // ---------- Betty Lou's farm: the hub between rounds ----------
@@ -1786,8 +1870,7 @@ function ensureLanes() {
 const FARM_Z = 160;
 const FARM_LIGHT = 0.8;   // the farm sits in soft morning light
 // What each Fish Pond level adds. Level n costs n sunflowers (1, 2, 3, ...).
-const POND_STEPS = ['Fish move in', 'Lily pads', 'A little dock', 'Koi', 'Ducks', 'A bigger pond with a stone rim', 'A fountain', 'A frog', 'Lanterns'];
-const pondNext = lvl => POND_STEPS[lvl] || 'Another fish';
+const pondNext = lvl => t('pondSteps')[lvl] || t('pondMore');
 const pondCost = lvl => lvl + 1;
 const POND = new THREE.Vector3(1.3, 0, 1.2);   // pond centre, farm-local
 
@@ -2080,7 +2163,7 @@ function hudDay() {   // slide the sun along the daylight dial
 }
 function hud() {
   $('score').textContent = game.score;
-  $('top').textContent = 'Best ' + game.top;
+  $('top').textContent = t('best', { n: game.top });
   $('coinN').textContent = game.coins;
 }
 
@@ -2098,7 +2181,7 @@ function newWorld() {
   game.today = 0;
   game.record = false;
   game.camX = 0;
-  game.camZ = -4;
+  game.camZ = -VIEWS[viewIdx].lead;
   resetPlayer();
   ensureLanes();
   hud();
@@ -2108,9 +2191,12 @@ function newWorld() {
 // -> dead -> over (the sign) -> (fade home) -> farm.
 function setHint() {
   const pad = document.body.classList.contains('pad');
-  $('hint').innerHTML = game.where === 'farm'
-    ? (pad ? 'Press A to start the day<small>Y: pick a hopper &middot; X: Fish Pond</small>' : 'Start the day<small>Spend sunflowers at the Fish Pond</small>')
-    : (pad ? 'Press A to hop<small>D-pad or stick to move</small>' : 'Tap to hop<small>Swipe to turn &amp; go back</small>');
+  const key = (game.where === 'farm' ? 'hintFarm' : 'hintRoad') + (pad ? 'Pad' : '');
+  const hint = $('hint');
+  hint.textContent = t(key);
+  const small = document.createElement('small');
+  small.textContent = t(key + 'Sub');
+  hint.append(small);
 }
 // Full-screen wipe; `swap` runs while the screen is covered.
 function transition(kind, swapAt, swap) {
@@ -2126,6 +2212,7 @@ function goRoad() {   // sunrise, then onto the road at first light
   game.state = 'sunrise';
   closeHeroes();
   closePond();
+  closeSettings();
   sfx.rooster();
   transition('sunrise', 950, () => {
     newWorld();
@@ -2163,8 +2250,8 @@ function gameOver() {
   music?.setLevel(0.45);   // duck the tune under the sign
   game.state = 'over';
   document.body.classList.add('over');
-  $('overMsg').textContent = (DEATH_MSG[P.death] || 'Oh no!').replace('{name}', hero().name);
-  $('overGain').textContent = game.today === 0 ? 'No sunflowers today' : `${game.today} sunflower${game.today === 1 ? '' : 's'} picked today`;
+  $('overMsg').textContent = t('death.' + (P.death in STRINGS.en.death ? P.death : 'other'), { name: heroName(heroId) });
+  $('overGain').textContent = game.today === 0 ? t('gainNone') : game.today === 1 ? t('gain1') : t('gainN', { n: game.today });
   const over = $('over');
   over.classList.toggle('record', !!game.record);
   over.classList.add('show');
@@ -2200,6 +2287,13 @@ const KEYS = {
 };
 window.addEventListener('keydown', e => {
   sfx.ensure();
+  if (game.picking && settingsOpen()) {   // Settings: arrows change things, Escape or Enter closes
+    const nav = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[e.code];
+    if (nav) { document.body.classList.add('keys'); settingsNav(nav); }
+    else if (e.code === 'Escape' || e.code === 'Enter') closeSettings();
+    e.preventDefault();
+    return;
+  }
   if (game.picking && pondOpen()) {   // Fish Pond panel: Enter buys, Escape closes
     if (e.code === 'Enter' || e.code === 'Space') buyPond();
     else if (e.code === 'Escape') closePond();
@@ -2218,6 +2312,7 @@ window.addEventListener('keydown', e => {
     if (e.code === 'Enter' || e.code === 'Space') { goRoad(); e.preventDefault(); }
     else if (e.code === 'KeyP') openPond();
     else if (e.code === 'KeyC') openHeroes();
+    else if (e.code === 'KeyO') openSettings();
     return;
   }
   if (game.state === 'over' && (e.code === 'Space' || e.code === 'Enter')) { goFarm(); return; }
@@ -2232,14 +2327,6 @@ $('play').addEventListener('click', () => { sfx.ensure(); goFarm(); });
 let lookName = new URLSearchParams(location.search).get('look') || store.get('bl-look', 'cel');
 if (!LOOKS[lookName]) lookName = 'cel';
 applyLook(lookName);
-const lookBtn = $('look');
-lookBtn.classList.toggle('bold', lookName === 'bold');
-lookBtn.addEventListener('click', () => {
-  lookName = lookName === 'bold' ? 'cel' : 'bold';
-  store.set('bl-look', lookName);
-  applyLook(lookName);
-  lookBtn.classList.toggle('bold', lookName === 'bold');
-});
 const soundBtn = $('sound');
 soundBtn.classList.toggle('muted', sfx.muted);
 soundBtn.addEventListener('click', () => { sfx.ensure(); soundBtn.classList.toggle('muted', sfx.toggle()); });
@@ -2319,7 +2406,7 @@ HEROES.forEach((h, i) => {
   card.className = 'heroCard';
   card.dataset.id = h.id;
   card.style.background = h.bg;
-  card.innerHTML = `<img class="cutout" alt="" src="${shots.cards[i]}"><span>${h.name}</span>`;
+  card.innerHTML = `<img class="cutout" alt="" src="${shots.cards[i]}"><span class="heroName">${heroName(h.id)}</span>`;
   card.addEventListener('click', () => pickHero(h.id));
   heroGrid.append(card);
 });
@@ -2363,11 +2450,11 @@ $('pondBtn').addEventListener('click', () => { sfx.ensure(); openPond(); });
 const pondOpen = () => $('pond').classList.contains('show');
 function refreshPond() {
   const cost = pondCost(farm.level), short = cost - game.coins;
-  $('pondLevel').textContent = farm.level === 0 ? 'A muddy little pond' : `Level ${farm.level}`;
+  $('pondLevel').textContent = farm.level === 0 ? t('pondMuddy') : t('pondLevel', { n: farm.level });
   $('pondNext').textContent = pondNext(farm.level);
   $('pondCost').textContent = cost;
   $('pondBuy').disabled = short > 0;
-  $('pondNeed').textContent = short > 0 ? `Pick ${short} more sunflower${short === 1 ? '' : 's'} on the road` : '';
+  $('pondNeed').textContent = short <= 0 ? '' : short === 1 ? t('pondNeed1') : t('pondNeedN', { n: short });
 }
 function openPond() {
   if (game.state !== 'farm') return;
@@ -2388,6 +2475,114 @@ function buyPond() {
 $('pondBuy').addEventListener('click', buyPond);
 $('pondClose').addEventListener('click', closePond);
 $('pond').addEventListener('click', e => { if (e.target.id === 'pond') closePond(); });
+
+// ---------- settings (from the farm only) ----------
+// Language, music and effects volume, the road's view angle, and the art style.
+// With a controller or arrow keys: up/down picks a row, left/right changes it.
+const settingsOpen = () => $('settings').classList.contains('show');
+const SET_ROWS = ['lang', 'music', 'fx', 'view', 'art'];
+let setFocus = 0;
+// Little diagrams for the views: an eye above the ground, looking down at the hopper.
+const VIEW_ICONS = [[30, 4], [34, 11], [10, 14]].map(([ex, ey]) =>
+  '<svg viewBox="0 0 46 28" aria-hidden="true"><path d="M3 24 H43" stroke="#3a2442" stroke-width="2" stroke-linecap="round"/>' +
+  `<path d="M${ex} ${ey} L20 21" stroke="#7d58d6" stroke-width="1.6" stroke-dasharray="2.5 2.5" fill="none"/>` +
+  '<circle cx="20" cy="21" r="2.6" fill="#ff7fb8" stroke="#3a2442" stroke-width="1.2"/>' +
+  `<circle cx="${ex}" cy="${ey}" r="3.6" fill="#fff" stroke="#3a2442" stroke-width="1.5"/><circle cx="${ex - 1}" cy="${ey + 0.6}" r="1.5" fill="#3a2442"/></svg>`);
+function segment(el, labels, current, pick, icons) {
+  el.innerHTML = '';
+  labels.forEach((label, i) => {
+    const b = document.createElement('button');
+    b.className = 'segBtn';
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-checked', String(i === current));
+    b.innerHTML = (icons ? icons[i] : '') + '<span></span>';
+    b.querySelector('span').textContent = label;
+    b.addEventListener('click', () => { sfx.ensure(); pick(i); });
+    el.append(b);
+  });
+}
+function setVolSlider(id, v) {
+  const el = $(id);
+  el.value = Math.round(v * 100);
+  el.style.setProperty('--fill', el.value + '%');
+}
+function renderSettings() {
+  segment($('segLang'), LANGS.map(l => l.label), LANGS.findIndex(l => l.id === lang), i => setLang(LANGS[i].id));
+  segment($('segView'), t('views'), viewIdx, setView, VIEW_ICONS);
+  segment($('segArt'), t('arts'), lookName === 'bold' ? 1 : 0, i => setLook(i ? 'bold' : 'cel'));
+  $('viewNote').textContent = t('viewNotes')[viewIdx] + (lang === 'zh' ? '' : ' ') + t('viewWhen');   // Chinese runs sentences together
+  const v = sfx.volumes;
+  setVolSlider('volMusic', v.music);
+  setVolSlider('volFx', v.fx);
+  const nav = document.body.classList.contains('pad') || document.body.classList.contains('keys');
+  document.querySelectorAll('.setRow').forEach((r, i) => r.classList.toggle('focus', nav && i === setFocus));
+}
+function setLang(id) {
+  lang = id;
+  store.set('bl-lang', id);
+  applyLang();
+}
+function setView(i) {
+  viewIdx = i;
+  store.set('bl-view', i);
+  renderSettings();
+}
+function setLook(name) {
+  lookName = name;
+  store.set('bl-look', name);
+  applyLook(name);
+  renderSettings();
+}
+// Put every visible word into the chosen language.
+function applyLang() {
+  document.documentElement.lang = (LANGS.find(l => l.id === lang) || LANGS[0]).html;
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-aria]').forEach(el => el.setAttribute('aria-label', t(el.dataset.i18nAria)));
+  document.querySelectorAll('.heroCard').forEach(c => { c.querySelector('.heroName').textContent = heroName(c.dataset.id); });
+  hud();
+  setHint();
+  if (pondOpen()) refreshPond();
+  if (settingsOpen()) renderSettings();
+}
+function openSettings() {
+  if (game.state !== 'farm') return;
+  closeHeroes();
+  closePond();
+  setFocus = 0;
+  renderSettings();
+  $('settings').classList.add('show');
+  game.picking = true;
+}
+function closeSettings() {
+  $('settings').classList.remove('show');
+  game.picking = $('heroes').classList.contains('show') || pondOpen();
+}
+function settingsNav(dir) {
+  if (dir === 'up' || dir === 'down') {
+    setFocus = (setFocus + (dir === 'down' ? 1 : -1) + SET_ROWS.length) % SET_ROWS.length;
+    renderSettings();
+    return;
+  }
+  const d = dir === 'right' ? 1 : -1, row = SET_ROWS[setFocus];
+  if (row === 'lang') setLang(LANGS[(LANGS.findIndex(l => l.id === lang) + d + LANGS.length) % LANGS.length].id);
+  else if (row === 'music' || row === 'fx') {
+    sfx.setVolume(row, clamp(Math.round((sfx.volumes[row] + d * 0.1) * 10) / 10, 0, 1));
+    if (row === 'fx') sfx.hop(heroId);
+    renderSettings();
+  } else if (row === 'view') setView((viewIdx + d + VIEWS.length) % VIEWS.length);
+  else setLook(lookName === 'bold' ? 'cel' : 'bold');
+}
+for (const [id, which] of [['volMusic', 'music'], ['volFx', 'fx']]) {
+  $(id).addEventListener('input', e => {
+    sfx.ensure();
+    sfx.setVolume(which, e.target.value / 100);
+    e.target.style.setProperty('--fill', e.target.value + '%');
+  });
+}
+$('volFx').addEventListener('change', () => sfx.hop(heroId));   // hear the new level
+$('gear').addEventListener('click', () => { sfx.ensure(); openSettings(); });
+$('setClose').addEventListener('click', closeSettings);
+$('settings').addEventListener('click', e => { if (e.target.id === 'settings') closeSettings(); });
 
 // ---------- gamepad (for the big TV) ----------
 // Rumble the controller for stampedes; Android phones get a short buzz instead.
@@ -2426,6 +2621,11 @@ function pollPad() {
   if (dir || down.some(Boolean)) { showPadHints(); sfx.ensure(); }
   const pick = pressed(2) || pressed(3);
 
+  if (game.picking && settingsOpen()) {
+    if (dir) settingsNav(dir);
+    if (pressed(1) || pressed(8) || pressed(9)) closeSettings();
+    return;
+  }
   if (game.picking && pondOpen()) {
     if (pressed(0) || pressed(9)) buyPond();
     if (pressed(1) || pick) closePond();
@@ -2441,6 +2641,7 @@ function pollPad() {
     if (pressed(0) || pressed(9)) goRoad();
     else if (pressed(3)) openHeroes();
     else if (pressed(2)) openPond();
+    else if (pressed(8)) openSettings();   // Select / View button
     return;
   }
   if (game.state === 'over') {
@@ -2463,5 +2664,6 @@ placeFarmHero();
 document.body.classList.add('farm', 'show-logo');
 setHint();
 hud();
+applyLang();
 requestAnimationFrame(frame);
 if (new URLSearchParams(location.search).has('debug')) window.__hop = { P, game, lanes, move, step, pollPad, camera, farm, sfx };
