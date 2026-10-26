@@ -996,7 +996,7 @@ const sfx = (() => {
       const d = noiseBuf.getChannelData(0);
       for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     }
-    if (ctx.state === 'suspended') ctx.resume();
+    if (ctx.state !== 'running') ctx.resume();   // 'suspended', or iOS's 'interrupted' after a call or the app going to the background
   }
   function tone(f0, f1, dur, type = 'square', vol = 0.15, delay = 0) {
     if (!ctx || muted) return;
@@ -2690,6 +2690,12 @@ function tapFarm(x, y) {
 // Stop the page itself from scrolling or bouncing, but let panels (pickers, settings) scroll.
 document.addEventListener('touchmove', e => { if (!e.target.closest('.sheet')) e.preventDefault(); }, { passive: false });
 document.addEventListener('gesturestart', e => e.preventDefault());
+// Browsers only let sound start from a tap, click or key press. Any of them, anywhere
+// (panels and drags included), starts or wakes the music; iOS counts the touch ending,
+// not starting, so listen for both. Capture phase so nothing can swallow it first.
+for (const type of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) {
+  window.addEventListener(type, () => sfx.ensure(), { capture: true, passive: true });
+}
 document.addEventListener('contextmenu', e => e.preventDefault());
 
 const KEYS = {
