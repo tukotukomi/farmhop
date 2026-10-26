@@ -74,14 +74,16 @@ button { font: inherit; color: inherit; }
 .heroBtn { --c1: var(--berry); --c2: var(--berry-d); width: 84px; height: 84px; overflow: hidden; }
 .heroBtn img { width: 78px; height: 78px; margin-top: 6px; }
 
-#sound, #gear {
+#sound, #gear, #decorBtn {
   position: fixed; top: calc(env(safe-area-inset-top) + 64px);
   width: 50px; height: 50px; display: none;
 }
 #sound { right: calc(env(safe-area-inset-right) + 16px); }
 #gear { right: calc(env(safe-area-inset-right) + 76px); --c1: var(--lilac); --c2: var(--lilac-d); }
-body.farm #sound, body.over #sound, body.farm #gear { display: grid; }
-#sound svg, #gear svg { width: 28px; height: 28px; }
+#decorBtn { left: calc(env(safe-area-inset-left) + 16px); --c1: var(--leaf); --c2: var(--leaf-d); }   /* under the score, clear of the logo */
+body.farm #sound, body.over #sound, body.farm #gear, body.farm #decorBtn { display: grid; }
+body.farm.decor #sound, body.farm.decor #gear, body.farm.decor #decorBtn { display: none; }
+#sound svg, #gear svg, #decorBtn svg { width: 28px; height: 28px; }
 #sound .x { display: none; }
 #sound.muted .x { display: inline; }
 #sound.muted .wave { display: none; }
@@ -93,6 +95,14 @@ body.farm #sound, body.over #sound, body.farm #gear { display: grid; }
   display: none;
 }
 body.farm #farmBtns { display: flex; }
+/* Decorate mode swaps the farm buttons for shop / done / rotate */
+#decorBar { position: fixed; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom) + 36px); display: none; gap: 18px; }
+body.farm.decor #decorBar { display: flex; }
+body.farm.decor #farmBtns, body.farm.show-logo.decor #title { display: none; }
+.shopBtn { --c1: var(--berry); --c2: var(--berry-d); width: 76px; height: 76px; }
+.rotateBtn { --c1: var(--sky); --c2: #3f9fd8; width: 76px; height: 76px; }
+.shopBtn svg, .rotateBtn svg { width: 44px; height: 44px; }
+#doneBtn svg { width: 56px; height: 56px; margin: 0; }
 .pondBtn { --c1: #8fd8ff; --c2: #3f9fd8; width: 84px; height: 84px; }
 .pondBtn svg { width: 50px; height: 50px; }
 .bunkBtn { --c1: #ffc27a; --c2: #e08a3a; width: 84px; height: 84px; }
@@ -324,21 +334,22 @@ body.pad .heroCard.focus, body.keys .heroCard.focus, .heroCard:focus-visible { o
 .bunkPlan p, .bunkWho { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.3; max-width: 300px; }
 .bunkWho { font-size: 14px; opacity: .75; margin: 0 auto 10px; }
 #bunkHome { width: 100%; }
+#shopGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; width: 100%; }
 #bunkGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 12px; width: 100%; }
 #bunkGrid .heroCard { cursor: default; }
 #bunkGrid .heroCard.locked { cursor: pointer; }
 #bunkGrid .heroCard.locked img { filter: grayscale(.75) brightness(.92); opacity: .8; }
-#bunkGrid .heroCard .tag {                   /* owned: a green check; locked: the price */
+#shopGrid .heroCard .tag, #bunkGrid .heroCard .tag {                   /* owned: a green check; locked: the price */
   position: absolute; top: -12px; right: -10px;
   display: inline-flex; align-items: center; gap: 2px;
   height: 34px; min-width: 34px; box-sizing: border-box; justify-content: center;
   border: 2.5px solid var(--ink); border-radius: 999px; box-shadow: 0 3px 0 var(--ink-soft);
 }
-#bunkGrid .heroCard .tag.check { background: var(--leaf); }
-#bunkGrid .heroCard .tag.check svg { width: 20px; height: 20px; }
-#bunkGrid .heroCard .tag.cost { background: var(--cream); padding: 0 9px 0 3px; font-size: 16px; font-weight: 700; }
-#bunkGrid .heroCard .tag.cost .flower { width: 24px; height: 24px; }
-#bunkGrid .heroCard.short .tag.cost { opacity: .7; }
+:is(#bunkGrid, #shopGrid) .heroCard .tag.check { background: var(--leaf); }
+:is(#bunkGrid, #shopGrid) .heroCard .tag.check svg { width: 20px; height: 20px; }
+:is(#bunkGrid, #shopGrid) .heroCard .tag.cost { background: var(--cream); padding: 0 9px 0 3px; font-size: 16px; font-weight: 700; }
+:is(#bunkGrid, #shopGrid) .heroCard .tag.cost .flower { width: 24px; height: 24px; }
+:is(#bunkGrid, #shopGrid) .heroCard.short .tag.cost { opacity: .7; }
 #bunkGrid .heroCard.yay { animation: yay .5s cubic-bezier(.3, 1.8, .5, 1); }
 
 /* ---------- sunrise wipe (farm -> road) and dusk fade (road -> farm) ---------- */
@@ -431,6 +442,9 @@ body.pad .heroCard.focus, body.keys .heroCard.focus, .heroCard:focus-visible { o
   #sound, #gear { top: calc(env(safe-area-inset-top) + 12px); }
   #sound { right: calc(env(safe-area-inset-right) + 140px); }
   #gear { right: calc(env(safe-area-inset-right) + 200px); }
+  #decorBtn { top: calc(env(safe-area-inset-top) + 12px); left: auto; right: calc(env(safe-area-inset-right) + 260px); }
+  #decorBar { bottom: calc(env(safe-area-inset-bottom) + 14px); }
+  .shopBtn, .rotateBtn { width: 64px; height: 64px; }
   #title { top: calc(env(safe-area-inset-top) + 4px); }
   .logo { transform: rotate(-5deg) scale(.5); }
   .playBtn { width: 84px; height: 84px; }

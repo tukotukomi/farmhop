@@ -55,6 +55,18 @@
   </button>
 </div>
 
+<div id="decorBar" class="btnRow">
+  <button id="shopBtn" class="shopBtn bubble" data-i18n-aria="aria.shop" aria-label="Decorations shop">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9h14l-1.2 10.2a1.5 1.5 0 0 1-1.5 1.3H7.7a1.5 1.5 0 0 1-1.5-1.3z" fill="#fff" stroke="#3a2442" stroke-width="1.5" stroke-linejoin="round"/><path d="M8.5 9V7.5a3.5 3.5 0 0 1 7 0V9" fill="none" stroke="#3a2442" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="14.5" r="2.2" fill="#ffcc1a" stroke="#3a2442" stroke-width="1.2"/></svg>
+  </button>
+  <button id="doneBtn" class="playBtn bubble" data-i18n-aria="aria.done" aria-label="Done">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#3a2442" stroke-width="5.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+  <button id="rotateBtn" class="rotateBtn bubble" data-i18n-aria="aria.rotate" aria-label="Rotate">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.5 12a6.5 6.5 0 1 1-2.1-4.8" fill="none" stroke="#3a2442" stroke-width="4.4" stroke-linecap="round"/><path d="M18.5 12a6.5 6.5 0 1 1-2.1-4.8" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/><path d="M19.6 3.8l-.4 4.8-4.8-.5z" fill="#fff" stroke="#3a2442" stroke-width="1.4" stroke-linejoin="round"/></svg>
+  </button>
+</div>
+
 <div id="over">
   <div class="sign">
     <div id="overMsg"></div>
@@ -109,6 +121,16 @@
   </div>
 </div>
 
+<div id="shop" class="sheet" role="dialog" aria-modal="true" aria-labelledby="shopTitle">
+  <div class="panel bunkPanel">
+    <h2 id="shopTitle" data-i18n="shop">Decorations</h2>
+    <p class="bunkWho" data-i18n="shopWho">Tap something to put it on your farm.</p>
+    <div id="shopGrid"></div>
+    <p id="shopNeed" class="pondNeed"></p>
+    <button id="shopClose" class="closeBtn bubble" data-i18n-aria="aria.close" aria-label="Close">&#x2715;</button>
+  </div>
+</div>
+
 <div id="settings" class="sheet" role="dialog" aria-modal="true" aria-labelledby="setTitle">
   <div class="panel setPanel">
     <h2 id="setTitle" data-i18n="settings">Settings</h2>
@@ -144,6 +166,9 @@
 
 <div id="wipe" aria-hidden="true"><div class="dawn"></div><div class="sun"></div><div class="hills"></div></div>
 
+<button id="decorBtn" class="bubble" data-i18n-aria="aria.decorate" aria-label="Decorate the farm">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.2 10.8l-8 8a1.6 1.6 0 0 0 2.3 2.3l8-8" fill="#c98a4b" stroke="#3a2442" stroke-width="1.5" stroke-linejoin="round"/><path d="M11.5 6.5l3.2-3.2 2 .4 3.6 3.6-3.6 3.6-1.8-1.8-1.6 1.6-2.6-2.6 1.6-1.6z" fill="#c9cfd4" stroke="#3a2442" stroke-width="1.5" stroke-linejoin="round"/></svg>
+</button>
 <button id="gear" class="bubble" data-i18n-aria="aria.settings" aria-label="Settings">
   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 2.5h3.4l.5 2.6 1.6.7 2.2-1.5 2.4 2.4-1.5 2.2.7 1.6 2.6.5v3.4l-2.6.5-.7 1.6 1.5 2.2-2.4 2.4-2.2-1.5-1.6.7-.5 2.6h-3.4l-.5-2.6-1.6-.7-2.2 1.5-2.4-2.4 1.5-2.2-.7-1.6-2.6-.5v-3.4l2.6-.5.7-1.6-1.5-2.2 2.4-2.4 2.2 1.5 1.6-.7z" fill="#fff" stroke="#3a2442" stroke-width="1.5" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.2" fill="#bd96ff" stroke="#3a2442" stroke-width="1.5"/></svg>
 </button>

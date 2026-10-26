@@ -1126,6 +1126,8 @@ const sfx = (() => {
       }
     },
     bump() { tone(220, 150, 0.07, 'square', 0.07); },
+    pick() { tone(587, 880, 0.08, 'triangle', 0.07); },
+    place() { tone(880, null, 0.05, 'triangle', 0.07); tone(1175, null, 0.12, 'triangle', 0.06, 0.05); },
     coin() { tone(988, null, 0.08, 'square', 0.07); tone(1319, null, 0.2, 'square', 0.07, 0.08); },
     squash() { noise(0.3, 0.5, 'lowpass', 700); tone(180, 60, 0.3, 'sawtooth', 0.12); },
     splash() { noise(0.55, 0.45, 'bandpass', 1400); tone(600, 180, 0.25, 'sine', 0.1); },
@@ -1999,83 +2001,203 @@ const FARM_LIGHT = 0.8;   // the farm sits in soft morning light
 // What each Fish Pond level adds. Level n costs n sunflowers (1, 2, 3, ...).
 const pondNext = lvl => t('pondSteps')[lvl] || t('pondMore');
 const pondCost = lvl => lvl + 1;
-const POND = new THREE.Vector3(1.3, 0, 1.2);   // pond centre, farm-local
 
-const farm = { group: new THREE.Group(), pond: new THREE.Group(), fish: [], ducks: [], spray: 0, hero: null, level: store.get('bl-pond', 0) };
+const farm = { group: new THREE.Group(), pieces: {}, fish: [], ducks: [], spray: 0, hero: null, level: store.get('bl-pond', 0) };
 farm.group.position.set(0, 0, FARM_Z);
-farm.group.add(farm.pond);
 // The Bunkhouse: a staked-out plot until it's built, then a log cabin where new hoppers move in.
-const BUNK = new THREE.Vector3(1.15, 0, -3.25);   // centre, farm-local; the door faces the yard
 const BUNK_COST = 10;
-farm.bunk = new THREE.Group();
-farm.bunk.position.copy(BUNK);
-farm.group.add(farm.bunk);
 farm.bunkBuilt = store.get('bl-bunk', false);
 scene.add(farm.group);
 
+// ---------- the farm layout ----------
+// The house, barn, pond, Bunkhouse, sunflower patch, mailbox and any decorations
+// you buy are "pieces": each is its own group, moved and turned in Decorate mode
+// and saved on the device. A piece's footprint is given in its own space, front
+// (+z) toward the camera: `foot` must stay clear of other pieces and inside the
+// fence; `block` (default: foot) is where the hoppers can't walk.
+const FARM_BOUNDS = { x0: -7.2, x1: 7.2, z0: -11, z1: 7.2 };   // inside the fence and trees: twice the old farm's area
+const GRID = 0.5;
+const PIECES = {
+  house: { build: buildHouse, foot: [-1.7, 1.7, -1.4, 4.2], block: [-1.7, 1.7, -1.4, 2.0], at: [-2.5, -7.5, 0] },
+  barn: { build: buildBarn, foot: [-2.05, 1.6, -1.6, 1.95], at: [4, -8.5, 0] },
+  pond: { build: g => { farm.pond = g; buildPond(); }, foot: [-2.8, 2.8, -2.1, 2.1], at: [2, 2, 0], pond: true },   // room for its biggest size
+  bunk: { build: g => { farm.bunk = g; buildBunk(); }, foot: [-1.3, 1.3, -1.1, 1.45], block: [-1.3, 1.3, -1.1, 1.0], at: [0.5, -3.5, 0] },
+  flowers: { build: buildFlowers, foot: [-0.75, 0.75, -0.75, 0.75], at: [-4.5, 2.5, 0] },
+  mailbox: { build: buildMailbox, foot: [-0.35, 0.35, -0.35, 0.35], at: [-3, 6, 0] },
+  scarecrow: { build: buildScarecrow, foot: [-0.75, 0.75, -0.45, 0.45], decor: true, price: 10, bg: '#fff1b8' },
+  swing: { build: buildSwing, foot: [-1.05, 1.05, -0.9, 0.9], decor: true, price: 10, bg: '#d9f2ff' },
+};
+const DECOR = Object.keys(PIECES).filter(id => PIECES[id].decor);
+const ownedDecor = new Set(store.get('bl-decor', []).filter(id => DECOR.includes(id)));
+const savedLayout = store.get('bl-layout', {});
+const snap = v => Math.round(v / GRID) * GRID;
+// A footprint turned r quarter turns (three.js y rotation), as an x0, x1, z0, z1 box.
+function turnRect([x0, x1, z0, z1], r) {
+  return [[x0, x1, z0, z1], [z0, z1, -x1, -x0], [-x1, -x0, -z1, -z0], [-z1, -z0, x0, x1]][r & 3];
+}
+function worldRect(rect, x, z, r) {
+  const [a, b, c, d] = turnRect(rect, r);
+  return [a + x, b + x, c + z, d + z];
+}
+function placeOk(id, x, z, r) {
+  const [a, b, c, d] = worldRect(PIECES[id].foot, x, z, r), B = FARM_BOUNDS;
+  if (a < B.x0 || b > B.x1 || c < B.z0 || d > B.z1) return false;
+  for (const p of Object.values(farm.pieces)) {
+    if (p.id === id) continue;
+    const [e, f, g, h] = worldRect(PIECES[p.id].foot, p.x, p.z, p.r);
+    if (a < f && b > e && c < h && d > g) return false;
+  }
+  return true;
+}
+function findSpot(id, x, z, r) {   // the nearest clear grid spot to (x, z), rings outward
+  for (let k = 0; k <= 36; k++) for (let i = -k; i <= k; i++) for (let j = -k; j <= k; j++) {
+    if (Math.max(Math.abs(i), Math.abs(j)) !== k) continue;
+    const px = snap(x) + i * GRID, pz = snap(z) + j * GRID;
+    if (placeOk(id, px, pz, r)) return [px, pz];
+  }
+  return null;
+}
+function setPiece(p, x, z, r) {
+  Object.assign(p, { x, z, r: r & 3 });
+  p.group.position.x = x;
+  p.group.position.z = z;
+  p.group.rotation.y = p.r * Math.PI / 2;
+}
+function addPiece(id, near) {
+  const p = { id, group: new THREE.Group() };
+  farm.group.add(p.group);
+  p.update = PIECES[id].build(p.group);   // a few pieces return a little animation
+  const saved = savedLayout[id];
+  let [x, z, r] = near || (saved ? [saved.x, saved.z, saved.r] : PIECES[id].at);
+  if (!placeOk(id, x, z, r)) [x, z] = findSpot(id, x, z, r) || [x, z];
+  farm.pieces[id] = p;
+  setPiece(p, x, z, r);
+  return p;
+}
+function saveLayout() {
+  const out = {};
+  for (const p of Object.values(farm.pieces)) out[p.id] = { x: p.x, z: p.z, r: p.r };
+  store.set('bl-layout', out);
+}
+const pieceToFarm = (p, lx, lz) => {   // a point in a piece's own space, in farm space
+  const a = p.r * Math.PI / 2, c = Math.cos(a), s = Math.sin(a);
+  return [p.x + lx * c + lz * s, p.z - lx * s + lz * c];
+};
+
 function buildFarm() {
   const vb = new VB(0.45);
-  const GRASS = 0x9bd85a, PATH = 0xdcc08a, WOOD = 0x9c6b3c;
+  const GRASS = 0x9bd85a, B = FARM_BOUNDS;
   vb.rbox(64, 1, 64, 0, -0.5, 0, GRASS, 0.3);                               // the yard, big enough to zoom out over
-  vb.rbox(1.2, 0.04, 9, -1.1, 0.01, 1.5, PATH, 0.3);                         // path from the porch
-  for (let i = 0; i < 40; i++) vb.cone(0.035, 0.11, rand(-11, 11), 0.045, rand(-12, 10), 0x7cc24a);  // tufts
+  for (let i = 0; i < 80; i++) vb.cone(0.035, 0.11, rand(-12, 12), 0.045, rand(-14, 10), 0x7cc24a);  // tufts
 
-  // farmhouse: cream walls, red gable roof, porch, door and windows
-  const hx = -1.6, hz = -5;
-  vb.rbox(2.8, 1.6, 2.2, hx, 0.8, hz, 0xfff1d8, 0.08);
-  vb.roof(2.6, 3.2, 0.62, hx, 1.6 + 2.6 / Math.sqrt(3) / 2 * 0.62, hz, 0xd8473a);   // sits on the walls
-  vb.cyl(0.14, 0.14, 0.7, hx + 0.8, 2.05, hz - 0.3, 0xb35a3a);                // chimney
-  vb.rbox(0.5, 0.9, 0.06, hx, 0.45, hz + 1.11, 0x8a5a33, 0.05);              // door
-  vb.ball(0.04, 0.04, 0.03, hx + 0.15, 0.45, hz + 1.15, 0xffd23f);
-  for (const s of [-1, 1]) {
-    vb.rbox(0.5, 0.5, 0.06, hx + s * 0.85, 0.95, hz + 1.11, 0xbfe9ff, 0.06);  // windows
-    vb.rbox(0.56, 0.06, 0.08, hx + s * 0.85, 0.68, hz + 1.12, 0xffffff, 0.02);
-    vb.rbox(0.56, 0.12, 0.14, hx + s * 0.85, 0.62, hz + 1.18, 0x8a5a33, 0.03); // flower boxes
-    for (let i = 0; i < 3; i++) vb.ball(0.05, 0.05, 0.05, hx + s * 0.85 + (i - 1) * 0.16, 0.71, hz + 1.2, [0xff6fae, 0xffd93b, 0xb48cff][i]);
+  // fence along the front, trees all round
+  const fz = B.z1 + 0.6, fx = B.x1 + 0.6;
+  for (let x = -Math.floor(fx); x <= Math.floor(fx); x += 1) {
+    vb.cyl(0.05, 0.06, 0.6, x, 0.3, fz, 0xf4ead8);
+    vb.ball(0.06, 0.04, 0.06, x, 0.62, fz, 0xf4ead8);
   }
-  vb.rbox(2.4, 0.12, 0.8, hx, 0.06, hz + 1.5, WOOD, 0.04);                   // porch
-  for (const s of [-1, 1]) vb.cyl(0.05, 0.05, 1.1, hx + s * 1.1, 0.6, hz + 1.85, 0xffffff);
-  vb.rbox(2.5, 0.08, 0.9, hx, 1.18, hz + 1.5, 0xd8473a, 0.03);               // porch roof
+  for (const y of [0.25, 0.48]) vb.rbox(Math.floor(fx) * 2 + 0.2, 0.06, 0.05, 0, y, fz, 0xf4ead8, 0.02);
+  for (let x = -13; x <= 13; x += 1.3) for (const z of [B.z0 - 1.3, B.z0 - 2.9]) pick(ALL_TREES)(vb, x + rand(-0.3, 0.3), z + rand(-0.3, 0.3));
+  for (let z = B.z0; z <= B.z1 + 1.5; z += 1.4) for (const x of [B.x1 + 1.2, B.x1 + 2.5, B.x1 + 3.9]) for (const sx of [-1, 1]) pick(ALL_TREES)(vb, sx * x + rand(-0.3, 0.3), z + rand(-0.3, 0.3));
+  bush(vb, B.x0 - 0.5, 3.4); bush(vb, B.x1 + 0.5, -1.6);
+  farm.group.add(vb.mesh());
+  for (const id of Object.keys(PIECES)) if (!PIECES[id].decor || ownedDecor.has(id)) addPiece(id);
+}
 
-  // red barn with white trim and a hayloft
-  const bx = 3.3, bz = -6;
-  vb.rbox(2.6, 2.0, 2.8, bx, 1.0, bz, 0xc9473a, 0.08);
-  vb.roof(3.0, 3.0, 0.75, bx, 2.0 + 3.0 / Math.sqrt(3) / 2 * 0.75, bz, 0x6e3a3a);
-  vb.rbox(1.1, 1.3, 0.06, bx, 0.65, bz + 1.42, 0xa8352c, 0.04);              // big door
-  for (const s of [-1, 1]) vb.rbox(0.08, 1.6, 0.04, bx, 0.65, bz + 1.46, 0xffffff, 0.02, 0, 0, s * 0.7);   // the X
-  vb.rbox(1.2, 0.08, 0.05, bx, 1.32, bz + 1.45, 0xffffff, 0.02);
-  vb.rbox(0.6, 0.5, 0.06, bx, 1.75, bz + 1.42, 0x5a2a24, 0.05);              // hayloft
-  vb.cyl(0.26, 0.26, 0.5, bx - 1.7, 0.26, bz + 1.6, 0xe8c45c, Math.PI / 2, 0, 0);   // hay bales by the barn
-  vb.cyl(0.26, 0.26, 0.5, bx - 1.6, 0.72, bz + 1.6, 0xe8c45c, Math.PI / 2, 0, 0);
-
-  // sunflower patch and a mailbox
+// farmhouse: cream walls, red gable roof, porch, door and windows, a path to the door
+function buildHouse(g) {
+  const vb = new VB(0.45), WOOD = 0x9c6b3c;
+  vb.rbox(1.0, 0.04, 2.4, 0, 0.01, 3.0, 0xdcc08a, 0.3);                      // path from the porch
+  vb.rbox(2.8, 1.6, 2.2, 0, 0.8, 0, 0xfff1d8, 0.08);
+  vb.roof(2.6, 3.2, 0.62, 0, 1.6 + 2.6 / Math.sqrt(3) / 2 * 0.62, 0, 0xd8473a);   // sits on the walls
+  vb.cyl(0.14, 0.14, 0.7, 0.8, 2.05, -0.3, 0xb35a3a);                       // chimney
+  vb.rbox(0.5, 0.9, 0.06, 0, 0.45, 1.11, 0x8a5a33, 0.05);                   // door
+  vb.ball(0.04, 0.04, 0.03, 0.15, 0.45, 1.15, 0xffd23f);
+  for (const s of [-1, 1]) {
+    vb.rbox(0.5, 0.5, 0.06, s * 0.85, 0.95, 1.11, 0xbfe9ff, 0.06);          // windows
+    vb.rbox(0.56, 0.06, 0.08, s * 0.85, 0.68, 1.12, 0xffffff, 0.02);
+    vb.rbox(0.56, 0.12, 0.14, s * 0.85, 0.62, 1.18, 0x8a5a33, 0.03);        // flower boxes
+    for (let i = 0; i < 3; i++) vb.ball(0.05, 0.05, 0.05, s * 0.85 + (i - 1) * 0.16, 0.71, 1.2, [0xff6fae, 0xffd93b, 0xb48cff][i]);
+  }
+  vb.rbox(2.4, 0.12, 0.8, 0, 0.06, 1.5, WOOD, 0.04);                        // porch
+  for (const s of [-1, 1]) vb.cyl(0.05, 0.05, 1.1, s * 1.1, 0.6, 1.85, 0xffffff);
+  vb.rbox(2.5, 0.08, 0.9, 0, 1.18, 1.5, 0xd8473a, 0.03);                    // porch roof
+  g.add(vb.mesh());
+}
+// red barn with white trim, a hayloft and hay bales
+function buildBarn(g) {
+  const vb = new VB(0.45);
+  vb.rbox(2.6, 2.0, 2.8, 0, 1.0, 0, 0xc9473a, 0.08);
+  vb.roof(3.0, 3.0, 0.75, 0, 2.0 + 3.0 / Math.sqrt(3) / 2 * 0.75, 0, 0x6e3a3a);
+  vb.rbox(1.1, 1.3, 0.06, 0, 0.65, 1.42, 0xa8352c, 0.04);                   // big door
+  for (const s of [-1, 1]) vb.rbox(0.08, 1.6, 0.04, 0, 0.65, 1.46, 0xffffff, 0.02, 0, 0, s * 0.7);   // the X
+  vb.rbox(1.2, 0.08, 0.05, 0, 1.32, 1.45, 0xffffff, 0.02);
+  vb.rbox(0.6, 0.5, 0.06, 0, 1.75, 1.42, 0x5a2a24, 0.05);                   // hayloft
+  vb.cyl(0.26, 0.26, 0.5, -1.7, 0.26, 1.6, 0xe8c45c, Math.PI / 2, 0, 0);
+  vb.cyl(0.26, 0.26, 0.5, -1.6, 0.72, 1.6, 0xe8c45c, Math.PI / 2, 0, 0);
+  g.add(vb.mesh());
+}
+function buildFlowers(g) {   // the sunflower patch: three rows of three
+  const vb = new VB(0.45);
+  vb.rbox(1.4, 0.04, 1.4, 0, 0.01, 0, 0x8a6a3c, 0.2);
   for (let i = 0; i < 9; i++) {
-    const x = -3.6 + (i % 3) * 0.45 + rand(-0.08, 0.08), z = 1.8 + Math.floor(i / 3) * 0.5;
+    const x = ((i % 3) - 1) * 0.45 + rand(-0.06, 0.06), z = (Math.floor(i / 3) - 1) * 0.45;
     vb.cyl(0.02, 0.02, 0.55, x, 0.28, z, 0x3f8f2f);
     vb.cyl(0.13, 0.13, 0.04, x, 0.6, z + 0.02, 0xffc21a, Math.PI / 2, 0, 0);
     vb.cyl(0.06, 0.06, 0.05, x, 0.6, z + 0.04, 0x7a4a1c, Math.PI / 2, 0, 0);
   }
-  vb.cyl(0.04, 0.04, 0.8, -2.3, 0.4, 3.6, WOOD);
-  vb.rbox(0.36, 0.26, 0.24, -2.3, 0.9, 3.6, 0x5bb4ff, 0.1);
-  vb.rbox(0.05, 0.16, 0.04, -2.1, 1.0, 3.6, 0xff4b4b, 0.02);
-
-  // fence along the front, trees all round
-  for (let x = -6; x <= 6; x += 1) {
-    vb.cyl(0.05, 0.06, 0.6, x, 0.3, 5.2, 0xf4ead8);
-    vb.ball(0.06, 0.04, 0.06, x, 0.62, 5.2, 0xf4ead8);
+  g.add(vb.mesh());
+}
+function buildMailbox(g) {
+  const vb = new VB(0.45);
+  vb.cyl(0.04, 0.04, 0.8, 0, 0.4, 0, 0x9c6b3c);
+  vb.rbox(0.36, 0.26, 0.24, 0, 0.9, 0, 0x5bb4ff, 0.1);
+  vb.rbox(0.05, 0.16, 0.04, 0.2, 1.0, 0, 0xff4b4b, 0.02);
+  g.add(vb.mesh());
+}
+// ---------- decorations ----------
+function buildScarecrow(g) {   // straw hat, patched red shirt, a crow on one arm
+  const vb = new VB(0.6), WOOD = 0x9c6b3c, STRAW = 0xe8c45c, SHIRT = 0xd8473a;
+  vb.cyl(0.05, 0.06, 1.5, 0, 0.75, -0.05, WOOD);
+  vb.cyl(0.04, 0.04, 1.3, 0, 1.18, -0.05, WOOD, 0, 0, Math.PI / 2);
+  vb.rbox(0.46, 0.32, 0.26, 0, 0.72, 0, 0x3e6fd8, 0.08);                   // overalls
+  vb.rbox(0.5, 0.42, 0.28, 0, 1.08, 0, SHIRT, 0.1);
+  vb.rbox(0.14, 0.14, 0.03, 0.1, 1.0, 0.145, 0xffd23f, 0.03);              // a patch
+  vb.cyl(0.09, 0.09, 1.0, 0, 1.18, 0, SHIRT, 0, 0, Math.PI / 2);          // sleeves
+  for (const s of [-1, 1]) {
+    vb.cone(0.07, 0.14, s * 0.56, 1.18, 0, STRAW, 0, 0, -s * Math.PI / 2);   // straw hands
+    vb.cone(0.05, 0.14, s * 0.12, 0.52, 0.02, STRAW, Math.PI, 0, 0);         // straw feet
+    vb.ball(0.025, 0.025, 0.015, s * 0.07, 1.53, 0.18, 0x3a2442);            // button eyes
   }
-  for (const y of [0.25, 0.48]) vb.rbox(12.2, 0.06, 0.05, 0, y, 5.2, 0xf4ead8, 0.02);
-  for (let x = -11; x <= 11; x += 1.3) for (const z of [-9.5, -11.5]) pick(ALL_TREES)(vb, x + rand(-0.3, 0.3), z + rand(-0.3, 0.3));
-  for (let z = -8; z <= 8; z += 1.4) for (const x of [-5.6, -6.8, -8.2, 5.8, 7, 8.4]) pick(ALL_TREES)(vb, x + rand(-0.3, 0.3), z + rand(-0.3, 0.3));
-  bush(vb, -3.3, 0); bush(vb, 4.6, 0);
-  const m = vb.mesh();
-  farm.group.add(m);
-  buildPond();
-  buildBunk();
+  vb.ball(0.2, 0.2, 0.19, 0, 1.48, 0, 0xf0dca0);                            // sack head
+  vb.torus(0.06, 0.012, Math.PI, 0, 1.44, 0.18, 0x3a2442, 0, 0, Math.PI);   // stitched smile
+  vb.cone(0.035, 0.08, 0, 1.49, 0.21, 0xff8a2a, Math.PI / 2, 0, 0);          // carrot nose
+  vb.cyl(0.36, 0.36, 0.03, 0, 1.64, 0, STRAW);                              // hat
+  vb.cyl(0.16, 0.2, 0.22, 0, 1.76, 0, STRAW);
+  vb.cyl(0.205, 0.205, 0.05, 0, 1.69, 0, SHIRT);
+  vb.ball(0.08, 0.07, 0.11, 0.42, 1.33, 0, 0x2b2b38);                       // the crow
+  vb.ball(0.055, 0.055, 0.055, 0.42, 1.43, 0.07, 0x2b2b38);
+  vb.cone(0.02, 0.06, 0.42, 1.42, 0.14, 0xffb000, Math.PI / 2, 0, 0);
+  vb.ball(0.012, 0.012, 0.01, 0.45, 1.45, 0.11, 0xffffff);
+  g.add(vb.mesh());
+}
+function buildSwing(g) {   // a wooden A-frame with a pink seat that sways
+  const vb = new VB(0.6), WOOD = 0x9c6b3c;
+  vb.cyl(0.06, 0.06, 2.0, 0, 1.5, 0, WOOD, 0, 0, Math.PI / 2);
+  for (const x of [-0.88, 0.88]) for (const sz of [-1, 1]) vb.cyl(0.05, 0.05, 1.66, x, 0.75, sz * 0.35, WOOD, -sz * 0.437, 0, 0);
+  g.add(vb.mesh());
+  const sv = new VB(0.6);
+  for (const x of [-0.3, 0.3]) sv.cyl(0.012, 0.012, 1.05, x, -0.55, 0, 0xf4ead8);
+  sv.rbox(0.78, 0.07, 0.32, 0, -1.08, 0, 0xff7fb8, 0.03);
+  const seat = sv.mesh();
+  seat.position.y = 1.5;
+  g.add(seat);
+  return t => { seat.rotation.x = Math.sin(t * 1.7) * 0.28; };
 }
 
 function buildBunk() {
   const g = farm.bunk;
+  if (!g) return;
   for (const c of [...g.children]) { g.remove(c); c.geometry?.dispose(); }
   const v = new VB(0.6);
   const LOG = 0xc98a4b, LOG_D = 0xa86c34, END = 0xf0c48a, WOOD = 0x8a5a33;
@@ -2154,7 +2276,6 @@ function buildPond() {
   for (const c of [...g.children]) { g.remove(c); if (c.geometry !== PGEO) c.geometry?.dispose(); }   // PGEO is shared with particles
   farm.fish = []; farm.ducks = [];
   const s = L >= 6 ? 1.3 : 1, rx = 1.7 * s, rz = 1.15 * s;
-  g.position.copy(POND);
   farm.pondR = [rx, rz];
   const v = new VB(0.6);
   v.add(prim('disc', () => new THREE.CylinderGeometry(1, 1, 0.1, 28)), 0xd9c48a, 0, -0.02, 0, 0, 0, 0, rx + 0.18, 1, rz + 0.18);   // sandy edge
@@ -2205,6 +2326,7 @@ function buildPond() {
   if (L >= 5) [1, 0.6, 0.6].forEach((sz, i) => farm.ducks.push({ mesh: duckMesh(sz), ph: -i * 0.35 }));
 }
 
+const _fw = new THREE.Vector3();
 function updateFarm(dt) {
   const t = game.time, [rx, rz] = farm.pondR;
   for (const f of farm.fish) {                     // swim in loops, now and then a little leap
@@ -2216,7 +2338,8 @@ function updateFarm(dt) {
       y += Math.sin(Math.PI * Math.min(1, k)) * 0.35;
       if (k >= 1) {
         f.jump = rand(4, 10);
-        burst(POND.x + f.mesh.position.x, 0.08, FARM_Z + POND.z + f.mesh.position.z, [0xffffff, 0xbfe9ff], 4, 0.5, 2, 0.06, 0.4);
+        f.mesh.getWorldPosition(_fw);
+        burst(_fw.x, 0.08, _fw.z, [0xffffff, 0xbfe9ff], 4, 0.5, 2, 0.06, 0.4);
       }
     }
     f.mesh.position.set(Math.cos(a) * rx * f.r, y, Math.sin(a) * rz * f.r);
@@ -2229,8 +2352,10 @@ function updateFarm(dt) {
   });
   if (farm.level >= 7 && (farm.spray -= dt) < 0) {  // fountain spray
     farm.spray = 0.05;
-    burst(POND.x, 0.65, FARM_Z + POND.z, [0xbfe9ff, 0xffffff], 1, 0.35, 3.2, 0.07, 0.6, true);
+    farm.pond.getWorldPosition(_fw);
+    burst(_fw.x, 0.65, _fw.z, [0xbfe9ff, 0xffffff], 1, 0.35, 3.2, 0.07, 0.6, true);
   }
+  for (const p of Object.values(farm.pieces)) p.update?.(t);
   updateWalkers(dt, t);
 }
 
@@ -2238,13 +2363,28 @@ function updateFarm(dt) {
 // Every unlocked hopper strolls around the yard between rounds:
 // waddling from spot to spot, pausing to look around. The one you'll play as has a
 // sunflower bobbing over its head, and gives a happy hop when picked or back home.
-const YARD = { x0: -4.6, x1: 4.6, z0: -3.0, z1: 4.4 };
-function blockedAt(x, z) {
-  const [rx, rz] = farm.pondR;
-  if (((x - POND.x) / (rx + 0.45)) ** 2 + ((z - POND.z) / (rz + 0.45)) ** 2 < 1) return true;   // the pond
-  if (x > -3.9 && x < -2.5 && z > 1.5 && z < 3.1) return true;                                    // sunflower patch
-  if (Math.abs(x - BUNK.x) < 1.35 && z > BUNK.z - 1.2 && z < BUNK.z + 0.95) return true;          // the Bunkhouse
-  return [[-2.3, 3.6], [-3.3, 0], [4.6, 0]].some(([bx, bz]) => Math.hypot(x - bx, z - bz) < 0.55);  // mailbox, bushes
+const YARD = { x0: FARM_BOUNDS.x0 + 0.3, x1: FARM_BOUNDS.x1 - 0.3, z0: FARM_BOUNDS.z0 + 0.3, z1: FARM_BOUNDS.z1 - 0.3 };
+function blockedAt(x, z) {   // inside any piece (the pond as an oval), with a little room to spare
+  for (const p of Object.values(farm.pieces)) {
+    const def = PIECES[p.id], a = p.r * Math.PI / 2, c = Math.cos(a), s = Math.sin(a);
+    const dx = x - p.x, dz = z - p.z, lx = dx * c - dz * s, lz = dx * s + dz * c;   // into the piece's own space
+    if (def.pond) {
+      const [rx, rz] = farm.pondR;
+      if ((lx / (rx + 0.45)) ** 2 + (lz / (rz + 0.45)) ** 2 < 1) return true;
+      continue;
+    }
+    const [x0, x1, z0, z1] = def.block || def.foot, m = 0.2;
+    if (lx > x0 - m && lx < x1 + m && lz > z0 - m && lz < z1 + m) return true;
+  }
+  return false;
+}
+const freeSpot = w => { do { w.x = rand(YARD.x0, YARD.x1); w.z = rand(YARD.z0, YARD.z1); } while (blockedAt(w.x, w.z)); };
+// After something moves: anyone now inside it steps out, anyone heading through it stops.
+function settleWalkers() {
+  for (const w of farm.walkers || []) {
+    if (blockedAt(w.x, w.z)) { freeSpot(w); w.tx = w.x; w.tz = w.z; }
+    else if (blockedAt(w.tx, w.tz) || !pathClear(w.x, w.z, w.tx, w.tz)) { w.tx = w.x; w.tz = w.z; }
+  }
 }
 function pathClear(ax, az, bx, bz) {
   for (let i = 1; i <= 12; i++) if (blockedAt(lerp(ax, bx, i / 12), lerp(az, bz, i / 12))) return false;
@@ -2272,7 +2412,7 @@ function addWalker(h, at) {
   const m = h.build();
   const w = { id: h.id, m, x: 0, z: 0, tx: 0, tz: 0, wait: rand(0.3, 2.5), ph: rand(0, 6), face: Math.PI + 0.36, hop: 0 };
   if (at) [w.x, w.z] = at;
-  else do { w.x = rand(YARD.x0, YARD.x1); w.z = rand(YARD.z0, YARD.z1); } while (blockedAt(w.x, w.z));
+  else freeSpot(w);
   w.tx = w.x; w.tz = w.z;
   m.group.position.set(w.x, 0, w.z);
   w.top = new THREE.Box3().setFromObject(m.group).max.y;   // where the marker floats
@@ -2341,8 +2481,10 @@ function upgradePond() {
   store.set('bl-pond', farm.level);
   buildPond();
   sfx.upgrade();
-  burst(POND.x, 0.3, FARM_Z + POND.z, [0xffd23f, 0xffffff, 0xff8fc8, 0x5bb4ff], 26, 2.2, 5, 0.09, 0.9);
-  burst(POND.x, 0.1, FARM_Z + POND.z, [0xffffff, 0xbfe9ff], 14, 1.2, 4, 0.12, 0.7, true);
+  farm.pond.getWorldPosition(_fw);
+  burst(_fw.x, 0.3, _fw.z, [0xffd23f, 0xffffff, 0xff8fc8, 0x5bb4ff], 26, 2.2, 5, 0.09, 0.9);
+  burst(_fw.x, 0.1, _fw.z, [0xffffff, 0xbfe9ff], 14, 1.2, 4, 0.12, 0.7, true);
+  settleWalkers();   // a bigger pond might now cover someone
   hud();
   return true;
 }
@@ -2385,7 +2527,7 @@ function newWorld() {
 // -> dead -> over (the sign) -> (fade home) -> farm.
 function setHint() {
   const pad = document.body.classList.contains('pad');
-  const key = (game.where === 'farm' ? 'hintFarm' : 'hintRoad') + (pad ? 'Pad' : '');
+  const key = (decor.on ? 'hintDecor' : game.where === 'farm' ? 'hintFarm' : 'hintRoad') + (pad ? 'Pad' : '');
   const hint = $('hint');
   hint.textContent = t(key);
   const small = document.createElement('small');
@@ -2403,13 +2545,14 @@ function transition(kind, swapAt, swap) {
 }
 function goRoad() {   // sunrise, then onto the road at first light
   if (game.state !== 'farm') return;
+  exitDecor();
   game.state = 'sunrise';
   closeHeroes();
   closePond();
   closeBunk();
   closeSettings();
   sfx.rooster();
-  Object.assign(farmCam, { x: 0, z: 0, zoom: 1 });   // home looks like home again after the round
+  Object.assign(farmCam, { x: 0, z: 0, zoom: FARM_ZOOM0 });   // home looks like home again after the round
   transition('sunrise', 950, () => {
     newWorld();
     game.where = 'road';
@@ -2475,8 +2618,9 @@ window.addEventListener('pointerup', e => {
 window.addEventListener('pointercancel', () => { press = null; P.held = false; });
 
 // ---------- exploring the farm: drag to look around, pinch or scroll to zoom, tap things ----------
-const farmCam = { x: 0, z: 0, zoom: 1 };
-const FARM_PAN = { x0: -5, x1: 5, z0: -6, z1: 4.5 }, FARM_ZOOM = [0.75, 1.7];
+const FARM_ZOOM0 = 0.85;   // the farm starts a little zoomed out: there's a lot of it
+const farmCam = { x: 0, z: 0, zoom: FARM_ZOOM0 };
+const FARM_PAN = { x0: -7, x1: 7, z0: -9.5, z1: 7.5 }, FARM_ZOOM = [0.5, 1.7];
 const touches = new Map();   // pointerId -> {x, y}
 let farmTap = null, pinch = 0;
 const _ray = new THREE.Raycaster(), _ndc = new THREE.Vector2(), GROUND = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -2493,11 +2637,13 @@ function zoomFarm(k) {
 const _a = new THREE.Vector3(), _b = new THREE.Vector3();
 window.addEventListener('pointerdown', e => {
   if (!exploring(e)) return;
+  if (decor.on && !touches.size && decorGrab(e)) return;   // picked up a piece: drag it instead of the view
   touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   farmTap = touches.size === 1 ? { x: e.clientX, y: e.clientY, id: e.pointerId } : null;
   pinch = 0;
 });
 window.addEventListener('pointermove', e => {
+  if (decor.drag && decor.drag.id === e.pointerId) { decorDrag(e); return; }
   const p = touches.get(e.pointerId);
   if (!p || game.state !== 'farm') return;
   if (farmTap && Math.hypot(e.clientX - farmTap.x, e.clientY - farmTap.y) > 10) farmTap = null;   // it's a drag, not a tap
@@ -2516,6 +2662,7 @@ window.addEventListener('pointermove', e => {
   }
 });
 function farmPointerUp(e) {
+  if (decor.drag && decor.drag.id === e.pointerId) { decorDrop(); return; }
   if (!touches.delete(e.pointerId)) return;
   pinch = 0;
   if (!farmTap || farmTap.id !== e.pointerId || e.type !== 'pointerup') return;
@@ -2531,13 +2678,14 @@ window.addEventListener('wheel', e => {
 }, { passive: false });
 // A tap on the pond or the Bunkhouse opens it; a tap on a hopper gets a happy hop.
 function tapFarm(x, y) {
+  if (decor.on) return;
   _ndc.set(x / window.innerWidth * 2 - 1, -(y / window.innerHeight) * 2 + 1);
   _ray.setFromCamera(_ndc, camera);
   const hit = (obj) => _ray.intersectObject(obj, true).length > 0;
   const w = farm.walkers.find(w => hit(w.m.group));
   if (w) { w.hop = 0.5; sfx.hop(w.id); return; }
-  if (hit(farm.bunk)) { openBunk(); return; }
-  if (hit(farm.pond)) openPond();
+  if (hit(farm.pieces.bunk.group)) { openBunk(); return; }
+  if (hit(farm.pieces.pond.group)) openPond();
 }
 // Stop the page itself from scrolling or bouncing, but let panels (pickers, settings) scroll.
 document.addEventListener('touchmove', e => { if (!e.target.closest('.sheet')) e.preventDefault(); }, { passive: false });
@@ -2563,6 +2711,24 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
     return;
   }
+  if (game.picking && shopOpen()) {   // shop: arrows pick, Enter buys, Escape closes
+    const nav = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[e.code];
+    if (nav) { document.body.classList.add('keys'); shopFocus = gridStep([...shopGrid.children], shopFocus, nav); refreshShop(); }
+    else if (e.code === 'Enter' || e.code === 'Space') buyDecor(DECOR[shopFocus]);
+    else if (e.code === 'Escape') closeShop();
+    e.preventDefault();
+    return;
+  }
+  if (decor.on && !game.picking) {   // Decorate: arrows move, Tab/X next, R turns, S shop, Enter/Escape done
+    const nav = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[e.code];
+    if (nav) nudgePiece(nav);
+    else if (e.code === 'Tab' || e.code === 'KeyX') nextPiece();
+    else if (e.code === 'KeyR') rotatePiece();
+    else if (e.code === 'KeyS') openShop();
+    else if (e.code === 'Enter' || e.code === 'Escape') exitDecor();
+    e.preventDefault();
+    return;
+  }
   if (game.picking && bunkOpen()) {   // Bunkhouse: arrows pick a hopper, Enter builds or invites
     const nav = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[e.code];
     if (nav) { document.body.classList.add('keys'); bunkNav(nav); }
@@ -2583,6 +2749,7 @@ window.addEventListener('keydown', e => {
     if (e.code === 'Enter' || e.code === 'Space') { goRoad(); e.preventDefault(); }
     else if (e.code === 'KeyP') openPond();
     else if (e.code === 'KeyB') openBunk();
+    else if (e.code === 'KeyE') enterDecor();
     else if (e.code === 'KeyC') openHeroes();
     else if (e.code === 'KeyO') openSettings();
     return;
@@ -2651,11 +2818,11 @@ function renderPortraits() {
   const key = new THREE.DirectionalLight(0xfff3dc, 2.4);
   key.position.set(-2, 5, 6);
   sc.add(key);
-  const shot = (h, size, cy, half, clipBelow) => {
+  const shot = (h, size, cy, half, clipBelow, turn = Math.PI - 0.45) => {
     r.setSize(size, size, false);
     r.clippingPlanes = clipBelow == null ? [] : [new THREE.Plane(new THREE.Vector3(0, 1, 0), -clipBelow)];
     const m = h.build();
-    m.group.rotation.y = Math.PI - 0.45;   // three-quarter view, facing the camera
+    m.group.rotation.y = turn;   // three-quarter view, facing the camera
     sc.add(m.group);
     const cam = new THREE.OrthographicCamera(-half, half, half, -half, 0.1, 50);
     cam.position.set(0, cy + 1.2, 10);
@@ -2666,9 +2833,10 @@ function renderPortraits() {
   };
   const head = shot(HEROES[0], 160, 1.08, 0.72, 0.74);
   const cards = HEROES.map(h => shot(h, 256, 0.8, 0.98));
+  const decor = DECOR.map(id => shot({ build: () => { const group = new THREE.Group(); PIECES[id].build(group); return { group }; } }, 256, 0.9, 1.1, null, -0.45));
   r.dispose();
   r.forceContextLoss();
-  return { head, cards };
+  return { head, cards, decor };
 }
 
 const shots = renderPortraits();
@@ -2817,12 +2985,9 @@ function buildBunkhouse() {
   farm.bunkBuilt = true;
   store.set('bl-bunk', true);
   buildBunk();
-  for (const w of farm.walkers) if (blockedAt(w.x, w.z)) {   // anyone standing on the plot steps aside
-    do { w.x = rand(YARD.x0, YARD.x1); w.z = rand(YARD.z0, YARD.z1); } while (blockedAt(w.x, w.z));
-    w.tx = w.x; w.tz = w.z;
-  }
+  settleWalkers();   // anyone standing on the plot steps aside
   sfx.upgrade();
-  cheer(BUNK.x, BUNK.z);
+  cheer(farm.pieces.bunk.x, farm.pieces.bunk.z);
   hud();
   bunkFocus = Math.max(0, HEROES.findIndex(h => !owned.has(h.id)));
   refreshBunk();
@@ -2836,9 +3001,10 @@ function unlockHero(id) {
   owned.add(id);
   store.set('bl-owned', [...owned].filter(x => !STARTERS.includes(x)));
   heroGrid.querySelector(`[data-id="${id}"]`).hidden = false;
-  const w = addWalker(h, [BUNK.x - 0.3, BUNK.z + 1.15]);   // out the Bunkhouse door, with a happy hop
+  const bp = farm.pieces.bunk;
+  const w = addWalker(h, pieceToFarm(bp, -0.3, 1.55));   // out the Bunkhouse door, with a happy hop
   w.hop = 0.5;
-  w.face = 0;
+  w.face = bp.r * Math.PI / 2;
   w.wait = 1.2;
   sfx.upgrade();
   sfx.hop(id);
@@ -2857,6 +3023,190 @@ $('bunkBtn').addEventListener('click', () => { sfx.ensure(); openBunk(); });
 $('bunkBuy').addEventListener('click', buildBunkhouse);
 $('bunkClose').addEventListener('click', closeBunk);
 $('bunk').addEventListener('click', e => { if (e.target.id === 'bunk') closeBunk(); });
+
+// ---------- Decorate mode ----------
+// Drag things around the farm and turn them; buy decorations in the shop. Everything
+// snaps to a half-tile grid. A green footprint means it fits; red means it won't, and
+// letting go sends it back to its last good spot. Controller: d-pad moves, X picks the
+// next thing, Y turns it, Select opens the shop, A or B is done.
+const decor = { on: false, sel: null, drag: null };
+const footMat = new THREE.MeshBasicMaterial({ color: 0x6bd864, transparent: true, opacity: 0.45, depthWrite: false });
+const footMark = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), footMat);
+footMark.layers.set(GLOW_LAYER);   // no ink outline
+footMark.visible = false;
+farm.group.add(footMark);
+function showFoot() {
+  const p = farm.pieces[decor.sel];
+  footMark.visible = decor.on && !!p;
+  if (!footMark.visible) return;
+  const [a, b, c, d] = worldRect(PIECES[p.id].foot, p.x, p.z, p.r);
+  footMark.position.set((a + b) / 2, 0.05, (c + d) / 2);
+  footMark.scale.set(b - a, 1, d - c);
+  footMat.color.setHex(placeOk(p.id, p.x, p.z, p.r) ? 0x6bd864 : 0xff5a6a);
+}
+function selectPiece(id) {
+  const old = farm.pieces[decor.sel];
+  if (old) old.group.position.y = 0;
+  decor.sel = id;
+  const p = farm.pieces[id];
+  if (p) { p.group.position.y = 0.12; p.good = [p.x, p.z, p.r]; }   // lifted a little while it's picked up
+  showFoot();
+}
+function focusPiece(p) {   // bring it into view (controller users can't drag the camera)
+  farmCam.x = clamp(p.x, FARM_PAN.x0, FARM_PAN.x1);
+  farmCam.z = clamp(p.z + 1.4, FARM_PAN.z0, FARM_PAN.z1);
+}
+function enterDecor() {
+  if (game.state !== 'farm' || decor.on) return;
+  closeHeroes(); closePond(); closeBunk(); closeSettings();
+  decor.on = true;
+  document.body.classList.add('decor');
+  selectPiece(null);
+  setHint();
+}
+function exitDecor() {
+  if (!decor.on) return;
+  const p = farm.pieces[decor.sel];
+  if (p && !placeOk(p.id, p.x, p.z, p.r)) setPiece(p, ...p.good);
+  selectPiece(null);
+  decor.on = false;
+  decor.drag = null;
+  closeShop();
+  document.body.classList.remove('decor');
+  saveLayout();
+  settleWalkers();
+  setHint();
+}
+function pieceAt(x, y) {   // the nearest piece under the finger
+  _ndc.set(x / window.innerWidth * 2 - 1, -(y / window.innerHeight) * 2 + 1);
+  _ray.setFromCamera(_ndc, camera);
+  let best = null, dist = Infinity;
+  for (const p of Object.values(farm.pieces)) {
+    const h = _ray.intersectObject(p.group, true)[0];
+    if (h && h.distance < dist) { dist = h.distance; best = p; }
+  }
+  return best;
+}
+function decorGrab(e) {
+  const p = pieceAt(e.clientX, e.clientY);
+  if (!p || !groundAt(e.clientX, e.clientY, _a)) return false;
+  if (decor.sel !== p.id) { selectPiece(p.id); sfx.pick(); }
+  decor.drag = { id: e.pointerId, ox: p.x - _a.x, oz: p.z - (_a.z - FARM_Z) };   // keep the grab point under the finger
+  return true;
+}
+function decorDrag(e) {
+  const p = farm.pieces[decor.sel];
+  if (!p || !groundAt(e.clientX, e.clientY, _a)) return;
+  const B = FARM_BOUNDS;
+  const x = snap(clamp(_a.x + decor.drag.ox, B.x0, B.x1)), z = snap(clamp(_a.z - FARM_Z + decor.drag.oz, B.z0, B.z1));
+  if (x !== p.x || z !== p.z) { setPiece(p, x, z, p.r); showFoot(); }
+}
+function decorDrop() {
+  decor.drag = null;
+  const p = farm.pieces[decor.sel];
+  if (!p) return;
+  if (placeOk(p.id, p.x, p.z, p.r)) { p.good = [p.x, p.z, p.r]; sfx.place(); }
+  else { setPiece(p, ...p.good); sfx.bump(); }
+  showFoot();
+  settleWalkers();
+}
+function placed(p) {
+  p.good = [p.x, p.z, p.r];
+  sfx.place();
+  showFoot();
+  settleWalkers();
+}
+function rotatePiece() {   // a quarter turn; if it no longer fits there, the nearest spot where it does
+  const p = farm.pieces[decor.sel];
+  if (!p) { sfx.bump(); return; }
+  const r = (p.r + 1) & 3, spot = placeOk(p.id, p.x, p.z, r) ? [p.x, p.z] : findSpot(p.id, p.x, p.z, r);
+  if (!spot) { sfx.bump(); return; }
+  setPiece(p, spot[0], spot[1], r);
+  placed(p);
+}
+function nudgePiece(dir) {   // controller / arrow keys: one grid step, hopping over anything in the way
+  const p = farm.pieces[decor.sel];
+  if (!p) { nextPiece(); return; }
+  const [dx, dz] = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }[dir];
+  for (let k = 1; k <= 16; k++) {
+    const x = p.x + dx * GRID * k, z = p.z + dz * GRID * k;
+    if (placeOk(p.id, x, z, p.r)) { setPiece(p, x, z, p.r); placed(p); focusPiece(p); return; }
+  }
+  sfx.bump();
+}
+function nextPiece() {
+  const ids = Object.keys(farm.pieces), id = ids[(ids.indexOf(decor.sel) + 1) % ids.length];
+  selectPiece(id);
+  focusPiece(farm.pieces[id]);
+  sfx.pick();
+}
+$('decorBtn').addEventListener('click', () => { sfx.ensure(); enterDecor(); });
+$('doneBtn').addEventListener('click', exitDecor);
+$('rotateBtn').addEventListener('click', rotatePiece);
+$('shopBtn').addEventListener('click', () => { sfx.ensure(); openShop(); });
+
+// ---------- Decorations shop ----------
+const shopOpen = () => $('shop').classList.contains('show');
+const shopGrid = $('shopGrid');
+let shopFocus = 0;
+DECOR.forEach((id, i) => {
+  const card = document.createElement('button');
+  card.className = 'heroCard';
+  card.dataset.id = id;
+  card.style.background = PIECES[id].bg;
+  card.innerHTML = `<img class="cutout" alt="" src="${shots.decor[i]}"><span class="heroName"></span><i class="tag"></i>`;
+  card.addEventListener('click', () => { shopFocus = i; buyDecor(id); });
+  shopGrid.append(card);
+});
+function refreshShop(msg) {
+  const nav = document.body.classList.contains('pad') || document.body.classList.contains('keys');
+  [...shopGrid.children].forEach((c, i) => {
+    const id = DECOR[i], have = ownedDecor.has(id), price = PIECES[id].price, name = t('decor.' + id);
+    c.classList.toggle('short', !have && game.coins < price);
+    c.classList.toggle('focus', nav && i === shopFocus);
+    c.querySelector('.heroName').textContent = name;
+    const tag = c.querySelector('.tag');
+    tag.className = 'tag ' + (have ? 'check' : 'cost');
+    tag.innerHTML = have ? CHECK_SVG : FLOWER_SVG + `<span>${price}</span>`;
+    c.setAttribute('aria-label', t(have ? 'aria.ownItem' : 'aria.buyItem', { name, n: price }));
+  });
+  $('shopNeed').textContent = msg ?? '';
+}
+function openShop() {
+  if (!decor.on) return;
+  shopFocus = Math.max(0, DECOR.findIndex(id => !ownedDecor.has(id)));
+  refreshShop();
+  $('shop').classList.add('show');
+  game.picking = true;
+}
+function closeShop() {
+  $('shop').classList.remove('show');
+  game.picking = anyPanel();
+}
+function buyDecor(id) {
+  if (ownedDecor.has(id)) {   // already on the farm: go and pick it up
+    closeShop();
+    selectPiece(id);
+    focusPiece(farm.pieces[id]);
+    return;
+  }
+  const price = PIECES[id].price;
+  if (game.coins < price) { sfx.bump(); refreshShop(needText(price - game.coins)); return; }
+  game.coins -= price;
+  store.set('bl-coins', game.coins);
+  ownedDecor.add(id);
+  store.set('bl-decor', [...ownedDecor]);
+  const p = addPiece(id, [snap(farmCam.x), snap(farmCam.z - 1.4), 0]);   // the nearest free spot to the middle of the view
+  saveLayout();
+  settleWalkers();
+  hud();
+  sfx.upgrade();
+  cheer(p.x, p.z);
+  closeShop();
+  selectPiece(id);
+}
+$('shopClose').addEventListener('click', closeShop);
+$('shop').addEventListener('click', e => { if (e.target.id === 'shop') closeShop(); });
 
 // ---------- settings (from the farm only) ----------
 // Language, music and effects volume, the road's view angle, and the art style.
@@ -2931,11 +3281,12 @@ function applyLang() {
   document.documentElement.lang = (LANGS.find(l => l.id === lang) || LANGS[0]).html;
   document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
   document.querySelectorAll('[data-i18n-aria]').forEach(el => el.setAttribute('aria-label', t(el.dataset.i18nAria)));
-  document.querySelectorAll('.heroCard').forEach(c => { c.querySelector('.heroName').textContent = heroName(c.dataset.id); });
+  document.querySelectorAll('#heroGrid .heroCard, #bunkGrid .heroCard').forEach(c => { c.querySelector('.heroName').textContent = heroName(c.dataset.id); });
   hud();
   setHint();
   if (pondOpen()) refreshPond();
   if (bunkOpen()) refreshBunk();
+  if (shopOpen()) refreshShop();
   if (settingsOpen()) renderSettings();
 }
 function openSettings() {
@@ -3027,6 +3378,20 @@ function pollPad() {
     if (pressed(1) || pick) closePond();
     return;
   }
+  if (game.picking && shopOpen()) {
+    if (dir) { shopFocus = gridStep([...shopGrid.children], shopFocus, dir); refreshShop(); }
+    if (pressed(0) || pressed(9)) buyDecor(DECOR[shopFocus]);
+    if (pressed(1) || pressed(8)) closeShop();
+    return;
+  }
+  if (decor.on && !game.picking) {
+    if (dir) nudgePiece(dir);
+    if (pressed(2)) nextPiece();
+    if (pressed(3)) rotatePiece();
+    if (pressed(8)) openShop();
+    if (pressed(0) || pressed(1) || pressed(9)) exitDecor();
+    return;
+  }
   if (game.picking && bunkOpen()) {
     if (dir) bunkNav(dir);
     if (pressed(0) || pressed(9)) bunkAct();
@@ -3042,6 +3407,7 @@ function pollPad() {
   if (game.state === 'farm') {          // A or Start: start the day; Y: hoppers; X: Fish Pond; B: Bunkhouse
     if (pressed(0) || pressed(9)) goRoad();
     else if (pressed(1)) openBunk();
+    else if (pressed(5)) enterDecor();     // RB
     else if (pressed(3)) openHeroes();
     else if (pressed(2)) openPond();
     else if (pressed(8)) openSettings();   // Select / View button
