@@ -1012,7 +1012,8 @@ const sfx = (() => {
     o.stop(t + dur + 0.02);
   }
   // ---- hop voices ----
-  const HOP_TUNE = [587.3, 659.3, 740, 880, 987.8, 880, 740, 659.3];   // D E F# A B A F# E
+  // Two octaves of D pentatonic: climbs from the low D up to the high B, then walks back down.
+  const HOP_TUNE = [293.7, 329.6, 370, 440, 493.9, 587.3, 659.3, 740, 880, 987.8, 880, 740, 659.3, 587.3, 493.9, 440, 370, 329.6];
   let hopStep = 0, pulse = null;
   function env(g, t, vol, dur, attack = 0.004) {
     g.gain.setValueAtTime(0.0001, t);
