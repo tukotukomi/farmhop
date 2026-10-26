@@ -1029,14 +1029,17 @@ const sfx = (() => {
     o.connect(g).connect(master);
     o.start(t); o.stop(t + dur + 0.02);
   }
-  function pluck(f, t, dur, vol) {                             // thin pulse, bright attack that mellows: banjo-ish
+  function pulseWave() {                                       // a thin pulse: the banjo-ish colour
     if (!pulse) {
       const k = 32, re = new Float32Array(k), im = new Float32Array(k);
       for (let i = 1; i < k; i++) im[i] = (2 / (i * Math.PI)) * Math.sin(i * Math.PI * 0.2);
       pulse = ctx.createPeriodicWave(re, im);
     }
+    return pulse;
+  }
+  function pluck(f, t, dur, vol) {                             // thin pulse, bright attack that mellows: banjo-ish
     const o = ctx.createOscillator(), f1 = ctx.createBiquadFilter(), g = ctx.createGain();
-    o.setPeriodicWave(pulse);
+    o.setPeriodicWave(pulseWave());
     o.frequency.value = f;
     f1.type = 'lowpass';
     f1.frequency.setValueAtTime(5000, t);
@@ -1126,6 +1129,48 @@ const sfx = (() => {
         pluck(n, t, 0.28, 0.11);
         pluck(n / 2, t, 0.2, 0.05);
       }
+    },
+    // A soft tone in the hopper's own colour that rings under the hop sound while a
+    // Jam Stage pad is held, then fades out once it's let go. amt (0..1) is the
+    // sustain slider: louder and a longer fade the higher it is. Returns release().
+    hold(id, n, amt) {
+      if (!ctx || muted || amt <= 0) return null;
+      const t = ctx.currentTime, o = ctx.createOscillator(), f1 = ctx.createBiquadFilter(), g = ctx.createGain();
+      const V = { betty: ['pulse', 1, 0], axolotl: ['sine', 1, 5], catstar: ['triangle', 1, 6.5], leafwish: ['triangle', 2, 0], tuko: ['sawtooth', 2, 0] }[id] || ['triangle', 1, 0];
+      const [wave, oct, wob] = V;
+      if (wave === 'pulse') o.setPeriodicWave(pulseWave()); else o.type = wave;
+      o.frequency.value = n * oct;   // octaves of the pad's note, so it stays in key
+      let lfo = null;
+      if (wob) {                      // a little vibrato for the bubbly and springy voices
+        lfo = ctx.createOscillator();
+        const depth = ctx.createGain();
+        lfo.frequency.value = wob;
+        depth.gain.value = n * oct * 0.012;
+        lfo.connect(depth).connect(o.frequency);
+        lfo.start(t);
+      }
+      f1.type = 'lowpass';
+      f1.frequency.value = Math.min(9000, n * oct * 3.5);
+      const lvl = 0.02 + 0.06 * amt;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(lvl, t + 0.05);
+      g.gain.setTargetAtTime(lvl * 0.7, t + 0.05, 0.4);   // settles a touch below the attack
+      o.connect(f1).connect(g).connect(master);
+      o.start(t);
+      let done = false;
+      const release = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(cap);
+        const r = ctx.currentTime, rel = 0.08 + amt * 1.2;
+        g.gain.cancelScheduledValues(r);
+        g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), r);
+        g.gain.exponentialRampToValueAtTime(0.0001, r + rel);
+        o.stop(r + rel + 0.05);
+        lfo?.stop(r + rel + 0.05);
+      };
+      const cap = setTimeout(release, 12000);   // never ring forever if a release is missed
+      return release;
     },
     bump() { tone(220, 150, 0.07, 'square', 0.07); },
     pick() { tone(587, 880, 0.08, 'triangle', 0.07); },
@@ -2739,7 +2784,7 @@ function tapFarm(x, y) {
   if (hit(farm.pieces.pond.group)) openPond();
 }
 // Stop the page itself from scrolling or bouncing, but let panels (pickers, settings) scroll.
-document.addEventListener('touchmove', e => { if (!e.target.closest('.sheet')) e.preventDefault(); }, { passive: false });
+document.addEventListener('touchmove', e => { if (!e.target.closest('.sheet, input[type=range]')) e.preventDefault(); }, { passive: false });
 document.addEventListener('gesturestart', e => e.preventDefault());
 // Browsers only let sound start from a tap, click or key press. Any of them, anywhere
 // (panels and drags included), starts or wakes the music; iOS counts the touch ending,
@@ -2757,6 +2802,7 @@ const KEYS = {
   ArrowUp: [0, 1], KeyW: [0, 1], ArrowDown: [0, -1], KeyS: [0, -1],
   ArrowLeft: [-1, 0], KeyA: [-1, 0], ArrowRight: [1, 0], KeyD: [1, 0],
 };
+window.addEventListener('keyup', e => { if (jam.open) letGo('k' + e.code); });
 window.addEventListener('keydown', e => {
   sfx.ensure();
   if (game.picking && settingsOpen()) {   // Settings: arrows change things, Escape or Enter closes
@@ -2776,7 +2822,7 @@ window.addEventListener('keydown', e => {
     if (e.repeat) { e.preventDefault(); return; }
     setJamInput('keys');
     const row = JAM_KEYS.findIndex(r => r.includes(e.code));
-    if (row >= 0) playPad(row, JAM_KEYS[row].indexOf(e.code));
+    if (row >= 0) playPad(row, JAM_KEYS[row].indexOf(e.code), 'k' + e.code);
     else if (e.code === 'Equal' || e.code === 'NumpadAdd' || e.code === 'BracketRight' || e.code === 'ArrowRight') setOctave(1);
     else if (e.code === 'Minus' || e.code === 'NumpadSubtract' || e.code === 'BracketLeft' || e.code === 'ArrowLeft') setOctave(-1);
     else if (e.code === 'Escape') closeJam();
@@ -3337,7 +3383,8 @@ const SCALE = [1, 1.1225, 1.2599, 1.4983, 1.6818, 2];   // D E F# A B D
 const JAM_ROWS = 3;   // top row an octave up, bottom row an octave down
 const JAM_KEYS = ['KeyQ KeyW KeyE KeyR KeyT KeyY', 'KeyA KeyS KeyD KeyF KeyG KeyH', 'KeyZ KeyX KeyC KeyV KeyB KeyN'].map(r => r.split(' '));
 const PAD_BTNS = [4, 2, 0, 3, 1, 5], PAD_LABELS = ['LB', 'X', 'A', 'Y', 'B', 'RB'];   // controller button for each column
-const jam = { open: false, oct: 0, row: 1, input: null, t: 0, kick: 0, r: null, scene: null, cam: null, model: null };
+const jam = { open: false, oct: 0, row: 1, input: null, t: 0, kick: 0, r: null, scene: null, cam: null, model: null,
+  sustain: store.get('bl-sustain', 0.35), held: new Map() };   // held: finger / key / button -> release()
 const jamPads = $('jamPads');
 for (let row = 0; row < JAM_ROWS; row++) SCALE.forEach((_, col) => {
   const pad = document.createElement('button');
@@ -3349,17 +3396,24 @@ for (let row = 0; row < JAM_ROWS; row++) SCALE.forEach((_, col) => {
     e.preventDefault();
     if (e.pointerType === 'touch') setJamInput('touch');
     else if (jam.input === 'pad') setJamInput('keys');   // a mouse: back to the keyboard hints
-    playPad(row, col);
+    if (pad.hasPointerCapture(e.pointerId)) pad.releasePointerCapture(e.pointerId);   // touch captures; release so sliding off the pad lets the note go
+    playPad(row, col, 'p' + e.pointerId);
   });
+  for (const type of ['pointerup', 'pointercancel', 'pointerleave']) pad.addEventListener(type, e => letGo('p' + e.pointerId));
   pad.addEventListener('click', e => { if (e.detail === 0) playPad(row, col); });   // Enter / Space on a focused pad
   jamPads.append(pad);
 });
 const padAt = (row, col) => jamPads.querySelector(`.pad[data-row="${row}"][data-col="${col}"]`);
 const padFreq = (row, col) => 293.66 * SCALE[col] * 2 ** (jam.oct + 1 - row);
-function playPad(row, col) {
+function playPad(row, col, by) {
   sfx.ensure();
   const h = hero();
   sfx.voice(h.id, padFreq(row, col));
+  if (by) {   // held: the sustain tone rings until it's let go
+    letGo(by);
+    const release = sfx.hold(h.id, padFreq(row, col), jam.sustain);
+    if (release) jam.held.set(by, release);
+  }
   const pad = padAt(row, col);
   pad.classList.remove('hit'); void pad.offsetWidth; pad.classList.add('hit');
   jam.kick = 1;   // the hopper bounces to every note
@@ -3371,6 +3425,17 @@ function playPad(row, col) {
   $('jamNotes').append(note);
   setTimeout(() => note.remove(), 1400);
 }
+function letGo(by) {
+  jam.held.get(by)?.();
+  jam.held.delete(by);
+}
+function letGoAll() { for (const by of [...jam.held.keys()]) letGo(by); }
+function setSustain(v) {
+  jam.sustain = clamp(Math.round(v * 20) / 20, 0, 1);
+  store.set('bl-sustain', jam.sustain);
+  setVolSlider('sustain', jam.sustain);
+}
+$('sustain').addEventListener('input', e => setSustain(e.target.value / 100));
 function setOctave(d) {
   jam.oct = clamp(jam.oct + d, -1, 1);
   $('octN').textContent = (jam.oct > 0 ? '+' : '') + jam.oct;
@@ -3392,8 +3457,8 @@ function markJamHints() {
     p.querySelector('.k').textContent = m === 'keys' ? JAM_KEYS[row][col].slice(3) : m === 'pad' && row === jam.row ? PAD_LABELS[col] : '';
     p.classList.toggle('live', m === 'pad' && row === jam.row);
   });
-  const hints = { keys: ['=', '−', 'Esc'], pad: ['▶', '◀', 'Start'], touch: ['', '', ''] }[m];
-  ['octUp', 'octDown', 'jamClose'].forEach((id, i) => { $(id).dataset.hint = hints[i]; });
+  const hints = { keys: ['=', '−', 'Esc', ''], pad: ['▶', '◀', 'Start', 'LT · RT'], touch: ['', '', '', ''] }[m];
+  ['octUp', 'octDown', 'jamClose', 'sustainRow'].forEach((id, i) => { $(id).dataset.hint = hints[i]; });
 }
 // A banjo: round drum with a cream head, a long neck, four strings.// A banjo: round drum with a cream head, a long neck, four strings.
 function banjoMesh() {
@@ -3446,6 +3511,7 @@ function openJam() {
   $('jam').classList.add('show');
   game.picking = true;
   setOctave(0);
+  setSustain(jam.sustain);
   jamResize();
   jam.input = null;   // start with hints for the last thing used, or what this device has
   setJamInput(document.body.classList.contains('pad') ? 'pad' : document.body.classList.contains('keys') || matchMedia('(hover: hover) and (pointer: fine)').matches ? 'keys' : 'touch');
@@ -3455,6 +3521,7 @@ function closeJam() {
   jam.open = false;
   $('jam').classList.remove('show');
   game.picking = anyPanel();
+  letGoAll();
 }
 function jamFrame(dt) {
   const m = jam.model;
@@ -3650,7 +3717,12 @@ function pollPad() {
     if (dir || down.some(Boolean)) setJamInput('pad');
     if (dir === 'up' || dir === 'down') { jam.row = clamp(jam.row + (dir === 'down' ? 1 : -1), 0, JAM_ROWS - 1); markJamHints(); }
     if (dir === 'left' || dir === 'right') setOctave(dir === 'right' ? 1 : -1);
-    PAD_BTNS.forEach((b, col) => { if (pressed(b)) playPad(jam.row, col); });
+    PAD_BTNS.forEach((b, col) => {
+      if (pressed(b)) playPad(jam.row, col, 'b' + b);
+      if (released(b)) letGo('b' + b);
+    });
+    if (pressed(6)) setSustain(jam.sustain - 0.1);   // LT / RT: less or more sustain
+    if (pressed(7)) setSustain(jam.sustain + 0.1);
     if (pressed(8) || pressed(9)) closeJam();
     return;
   }
@@ -3717,4 +3789,4 @@ setHint();
 hud();
 applyLang();
 requestAnimationFrame(frame);
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam };

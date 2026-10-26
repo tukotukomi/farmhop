@@ -31,7 +31,7 @@ export const STRINGS = {
     heroes: { betty: 'Betty Lou', axolotl: 'Axolotl Princess', catstar: 'Catstar', leafwish: 'LeafWish', tuko: 'Tuko' },
     bunkhouse: 'Bunkhouse', bunkPlan: 'Build a cozy cabin so new hoppers can move in.', build: 'Build',
     bunkWho: 'Tap a hopper to invite them to the farm.', movedIn: '{name} moved in!',
-    jamStage: 'Jam Stage', stagePlan: 'Build a little stage so your hoppers can jam.', octave: 'Octave',
+    jamStage: 'Jam Stage', stagePlan: 'Build a little stage so your hoppers can jam.', octave: 'Octave', sustain: 'Sustain',
     shop: 'Decorations', shopWho: 'Tap something to put it on your farm.', decor: { scarecrow: 'Scarecrow', swing: 'Swing' },
     aria: {
       chooseHopper: 'Choose hopper', startDay: 'Start the day', fishPond: 'Fish Pond', bunkhouse: 'Bunkhouse',
@@ -71,7 +71,7 @@ export const STRINGS = {
     heroes: { betty: 'Betty Lou', axolotl: 'Princesa Ajolote', catstar: 'Catstar', leafwish: 'LeafWish', tuko: 'Tuko' },
     bunkhouse: 'La cabaña', bunkPlan: 'Construye una cabaña acogedora para que lleguen nuevos saltarines.', build: 'Construir',
     bunkWho: 'Toca un saltarín para invitarlo a la granja.', movedIn: '¡{name} se mudó a la granja!',
-    jamStage: 'Escenario', stagePlan: 'Construye un pequeño escenario para que tus saltarines toquen música.', octave: 'Octava',
+    jamStage: 'Escenario', stagePlan: 'Construye un pequeño escenario para que tus saltarines toquen música.', octave: 'Octava', sustain: 'Sostenido',
     shop: 'Decoraciones', shopWho: 'Toca algo para ponerlo en tu granja.', decor: { scarecrow: 'Espantapájaros', swing: 'Columpio' },
     aria: {
       chooseHopper: 'Elegir saltarín', startDay: 'Empezar el día', fishPond: 'Estanque de peces', bunkhouse: 'La cabaña',
@@ -111,7 +111,7 @@ export const STRINGS = {
     heroes: { betty: '贝蒂·露', axolotl: '六角恐龙公主', catstar: '星星猫', leafwish: '许愿叶', tuko: '图科' },
     bunkhouse: '小木屋', bunkPlan: '盖一间温馨的小木屋，让新伙伴搬进来。', build: '建造',
     bunkWho: '点一个伙伴，邀请它来农场。', movedIn: '{name}搬进来了！',
-    jamStage: '音乐舞台', stagePlan: '搭一个小舞台，让伙伴们一起演奏。', octave: '八度',
+    jamStage: '音乐舞台', stagePlan: '搭一个小舞台，让伙伴们一起演奏。', octave: '八度', sustain: '延音',
     shop: '装饰品', shopWho: '点一样东西，把它放到农场里。', decor: { scarecrow: '稻草人', swing: '秋千' },
     aria: {
       chooseHopper: '选择角色', startDay: '开始新的一天', fishPond: '鱼塘', bunkhouse: '小木屋',
