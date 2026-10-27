@@ -7,6 +7,24 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { createMusic } from './music.js';
 import { STRINGS, LANGS } from './lang.js';
 
+// ---------- moving house ----------
+// Each website keeps its own saves, so the old address (tuckermills.com/farmhop)
+// forwards here with the farm in the link: #move=<the bl-* settings as JSON>.
+// It's taken only if this browser has no farm here yet, before anything reads a
+// setting, and the link is tidied up straight away.
+(() => {
+  const m = location.hash.match(/[#&]move=([^&]*)/);
+  if (!m) return;
+  try {
+    const here = Object.keys(localStorage).some(k => k.startsWith('bl-'));
+    const farm = JSON.parse(decodeURIComponent(m[1]));
+    if (!here && farm && typeof farm === 'object') {
+      for (const [k, v] of Object.entries(farm)) if (/^bl-[\w-]+$/.test(k) && typeof v === 'string' && v.length < 4000) localStorage.setItem(k, v);
+    }
+  } catch { /* a broken link just starts a new farm */ }
+  history.replaceState(null, '', location.pathname + location.search);
+})();
+
 // ---------- language ----------
 // English, Spanish or Mandarin; the device's language picks the first time, Settings after that.
 const guessLang = () => { const n = (navigator.language || 'en').toLowerCase(); return n.startsWith('es') ? 'es' : n.startsWith('zh') ? 'zh' : 'en'; };

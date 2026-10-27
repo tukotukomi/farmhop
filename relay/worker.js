@@ -15,11 +15,14 @@
 // Messages are size- and rate-capped, and only the origins below may connect.
 
 const ALLOWED_ORIGINS = [
-  "https://www.tuckermills.com",
+  "https://farmhop.fun",
+  "https://www.farmhop.fun",
+  "https://www.tuckermills.com", // the game's old address, until everyone has moved over
   "https://tuckermills.com",
   // Local development / testing only -- safe to remove for production.
   "http://localhost:5500",
   "http://localhost:5501",
+  "http://localhost:5520",
 ];
 
 const ROOM_ID_PATTERN = /^[A-Za-z0-9_-]{22,64}$/;
