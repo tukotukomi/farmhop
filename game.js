@@ -5017,6 +5017,16 @@ for (const [id, which] of [['volMusic', 'music'], ['volFx', 'fx']]) {
 }
 $('volFx').addEventListener('change', () => sfx.hop(heroId));   // hear the new level
 $('gear').addEventListener('click', () => { sfx.ensure(); openSettings(); });
+// Full screen, where the browser allows it (iPhones only do it for videos, so no button there).
+const page = document.documentElement;
+const isFull = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+document.body.classList.toggle('noFull', !(page.requestFullscreen || page.webkitRequestFullscreen));
+$('fullBtn').addEventListener('click', () => {
+  sfx.ensure();
+  const go = isFull() ? (document.exitFullscreen || document.webkitExitFullscreen).call(document) : (page.requestFullscreen || page.webkitRequestFullscreen).call(page);
+  go?.catch?.(() => {});
+});
+for (const type of ['fullscreenchange', 'webkitfullscreenchange']) document.addEventListener(type, () => $('fullBtn').classList.toggle('on', isFull()));
 $('setClose').addEventListener('click', closeSettings);
 $('settings').addEventListener('click', e => { if (e.target.id === 'settings') closeSettings(); });
 

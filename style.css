@@ -86,6 +86,16 @@ button { font: inherit; color: inherit; }
 #gear { right: calc(env(safe-area-inset-right) + 76px); --c1: var(--lilac); --c2: var(--lilac-d); }
 body.farm #sound, body.over #sound, body.farm #gear { display: grid; }
 body.farm.decor #sound, body.farm.decor #gear { display: none; }
+/* full screen: beside the settings, wherever the browser can do it */
+#fullBtn {
+  position: fixed; top: calc(env(safe-area-inset-top) + 64px); right: calc(env(safe-area-inset-right) + 136px);
+  width: 50px; height: 50px; display: none; --c1: var(--sky); --c2: #4fa9dc;
+}
+#fullBtn svg { width: 26px; height: 26px; }
+#fullBtn .in, #fullBtn.on .out { display: none; }
+#fullBtn.on .in { display: inline; }
+body.farm #fullBtn, body.over #fullBtn { display: grid; }
+body.farm.decor #fullBtn, body.noFull #fullBtn { display: none; }
 /* play with phones: top-left on the farm, under the score */
 #phonesBtn {
   position: fixed; top: calc(env(safe-area-inset-top) + 64px); left: calc(env(safe-area-inset-left) + 16px);
@@ -659,6 +669,7 @@ body.guest #phonesBtn, body.guest #partyBtn, body.guest #play { display: none !i
   #sound, #gear { top: calc(env(safe-area-inset-top) + 12px); }
   #sound { right: calc(env(safe-area-inset-right) + 140px); }
   #gear { right: calc(env(safe-area-inset-right) + 200px); }
+  #fullBtn { top: calc(env(safe-area-inset-top) + 12px); right: calc(env(safe-area-inset-right) + 320px); }
   #phonesBtn { top: calc(env(safe-area-inset-top) + 12px); left: auto; right: calc(env(safe-area-inset-right) + 260px); }
   #decorBar { bottom: calc(env(safe-area-inset-bottom) + 14px); }
   .shopBtn, .rotateBtn { width: 64px; height: 64px; }
