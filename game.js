@@ -1907,8 +1907,10 @@ const coop = () => game.crew.length > 1;
 // The host's screen also moves the hoppers of phones used as controllers.
 function localCrew() { return game.crew.filter(h => !h.remote); }
 const RESPAWN_T = 4;                                              // seconds before a knocked-out hopper drops back in
-const MARK_COLORS = [0, 0x8fd8ff, 0xff7fb8, 0xffd24a, 0x6bd864];  // the marker over each phone's hopper, by slot
-const MARK_CSS = ['', '#8fd8ff', '#ff7fb8', '#ffd24a', '#6bd864'];
+// Each player's colour, by slot: the host (player 1) red, then blue, yellow, green,
+// and purple for a fifth. The farm's sunflowers, the road's markers and the phones' dots use it.
+const MARK_COLORS = [0xff4b4b, 0x46a6ff, 0xffd23f, 0x5fd35f, 0xb48cff];
+const MARK_CSS = ['#ff4b4b', '#46a6ff', '#ffd23f', '#5fd35f', '#b48cff'];
 const MARK_GEO = new THREE.ConeGeometry(0.11, 0.22, 4).rotateX(Math.PI);   // a little diamond pointing down
 
 // (Re)build hopper h as hero `id`, standing on row r, column x.
@@ -1923,7 +1925,7 @@ function freshHopper(h, id, x = 0, r = 0) {
     tailAng: 0, tailVel: 0, death: null, deathT: 0, vx: 0, vy: 0, vz: 0,
     model: addXray(HEROES.find(o => o.id === id).build()),
   });
-  if (h.slot) {   // phones' hoppers wear their player's colour
+  if (h.slot || (h.remote && h.key === 'h')) {   // friends' hoppers (and the host's, on a guest's screen) wear their player's colour
     const mark = new THREE.Mesh(MARK_GEO, toon({ color: MARK_COLORS[h.slot] }));
     mark.position.y = 1.62;   // above even Catstar's spring
     h.model.group.add(mark);
@@ -2880,15 +2882,19 @@ function nextSpot(w) {
   }
   return [w.x, w.z];
 }
-const MARKER_GEO = (() => {                        // a little sunflower that floats over your hopper
+function markerGeo([a, b]) {                       // a little sunflower that floats over a hopper
   const v = new VB(0.6);
   for (let i = 0; i < 10; i++) {
-    const a = i * Math.PI / 5;
-    v.ball(0.04, 0.09, 0.025, Math.cos(a) * 0.12, Math.sin(a) * 0.12, 0, i % 2 ? 0xffcc1a : 0xffb000, 0, 0, a - Math.PI / 2);
+    const ang = i * Math.PI / 5;
+    v.ball(0.04, 0.09, 0.025, Math.cos(ang) * 0.12, Math.sin(ang) * 0.12, 0, i % 2 ? a : b, 0, 0, ang - Math.PI / 2);
   }
   v.cyl(0.085, 0.085, 0.06, 0, 0, 0.02, 0x7a4a1c, Math.PI / 2, 0, 0);
   return v.geometry();
-})();
+}
+// Playing alone, the classic golden one over your hopper; with friends, one per
+// player in their colour (petals in two shades of it).
+const MARKER_GEO = markerGeo([0xffcc1a, 0xffb000]);
+const PLAYER_MARKERS = [[0xff4b4b, 0xe0383a], [0x46a6ff, 0x2f86e0], [0xffd93b, 0xf2b800], [0x6bd864, 0x3fb84a], [0xbd96ff, 0x9b6bff]].map(markerGeo);
 // at = [x, z] to start somewhere particular (a new friend steps out of the Bunkhouse door).
 // key: the hopper's id for the farm's own hoppers, 'p' + slot for a friend playing.
 function addWalker(h, at, key = h.id) {
@@ -2907,11 +2913,7 @@ function spawnWalkers() {
   for (const w of farm.walkers || []) { farm.group.remove(w.m.group); disposeHero(w.m); }
   farm.walkers = [];
   for (const h of ownedHeroes()) addWalker(h);
-  if (!farm.marker) {
-    farm.marker = new THREE.Mesh(MARKER_GEO, VMAT);
-    farm.marker.castShadow = true;
-    farm.group.add(farm.marker);
-  }
+  farm.markers ||= [];
   syncPlayerWalkers();
 }
 function removeWalker(w) {
@@ -2938,7 +2940,7 @@ function syncPlayerWalkers() {
   for (const w of farm.walkers) if (!isPlayerKey(w.key)) hideWalker(w, played.has(w.id) && w.id !== heroId);
   toGuests({ t: 'crew', walkers: crewList() });
 }
-const crewList = () => farm.walkers.map(w => ({ k: w.key, hero: w.id, hidden: !!w.hidden, x: w.x, z: w.z, tx: w.tx, tz: w.tz }));
+const crewList = () => farm.walkers.map(w => ({ k: w.key, hero: w.id, hidden: !!w.hidden, host: w.key === heroId, x: w.x, z: w.z, tx: w.tx, tz: w.tz }));
 // Between rounds everyone can hop their own hopper around the yard, one hop at a
 // time: friends with their phone's hop pad, the TV with the arrow keys, WASD, the
 // controller, or a tap on the grass. Left alone for a while, a hopper goes back to wandering.
@@ -3040,11 +3042,28 @@ function updateWalkers(dt, t) {
     group.position.set(w.x, 0, w.z);
     for (const tl of tails) tl.rotation[tl.userData.axis || 'z'] = tl.userData.side * sway;
   }
-  const me = walkerOf(myKey());
-  if (me) {
-    farm.marker.position.set(me.x, me.top + 0.32 + Math.sin(t * 3) * 0.06 + me.m.inner.position.y, me.z);
-    farm.marker.rotation.y = Math.sin(t * 1.5) * 0.5;
+  const marks = playerMarks();
+  while (farm.markers.length < marks.length) {
+    const m = new THREE.Mesh(MARKER_GEO, VMAT);
+    m.castShadow = true;
+    farm.group.add(m);
+    farm.markers.push(m);
   }
+  farm.markers.forEach((m, i) => {
+    const [w, n] = marks[i] || [];
+    m.visible = !!w;
+    if (!w) return;
+    m.geometry = n < 0 ? MARKER_GEO : PLAYER_MARKERS[n];
+    m.position.set(w.x, w.top + 0.32 + Math.sin(t * 3 + i) * 0.06 + w.m.inner.position.y, w.z);
+    m.rotation.y = Math.sin(t * 1.5 + i) * 0.5;
+  });
+}
+// [walker, player index] for each sunflower: -1 is the golden one, for playing alone.
+// The host is player 0 (red); a phone or guest in slot n is player n.
+function playerMarks() {
+  if (!GUEST && ![...party.players.values()].some(p => p.hero)) return [[walkerOf(heroId), -1]];
+  return farm.walkers.filter(w => !w.hidden && (GUEST ? w.isHost : w.key === heroId) || isPlayerKey(w.key))
+    .map(w => [w, isPlayerKey(w.key) ? +w.key.slice(1) : 0]);
 }
 // Called when arriving at the farm or picking a hopper: your hopper hops and turns to you.
 function placeFarmHero() {
@@ -5075,6 +5094,7 @@ if (guestNet) {
       if (!w) w = Object.assign(addWalker(HEROES.find(h => h.id === c.hero) || HEROES[0], [c.x, c.z], c.k), { tx: c.tx, tz: c.tz });
       else if (c.k !== myKey() && !w.leap && Math.hypot(w.x - c.x, w.z - c.z) > 0.6) Object.assign(w, { x: c.x, z: c.z, tx: c.tx, tz: c.tz });
       hideWalker(w, c.hidden);
+      w.isHost = !!c.host;
     }
   };
   const keepHero = () => { try { sessionStorage.setItem('bl-guest-hero', heroId); } catch {} };   // the same hopper after a reload
