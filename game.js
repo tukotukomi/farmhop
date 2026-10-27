@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { createMusic } from './music.js';
 import { STRINGS, LANGS } from './lang.js';
+import { joinFarm } from './guest.js';
 
 // ---------- moving house ----------
 // Each website keeps its own saves, so the old address (tuckermills.com/farmhop)
@@ -36,6 +37,21 @@ function t(key, vars = {}) {
   return typeof s === 'string' ? s.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '') : s;
 }
 const heroName = id => t('heroes.' + id);
+
+// ---------- a friend's farm ----------
+// An invite link (#join=<room>) opens the game as a guest on the host's farm:
+// before anything reads a setting, wait for the host to send it (guest.js). The
+// farm's settings then come from the host and are only kept in memory, so this
+// device's own farm is never touched.
+const FARM_KEYS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-coins', 'bl-top'];
+const joinArgs = new URLSearchParams(location.hash.slice(1));
+const GUEST = /^[A-Za-z0-9_-]{22,64}$/.test(joinArgs.get('join') || '') ? joinArgs.get('join') : null;
+const guestNet = GUEST && window.FARMHOP_RELAY_URL
+  ? await joinFarm(GUEST, joinArgs.get('relay') || window.FARMHOP_RELAY_URL, t, () => { try { return sessionStorage.getItem('bl-guest-hero') || JSON.parse(localStorage.getItem('bl-hero')); } catch { return null; } })
+  : null;
+let guestKeys = guestNet ? { ...guestNet.farm.keys, 'bl-owned-v2': true } : null;
+const farmKey = k => FARM_KEYS.includes(k) || k === 'bl-hero' || k === 'bl-owned-v2';
+let onFarmSave = null;   // the host tells its guests when the farm changes
 
 // ---------- tuning ----------
 const COLS = 4;                 // playable columns either side of centre
@@ -77,8 +93,15 @@ const speedK = r => 0.6 + 0.4 * warm(r);
 const gapK = r => 1.7 - 0.7 * warm(r);
 
 const store = {
-  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
-  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode */ } },
+  get(k, d) {
+    if (guestKeys && farmKey(k)) return guestKeys[k] ?? d;
+    try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; }
+  },
+  set(k, v) {
+    if (guestKeys && farmKey(k)) { guestKeys[k] = v; return; }
+    try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode */ }
+    if (FARM_KEYS.includes(k)) onFarmSave?.();
+  },
 };
 
 // ---------- renderer / scene ----------
@@ -1015,7 +1038,6 @@ const sfx = (() => {
   let ctx = null, master = null, out = null, musicBus = null, noiseBuf = null;
   let muted = store.get('bl-mute', false);
   const vol = { music: store.get('bl-vol-music', 0.8), fx: store.get('bl-vol-fx', 0.9) };
-  let castDest = null;   // a copy of everything you hear, for Remote Play
   function ensure() {
     if (!ctx) {
       const AC = window.AudioContext || window.webkitAudioContext;
@@ -1198,12 +1220,6 @@ const sfx = (() => {
     // A soft tone in the hopper's own colour that rings under the hop sound while a
     // Jam Stage pad is held, then fades out once it's let go. amt (0..1) is the
     // sustain slider: louder and a longer fade the higher it is. Returns release().
-    // The game's sound (music and effects, after the mute) as a stream track, for Remote Play.
-    castAudio() {
-      if (!ctx) return null;
-      if (!castDest) { castDest = ctx.createMediaStreamDestination(); out.connect(castDest); }
-      return castDest.stream.getAudioTracks()[0];
-    },
     hold(id, n, amt) {
       if (!ctx || muted || amt <= 0) return null;
       const t = ctx.currentTime, o = ctx.createOscillator(), f1 = ctx.createBiquadFilter(), g = ctx.createGain();
@@ -2854,11 +2870,20 @@ const roomAt = (w, x, z) => x > YARD.x0 && x < YARD.x1 && z > YARD.z0 && z < YAR
 function leapTo(w, x, z) {   // false (and a little bump in place) when a wall or a friend is in the way
   const ok = roomAt(w, x, z);
   if (x !== w.x || z !== w.z) w.face = Math.atan2(-(x - w.x), -(z - w.z));
+  if (!ok) { x = w.x; z = w.z; }
+  const up = ok ? 0.4 : 0.15;
+  landLeap(w, x, z, up);
+  // Everyone on this farm sees it: a guest tells the host, the host tells its guests.
+  if (GUEST) { if (w.id === heroId) guestNet.send({ t: 'leap', x, z, up }); }
+  else toGuests({ t: 'leap', id: w.id, x, z, up });
+  return ok;
+}
+function landLeap(w, x, z, up) {
+  if (x !== w.x || z !== w.z) w.face = Math.atan2(-(x - w.x), -(z - w.z));
   w.hop = 0;
-  w.leap = ok ? { x0: w.x, z0: w.z, x1: x, z1: z, t: 0, up: 0.4 } : { x0: w.x, z0: w.z, x1: w.x, z1: w.z, t: 0, up: 0.15 };
+  w.leap = { x0: w.x, z0: w.z, x1: x, z1: z, t: 0, up };
   w.wait = STEER_IDLE;
   sfx.hop(w.id);
-  return ok;
 }
 function farmHop(id, dx, dr) {
   const w = walkerOf(id);
@@ -2923,7 +2948,10 @@ function updateWalkers(dt, t) {
     } else {                                         // stand and look around for a bit
       inner.position.y = lerp(inner.position.y, 0, Math.min(1, dt * 10));
       inner.rotation.z = lerp(inner.rotation.z, 0, Math.min(1, dt * 10));
-      if ((w.wait -= dt) <= 0) [w.tx, w.tz] = nextSpot(w);
+      if ((w.wait -= dt) <= 0) {
+        if (GUEST) w.wait = 1;   // on a friend's farm, the host decides where everyone wanders
+        else { [w.tx, w.tz] = nextSpot(w); toGuests({ t: 'walk', id: w.id, x: w.x, z: w.z, tx: w.tx, tz: w.tz }); }
+      }
     }
     let da = w.face - group.rotation.y;
     da = Math.atan2(Math.sin(da), Math.cos(da));
@@ -3005,7 +3033,7 @@ function newWorld() {
 // -> dead -> over (the sign) -> (fade home) -> farm.
 function setHint() {
   const pad = document.body.classList.contains('pad');
-  const key = (decor.on ? 'hintDecor' : game.where === 'farm' ? 'hintFarm' : 'hintRoad') + (pad ? 'Pad' : '');
+  const key = (decor.on ? 'hintDecor' : game.where === 'farm' ? (GUEST ? 'hintGuest' : 'hintFarm') : 'hintRoad') + (pad ? 'Pad' : '');
   const hint = $('hint');
   hint.textContent = t(key);
   const small = document.createElement('small');
@@ -3022,7 +3050,7 @@ function transition(kind, swapAt, swap) {
   setTimeout(() => { el.className = ''; }, kind === 'sunrise' ? 2100 : 1000);
 }
 function goRoad() {   // sunrise, then onto the road at first light
-  if (game.state !== 'farm') return;
+  if (game.state !== 'farm' || GUEST) return;
   exitDecor();
   game.state = 'sunrise';
   closeHeroes();
@@ -3168,9 +3196,11 @@ function tapFarm(x, y) {
   const hit = (obj) => _ray.intersectObject(obj, true).length > 0;
   const w = farm.walkers.find(w => hit(w.m.group));
   if (w) { w.hop = 0.5; sfx.hop(w.id); return; }
-  if (hit(farm.pieces.bunk.group)) { openBunk(); return; }
-  if (hit(farm.pieces.stage.group)) { stageAct(); return; }
-  if (hit(farm.pieces.pond.group)) { openPond(); return; }
+  if (!GUEST) {   // a guest's taps on buildings just hop there
+    if (hit(farm.pieces.bunk.group)) { openBunk(); return; }
+    if (hit(farm.pieces.stage.group)) { stageAct(); return; }
+    if (hit(farm.pieces.pond.group)) { openPond(); return; }
+  }
   if (groundAt(x, y, _a)) hopToward(heroId, _a.x - farm.group.position.x, _a.z - farm.group.position.z);
 }
 // Stop the page itself from scrolling or bouncing, but let panels (pickers, settings) scroll.
@@ -3325,7 +3355,6 @@ function frame(now) {
   const dt = (now - last) / 1000;
   if (!game.frozen) { watchFrames(dt); step(Math.min(0.05, dt)); }   // frozen: tests drive the frames themselves
   if (jam.open) jamFrame(Math.min(0.05, dt));
-  castFrame();
   last = now;
   requestAnimationFrame(frame);
 }
@@ -3405,6 +3434,7 @@ function closeHeroes() {
   game.picking = anyPanel();
 }
 function pickHero(id) {
+  if (GUEST) guestNet.send({ t: 'pick', hero: id });   // the host has the last word (another friend may have it)
   heroId = id;
   store.set('bl-hero', id);
   markHero();
@@ -3429,6 +3459,7 @@ function refreshPond() {
   $('pondNeed').textContent = needText(short);
 }
 function openPond() {
+  if (GUEST) return;
   if (game.state !== 'farm') return;
   refreshPond();
   $('pond').classList.add('show');
@@ -3484,6 +3515,7 @@ function refreshBunk(msg) {
   $('bunkNeed').textContent = msg ?? (farm.bunkBuilt ? '' : needText(BUNK_COST - game.coins));
 }
 function openBunk() {
+  if (GUEST) return;
   if (game.state !== 'farm') return;
   closeHeroes();
   closePond();
@@ -3580,6 +3612,7 @@ function focusPiece(p) {   // bring it into view (controller users can't drag th
   farmCam.z = clamp(p.z + 1.4, FARM_PAN.z0, FARM_PAN.z1);
 }
 function enterDecor() {
+  if (GUEST) return;
   if (game.state !== 'farm' || decor.on) return;
   closeHeroes(); closePond(); closeBunk(); closeSettings();
   decor.on = true;
@@ -3696,6 +3729,7 @@ function refreshShop(msg) {
   $('shopNeed').textContent = msg ?? '';
 }
 function openShop() {
+  if (GUEST) return;
   if (!decor.on) return;
   shopFocus = Math.max(0, DECOR.findIndex(id => !ownedDecor.has(id)));
   refreshShop();
@@ -3750,7 +3784,7 @@ $('shop').addEventListener('click', e => { if (e.target.id === 'shop') closeShop
 // Each pad shows how to play it with what you last used: keys Q-Y / A-H / Z-N, or a
 // controller's LB X A Y B RB on the row the d-pad picked; nothing for touch.
 const stageOpen = () => $('stage').classList.contains('show');
-function stageAct() { if (farm.stageBuilt) openJam(); else openStage(); }
+function stageAct() { if (GUEST) return; if (farm.stageBuilt) openJam(); else openStage(); }
 function refreshStage() {
   $('stageCost').textContent = STAGE_COST;
   $('stageBuy').disabled = game.coins < STAGE_COST;
@@ -4082,22 +4116,12 @@ function rtcSignal(slot, m) {
     p.pc.onicecandidate = e => { if (e.candidate) relaySend(slot, JSON.stringify({ t: 'rtc', c: e.candidate.toJSON() })); };
     p.pc.ondatachannel = e => {
       const dc = p.dc = e.channel;
-      dc.onopen = () => { notePath(slot, p); capVideo(p); };
+      dc.onopen = () => notePath(slot, p);
       dc.onmessage = ev => { let mm; try { mm = JSON.parse(ev.data); } catch { return; } onPlayer(slot, mm, true); };
       dc.onclose = () => { if (peers.get(slot) === p) closePeer(slot); };
     };
     p.pc.onconnectionstatechange = () => { if (['failed', 'closed'].includes(p.pc.connectionState) && peers.get(slot) === p) closePeer(slot); };
     p.pc.setRemoteDescription(m.sdp)
-      .then(() => {   // a friend far away asked to see and hear the game: send it down this link
-        for (const tr of p.pc.getTransceivers()) {
-          const track = tr.receiver.track.kind === 'video' ? castTrack() : (sfx.ensure(), sfx.castAudio());
-          if (!track) continue;
-          tr.direction = 'sendonly';
-          tr.sender.replaceTrack(track);
-          p.watching = true;
-        }
-        castCount();
-      })
       .then(() => p.pc.createAnswer()).then(a => p.pc.setLocalDescription(a))
       .then(() => relaySend(slot, JSON.stringify({ t: 'rtc', sdp: p.pc.localDescription })))
       .catch(() => closePeer(slot));
@@ -4120,7 +4144,6 @@ function closePeer(slot) {
   if (!p) return;
   peers.delete(slot);
   try { p.dc?.close(); p.pc.close(); } catch {}
-  castCount();
   partySend(slot, { t: 'path', path: '' });
   renderParty();
 }
@@ -4186,7 +4209,7 @@ function partyStop() {
 // pad, or a "waiting on the farm" note.
 function setupCrew() {
   for (const [slot, pl] of [...party.players.entries()].sort((a, b) => a[0] - b[0])) {
-    if (!pl.hero) continue;
+    if (!pl.hero || pl.guest) continue;   // guests stay on the farm for now
     pl.road = { slot, hero: pl.hero, parked: true, alive: false, active: false };
     game.crew.push(pl.road);
   }
@@ -4232,8 +4255,22 @@ function onPlayer(slot, m, direct = false) {
   if (m.t === 'rtc') { if (!direct) rtcSignal(slot, m); return; }
   // Once a phone's direct link is open its notes and hops come that way; one still
   // on its way through the relay is older than what's already arrived, so skip it.
-  if (!direct && peers.get(slot)?.dc?.readyState === 'open' && (m.t === 'note' || m.t === 'drum' || m.t === 'hop')) return;
+  if (!direct && peers.get(slot)?.dc?.readyState === 'open' && (m.t === 'note' || m.t === 'drum' || m.t === 'hop' || m.t === 'leap')) return;
   const pl = party.players.get(slot);
+  if (m.t === 'hello' && m.guest) {   // a friend playing on their own device: send them the farm
+    const hero = heroFor(slot, m.hero);
+    party.players.set(slot, { hero: null, kick: 0, guest: true });
+    assign(slot, hero);
+    partySend(slot, { t: 'farm', farm: farmSnap(hero) });
+    return;
+  }
+  if (m.t === 'pick' && pl?.guest) { assign(slot, heroFor(slot, m.hero) === m.hero ? m.hero : pl.hero); return; }
+  if (m.t === 'leap') {
+    const w = pl?.guest && game.where === 'farm' && walkerOf(pl.hero);
+    const x = clamp(+m.x, YARD.x0, YARD.x1), z = clamp(+m.z, YARD.z0, YARD.z1), up = clamp(+m.up || 0, 0, 0.5);
+    if (w && isFinite(x) && isFinite(z)) { landLeap(w, x, z, up); toGuests({ t: 'leap', id: w.id, x, z, up }, slot); }
+    return;
+  }
   if (m.t === 'hello' || m.t === 'pick') {
     const want = m.t === 'pick' ? m.hero : m.hero;
     if (want && owned.has(want)) assign(slot, want);
@@ -4273,16 +4310,35 @@ function onPlayer(slot, m, direct = false) {
     floatNote(DRUM_COLORS[m.d | 0], pl.m?.group.position.x);
   }
 }
+// ---------- guests: friends playing the game on their own device ----------
+const guests = () => [...party.players.entries()].filter(([, p]) => p.guest);
+function toGuests(obj, except) { for (const [slot] of guests()) if (slot !== except) partySend(slot, obj); }
+function farmSnap(hero) {   // the farm's settings, which hopper they are, and where everyone is
+  const keys = {};
+  for (const k of FARM_KEYS) { const v = store.get(k, null); if (v !== null) keys[k] = v; }
+  if (hero) keys['bl-hero'] = hero;
+  return { keys, walkers: (farm.walkers || []).map(w => ({ id: w.id, x: w.x, z: w.z, tx: w.tx, tz: w.tz })) };
+}
+function heroFor(slot, want) {   // the hopper they asked for if it's free, else the first free one
+  const busy = new Set([heroId, ...[...party.players].filter(([s]) => s !== slot).map(([, p]) => p.hero)]);
+  const free = id => owned.has(id) && !busy.has(id);
+  return free(want) ? want : ownedHeroes().map(h => h.id).find(free) || (owned.has(want) ? want : 'betty');
+}
+let farmTimer = null;
+if (!GUEST) onFarmSave = () => {   // bought, built or moved something: guests get the new farm
+  clearTimeout(farmTimer);
+  farmTimer = setTimeout(() => { for (const [slot, p] of guests()) partySend(slot, { t: 'farm', farm: farmSnap(p.hero) }); }, 400);
+};
 function assign(slot, hero) {
   const old = party.players.get(slot);
   if (old?.m) { jam.scene?.remove(old.m.group); disposeHero(old.m); }
-  const pl = { hero, oct: 0, sus: 0.35, drums: false, kick: 0, m: null, banjo: null };
+  const pl = { hero, oct: 0, sus: 0.35, drums: false, kick: 0, m: null, banjo: null, guest: !!old?.guest };
   party.players.set(slot, pl);
-  if (jam.scene) addPlayerModel(pl);
+  if (jam.scene && !pl.guest) addPlayerModel(pl);
   if (old?.road) dropFromRoad(old);
   partySend(slot, { t: 'joined', hero, pad: HEROES.find(h => h.id === hero).pad, drums: ownedDecor.has('drums'), mark: MARK_CSS[slot] });
   partySend(slot, { t: 'view', v: currentView(), score: game.score });
-  if (game.where === 'road' && (game.state === 'title' || game.state === 'play')) addToRoad(slot, pl);
+  if (!pl.guest && game.where === 'road' && (game.state === 'title' || game.state === 'play')) addToRoad(slot, pl);
   lobbyAll();
   layoutStage();
   renderParty();
@@ -4346,8 +4402,7 @@ function renderParty() {
   const list = [...party.players.entries()].filter(([, p]) => p.hero).sort((a, b) => a[0] - b[0]);
   const chip = ([slot, p]) => {
     const path = peers.get(slot)?.path || 'relay';
-    const tv = peers.get(slot)?.watching ? `<i class="path watch" title="${t('party.watching')}">📺</i>` : '';
-    return `<span class="partyChip" style="--c:${HEROES.find(h => h.id === p.hero).pad}"><b>${slot}</b>${heroName(p.hero)}<i class="path ${path}">${t('party.' + path)}</i>${tv}</span>`;
+    return `<span class="partyChip" style="--c:${HEROES.find(h => h.id === p.hero).pad}"><b>${slot}</b>${heroName(p.hero)}<i class="path ${path}">${t('party.' + path)}</i></span>`;
   };
   $('partyChips').innerHTML = list.map(chip).join('');
   $('partyList').innerHTML = list.length ? list.map(chip).join('') : '<span class="partyNone"></span>';
@@ -4373,6 +4428,7 @@ function renderParty() {
   $('partyStatus').textContent = party.ws?.readyState === 1 ? '' : t('remote.connecting');
 }
 function openParty() {
+  if (GUEST) return;
   partyStart();
   $('party').hidden = false;
   game.picking = true;
@@ -4389,9 +4445,9 @@ $('partyStop').addEventListener('click', () => { partyStop(); closeParty(); });
 $('partyCopy').addEventListener('click', () => {
   navigator.clipboard?.writeText(partyLink()).then(() => { $('partyCopy').textContent = t('party.copied'); setTimeout(() => { $('partyCopy').textContent = t('party.copy'); }, 1500); }).catch(() => {});
 });
-// "Send invite": the same link, asking for the picture too (&far=1), through the
-// phone's share sheet (Messages, WhatsApp...) or copied on a computer.
-const inviteLink = () => partyLink() + '&far=1';
+// "Send invite": a link that opens the whole game on the friend's own device, on
+// this farm (see guest.js), through the share sheet (Messages, WhatsApp...) or copied.
+const inviteLink = () => new URL('./', location.href).href.split('#')[0].replace(/\?.*$/, '') + '#join=' + party.room + (DEBUG && RELAY !== window.FARMHOP_RELAY_URL ? '&relay=' + encodeURIComponent(RELAY) : '');
 $('partyInvite').addEventListener('click', async () => {
   sfx.ensure();
   const url = inviteLink();
@@ -4404,75 +4460,13 @@ $('partyInvite').addEventListener('click', async () => {
     setTimeout(() => { $('partyInvite').textContent = t('party.invite'); }, 1800);
   }).catch(() => {});
 });
-if (RELAY) try { if (sessionStorage.getItem('bl-party-room')) partyStart(); } catch {}   // a reload mid-jam picks the phones back up
-
-// ---------- Remote Play ----------
-// Friends far away see and hear the game: each finished frame (the road, or the
-// Jam Stage) is copied with the score and daylight into a small canvas, at most
-// 1280 wide, streamed down their direct link with the game's sound. Nothing goes
-// through Cloudflare. It only runs while someone is watching.
-const cast = { canvas: null, g: null, track: null, viewers: 0 };
-function castTrack() {
-  if (!cast.canvas) {
-    cast.canvas = document.createElement('canvas');
-    cast.canvas.width = 640; cast.canvas.height = 360;
-    cast.g = cast.canvas.getContext('2d');
-    cast.track = cast.canvas.captureStream(30).getVideoTracks()[0];
-  }
-  return cast.track;
-}
-// Data saver (Settings): a smaller, slower picture for friends on phone data.
-// About 0.4 GB an hour instead of up to 1.1 GB.
-let saver = store.get('bl-saver', false);
-const CAST = () => saver ? { width: 854, bitrate: 900000, fps: 24 } : { width: 1280, bitrate: 2500000, fps: 30 };
-const castCount = () => { cast.viewers = [...peers.values()].filter(p => p.watching).length; };
-function capVideo(p) {   // keep each stream to a sensible size for home internet
-  for (const s of p.pc.getSenders()) {
-    if (s.track?.kind !== 'video') continue;
-    const prm = s.getParameters();
-    if (!prm.encodings?.length) prm.encodings = [{}];
-    prm.encodings[0].maxBitrate = CAST().bitrate;
-    prm.encodings[0].maxFramerate = CAST().fps;
-    s.setParameters(prm).catch(() => {});
-  }
-}
-function castFrame() {
-  if (!cast.viewers || !cast.g) return;
-  const W = window.innerWidth, H = window.innerHeight, k = Math.min(1, CAST().width / Math.max(W, H));
-  const w = Math.round(W * k) & ~1, h = Math.round(H * k) & ~1, g = cast.g;
-  if (cast.canvas.width !== w || cast.canvas.height !== h) { cast.canvas.width = w; cast.canvas.height = h; }
-  if (jam.open) {   // the stage: its backdrop and floor are page styling, so paint them in
-    const jc = $('jamCanvas'), r = jc.getBoundingClientRect();
-    const sky = g.createLinearGradient(0, r.top * k, 0, r.bottom * k);
-    sky.addColorStop(0, '#5b3f8a');
-    sky.addColorStop(0.78, '#3a2442');
-    g.fillStyle = '#241830';
-    g.fillRect(0, 0, w, h);
-    g.fillStyle = sky;
-    g.fillRect(r.left * k, r.top * k, r.width * k, r.height * k);
-    g.fillStyle = '#b07a46';
-    g.fillRect(r.left * k, (r.top + r.height * 0.76) * k, r.width * k, r.height * 0.24 * k);
-    g.drawImage(jc, r.left * k, r.top * k, r.width * k, r.height * k);
-  } else g.drawImage(canvas, 0, 0, w, h);
-  if (game.where === 'road') {   // the score and the daylight clock, like the HUD
-    const s = Math.max(0.6, h / 600);
-    g.fillStyle = '#fff8ec'; g.strokeStyle = '#3a2442'; g.lineWidth = 3 * s;
-    g.beginPath(); g.roundRect(12 * s, 12 * s, 70 * s, 48 * s, 16 * s); g.fill(); g.stroke();
-    g.fillStyle = '#3a2442'; g.font = `700 ${30 * s}px Fredoka, system-ui, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(game.score, 47 * s, 37 * s);
-    const cx = 112 * s, cy = 36 * s, rr = 22 * s, d = clamp(game.day, 0, 1);
-    g.fillStyle = '#4a3a6e'; g.beginPath(); g.arc(cx, cy, rr, 0, Math.PI * 2); g.fill();
-    g.fillStyle = d > 0.5 ? '#ffd24a' : d > 0.2 ? '#ff9a3c' : '#bd96ff';
-    g.beginPath(); g.moveTo(cx, cy); g.arc(cx, cy, rr, -Math.PI / 2, -Math.PI / 2 + d * Math.PI * 2); g.closePath(); g.fill();
-    g.beginPath(); g.arc(cx, cy, rr, 0, Math.PI * 2); g.stroke();
-  }
-}
+if (RELAY && !GUEST) try { if (sessionStorage.getItem('bl-party-room')) partyStart(); } catch {}   // a reload mid-jam picks the phones back up
 
 // ---------- settings (from the farm only) ----------
 // Language, music and effects volume, the road's view angle, and the art style.
 // With a controller or arrow keys: up/down picks a row, left/right changes it.
 const settingsOpen = () => $('settings').classList.contains('show');
-const SET_ROWS = ['lang', 'music', 'fx', 'view', 'coop', 'saver', 'art', 'gfx'];
+const SET_ROWS = ['lang', 'music', 'fx', 'view', 'coop', 'art', 'gfx'];
 const GFX_CHOICES = ['auto', ...Q_LEVELS];
 let setFocus = 0;
 // Little diagrams for the views: an eye above the ground, looking down at the hopper.
@@ -4505,8 +4499,6 @@ function renderSettings() {
   segment($('segArt'), t('arts'), lookName === 'bold' ? 1 : 0, i => setLook(i ? 'bold' : 'cel'));
   segment($('segCoop'), t('coopScreens'), splitPref ? 1 : 0, i => setSplit(!!i));
   $('coopNote').textContent = t('coopNote');
-  segment($('segSaver'), t('savers'), saver ? 1 : 0, i => setSaver(!!i));
-  $('saverNote').textContent = t('saverNote');
   const gi = GFX_CHOICES.indexOf(gfx);
   segment($('segGfx'), t('gfxs'), gi, i => setGfx(GFX_CHOICES[i]));
   $('gfxNote').textContent = t('gfxNotes.' + gi, { level: t('gfxs')[GFX_CHOICES.indexOf(autoQ.level)] });
@@ -4537,12 +4529,6 @@ function setGfx(name) {
 function setSplit(on) {
   splitPref = on;
   store.set('bl-split', on);
-  renderSettings();
-}
-function setSaver(on) {
-  saver = on;
-  store.set('bl-saver', on);
-  for (const p of peers.values()) capVideo(p);   // friends already watching switch straight away
   renderSettings();
 }
 function setLook(name) {
@@ -4593,7 +4579,6 @@ function settingsNav(dir) {
     renderSettings();
   } else if (row === 'view') setView((viewIdx + d + VIEWS.length) % VIEWS.length);
   else if (row === 'coop') setSplit(!splitPref);
-  else if (row === 'saver') setSaver(!saver);
   else if (row === 'gfx') setGfx(GFX_CHOICES[(GFX_CHOICES.indexOf(gfx) + d + GFX_CHOICES.length) % GFX_CHOICES.length]);
   else setLook(lookName === 'bold' ? 'cel' : 'bold');
 }
@@ -4740,4 +4725,39 @@ setHint();
 hud();
 applyLang();
 requestAnimationFrame(frame);
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, cast, castFrame, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam };
+if (guestNet) {
+  document.body.classList.add('guest');
+  const keepHero = () => { try { sessionStorage.setItem('bl-guest-hero', heroId); } catch {} };   // the same hopper after a reload
+  keepHero();
+  const LOOKS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage'];
+  guestNet.on(m => {
+    if (m.t === 'leap') { const w = walkerOf(m.id); if (w && m.id !== heroId) landLeap(w, +m.x, +m.z, +m.up); }
+    else if (m.t === 'walk') {
+      const w = walkerOf(m.id);
+      if (w && !w.leap) { if (Math.hypot(w.x - m.x, w.z - m.z) > 0.6) { w.x = m.x; w.z = m.z; } w.tx = m.tx; w.tz = m.tz; }
+    } else if (m.t === 'farm') {
+      // Something new was bought, built or moved: start again on the new farm. Sunflowers just update.
+      if (LOOKS.some(k => JSON.stringify(m.farm.keys[k] ?? null) !== JSON.stringify(guestKeys[k] ?? null))) { location.reload(); return; }
+      Object.assign(guestKeys, m.farm.keys);
+      game.coins = guestKeys['bl-coins'] ?? 0;
+      game.top = guestKeys['bl-top'] ?? 0;
+      hud();
+    } else if (m.t === 'joined') {
+      if (m.hero !== heroId) {
+        heroId = guestKeys['bl-hero'] = m.hero;
+        markHero();
+        placeFarmHero();
+      }
+      keepHero();
+    } else if (m.t === 'view') {
+      if (m.v === 'farm') guestNet.note.hide();
+      else guestNet.note.show(t('guest.away'));
+    }
+  });
+  for (const s of guestNet.farm.walkers || []) {   // everyone where they are on the host's farm
+    const w = walkerOf(s.id);
+    if (w) Object.assign(w, { x: s.x, z: s.z, tx: s.tx, tz: s.tz });
+  }
+  setHint();
+}
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam };

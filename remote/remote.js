@@ -8,9 +8,6 @@ import { STRINGS } from '../lang.js';
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.hash.slice(1));
 const room = params.get('r');
-// Invited from far away (&far=1): ask for the game's picture and sound too.
-let watch = params.get('far') === '1';
-try { const w = sessionStorage.getItem('fhWatch'); if (w != null) watch = w === '1'; } catch {}
 const relay = params.get('relay') || window.FARMHOP_RELAY_URL;   // relay= only for local testing
 
 // Language: this phone's own choice if it has played Farm Hop, else the phone's language.
@@ -94,18 +91,10 @@ function startDirect() {
   stopDirect();
   const myPc = pc = new RTCPeerConnection({ iceServers: ICE });
   const myDc = dc = pc.createDataChannel('farmhop', { ordered: true });
-  if (watch) {   // ask for the game's picture and sound on this link
-    myPc.addTransceiver('video', { direction: 'recvonly' });
-    myPc.addTransceiver('audio', { direction: 'recvonly' });
-    const stream = new MediaStream();
-    myPc.ontrack = e => { stream.addTrack(e.track); showScreen(stream); };
-  }
   myDc.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch { return; } handle(m); };
   myDc.onclose = () => { if (dc === myDc) { dc = null; path = ''; showPath(); } };
   myPc.onicecandidate = e => { if (e.candidate) sendRelay({ t: 'rtc', c: e.candidate.toJSON() }); };
-  myPc.onconnectionstatechange = () => {
-    if (['failed', 'closed'].includes(myPc.connectionState) && pc === myPc) { stopDirect(); if (watch) $('noPic').hidden = false; }
-  };
+  myPc.onconnectionstatechange = () => { if (['failed', 'closed'].includes(myPc.connectionState) && pc === myPc) stopDirect(); };
   myPc.createOffer().then(o => myPc.setLocalDescription(o)).then(() => sendRelay({ t: 'rtc', sdp: myPc.localDescription })).catch(() => stopDirect());
 }
 function stopDirect() {
@@ -114,38 +103,6 @@ function stopDirect() {
   path = '';
   showPath();
 }
-// ---------- Remote Play: seeing and hearing the game ----------
-const video = $('screen');
-function showScreen(stream) {
-  if (video.srcObject !== stream) video.srcObject = stream;
-  $('noPic').hidden = true;
-  video.muted = false;
-  video.play().catch(() => {   // no sound allowed until a tap: play silently and offer the button
-    video.muted = true;
-    video.play().catch(() => {});
-    $('soundOn').hidden = false;
-  });
-}
-$('soundOn').textContent = t('remote.tapSound');
-$('noPic').textContent = t('remote.noPicture');
-$('soundOn').addEventListener('click', () => { video.muted = false; video.play().catch(() => {}); $('soundOn').hidden = true; });
-function renderWatch() {
-  document.body.classList.toggle('watching', watch && !!me.hero);
-  $('screenBox').hidden = !(watch && me.hero);
-  $('picBtn').hidden = !me.hero;
-  $('picBtn').classList.toggle('on', watch);
-  $('picBtn').setAttribute('aria-label', t(watch ? 'remote.hidePicture' : 'remote.picture'));
-  $('picBtn').title = t(watch ? 'remote.hidePicture' : 'remote.picture');
-}
-$('picBtn').addEventListener('click', () => {   // the picture on or off: rebuild the direct link either way
-  watch = !watch;
-  try { sessionStorage.setItem('fhWatch', watch ? '1' : '0'); } catch {}
-  if (!watch) { video.srcObject = null; $('noPic').hidden = true; }
-  renderWatch();
-  stopDirect();
-  startDirect();
-});
-
 function showPath() {   // "Connected · Local" when the link runs over the home network
   if (!$('dot').classList.contains('ok')) return;
   $('status').textContent = t('remote.connected') + ' · ' + t('party.' + (path || 'relay'));
@@ -216,7 +173,6 @@ function handle(msg) {
     $('dot').style.background = msg.mark || '';
     document.documentElement.style.setProperty('--mark', msg.mark || 'transparent');
     renderView();
-    renderWatch();
     wake();
     startDirect();
   } else if (msg.t === 'view') {
@@ -252,7 +208,7 @@ function renderPicker(heroes, taken) {
     grid.append(b);
   }
 }
-$('changeBtn').addEventListener('click', () => { send({ t: 'leave' }); me.hero = null; renderWatch(); hello(); });
+$('changeBtn').addEventListener('click', () => { send({ t: 'leave' }); me.hero = null; hello(); });
 
 // ---------- keys, for friends on a computer ----------
 // On the road: arrows, WASD or Space hop. On the Jam Stage: Q-Y, A-H and Z-N play
