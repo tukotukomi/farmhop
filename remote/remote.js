@@ -40,6 +40,7 @@ $('hopHint').textContent = t('remote.hopHint');
 function status(text, ok) {
   $('status').textContent = text;
   $('dot').classList.toggle('ok', !!ok);
+  if (ok) showPath();
 }
 function show(which, text) {   // 'msg', 'picker', 'deck' (jam pads) or 'hop' (the road)
   $('msg').hidden = which !== 'msg';
@@ -65,7 +66,41 @@ function renderMe() {   // knocked out: a countdown until the hopper drops back 
   tick();
   if (!me.alive) backTimer = setInterval(() => { me.back = Math.max(1, me.back - 1); tick(); }, 1000);
 }
-const send = obj => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); };
+// Messages go down the direct link once it's open, otherwise through the relay.
+const send = obj => {
+  const s = JSON.stringify(obj);
+  if (dc && dc.readyState === 'open') dc.send(s);
+  else if (ws && ws.readyState === 1) ws.send(s);
+};
+const sendRelay = obj => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); };
+
+// ---------- the direct link (WebRTC) ----------
+// Once the TV has taken this phone, it offers a direct WebRTC data channel,
+// set up through the relay. On the same Wi-Fi it runs over the home network, a
+// few milliseconds each way; if it can't connect, the relay carries on.
+const ICE = [{ urls: 'stun:stun.cloudflare.com:3478' }];
+let pc = null, dc = null, path = '';
+function startDirect() {
+  if (!window.RTCPeerConnection || (dc && dc.readyState === 'open')) return;
+  stopDirect();
+  const myPc = pc = new RTCPeerConnection({ iceServers: ICE });
+  const myDc = dc = pc.createDataChannel('farmhop', { ordered: true });
+  myDc.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch { return; } handle(m); };
+  myDc.onclose = () => { if (dc === myDc) { dc = null; path = ''; showPath(); } };
+  myPc.onicecandidate = e => { if (e.candidate) sendRelay({ t: 'rtc', c: e.candidate.toJSON() }); };
+  myPc.onconnectionstatechange = () => { if (['failed', 'closed'].includes(myPc.connectionState) && pc === myPc) stopDirect(); };
+  myPc.createOffer().then(o => myPc.setLocalDescription(o)).then(() => sendRelay({ t: 'rtc', sdp: myPc.localDescription })).catch(() => stopDirect());
+}
+function stopDirect() {
+  try { dc?.close(); pc?.close(); } catch {}
+  pc = dc = null;
+  path = '';
+  showPath();
+}
+function showPath() {   // "Connected · Local" when the link runs over the home network
+  if (!$('dot').classList.contains('ok')) return;
+  $('status').textContent = t('remote.connected') + ' · ' + t('party.' + (path || 'relay'));
+}
 
 if (!room || !relay) {
   status(t('remote.off'));
@@ -102,9 +137,13 @@ function handle(msg) {
   if (msg.t === 'sys') {
     if (msg.ev === 'full') { ended = true; status(t('remote.off')); show('msg', t('remote.full')); }
     else if (msg.ev === 'welcome') { if (msg.host) hello(); else { status(t('remote.waiting')); show('msg', t('remote.waitingLong')); } }
-    else if (msg.ev === 'peer-joined' && msg.role === 'host') hello();
-    else if (msg.ev === 'peer-left' && msg.role === 'host') { status(t('remote.waiting')); show('msg', t('remote.waitingLong')); }
-  } else if (msg.t === 'who') hello();
+    else if (msg.ev === 'peer-joined' && msg.role === 'host') { stopDirect(); hello(); }
+    else if (msg.ev === 'peer-left' && msg.role === 'host') { stopDirect(); status(t('remote.waiting')); show('msg', t('remote.waitingLong')); }
+  } else if (msg.t === 'who') { stopDirect(); hello(); }
+  else if (msg.t === 'rtc') {
+    if (msg.sdp && pc) pc.setRemoteDescription(msg.sdp).catch(() => stopDirect());
+    else if (msg.c && pc) pc.addIceCandidate(msg.c).catch(() => {});
+  } else if (msg.t === 'path') { path = msg.path || ''; showPath(); }
   else if (msg.t === 'lobby') {
     status(t('remote.connected'), true);
     me.hero = null;
@@ -129,6 +168,7 @@ function handle(msg) {
     document.documentElement.style.setProperty('--mark', msg.mark || 'transparent');
     renderView();
     wake();
+    startDirect();
   } else if (msg.t === 'view') {
     me.view = msg.v;
     me.score = msg.score || 0;
@@ -139,6 +179,7 @@ function handle(msg) {
     me.back = msg.back || 0;
     if (me.view === 'road') renderMe();
   } else if (msg.t === 'bye') {
+    stopDirect();
     ended = true;
     status(t('remote.off'));
     show('msg', t('remote.ended'));

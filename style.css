@@ -433,6 +433,13 @@ body.pad .heroCard.focus, body.keys .heroCard.focus, .heroCard:focus-visible { o
   background: var(--cream); color: var(--ink); border: 2.5px solid var(--ink); border-radius: 999px;
   padding: 1px 10px 2px 3px; font-size: 13px; font-weight: 700;
 }
+.partyChip .path {
+  font-style: normal; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  border-radius: 999px; padding: 0 6px; margin-left: 2px; border: 1.5px solid var(--ink);
+}
+.partyChip .path.local { background: var(--leaf); color: #fff; }
+.partyChip .path.direct { background: var(--sky); }
+.partyChip .path.relay { background: var(--cream-d); }
 .partyChip b { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--c); border: 2px solid var(--ink); font-size: 11px; }
 .partyPanel { position: fixed; inset: 0; z-index: 14; display: grid; place-items: center; background: rgba(36, 24, 48, .7); padding: 16px; overflow-y: auto; }
 .partyPanel .panel {

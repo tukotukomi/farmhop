@@ -31,7 +31,7 @@ export const STRINGS = {
     heroes: { betty: 'Betty Lou', axolotl: 'Axolotl Princess', catstar: 'Catstar', leafwish: 'LeafWish', tuko: 'Tuko' },
     bunkhouse: 'Bunkhouse', bunkPlan: 'Build a cozy cabin so new hoppers can move in.', build: 'Build',
     bunkWho: 'Tap a hopper to invite them to the farm.', movedIn: '{name} moved in!',
-    party: { btn: 'Play with phones', scan: 'Scan with a phone camera to join: jam on the Jam Stage, or start the day to hop together. Up to four phones.', none: 'Nobody has joined yet.', copy: 'Copy link', copied: 'Copied!', stop: 'Stop', done: 'Done' },
+    party: { local: 'Local', direct: 'Direct', relay: 'Relay', btn: 'Play with phones', scan: 'Scan with a phone camera to join: jam on the Jam Stage, or start the day to hop together. Up to four phones.', none: 'Nobody has joined yet.', copy: 'Copy link', copied: 'Copied!', stop: 'Stop', done: 'Done' },
     remote: {
       pick: 'Pick your hopper', change: 'Change', off: 'Not connected', noRoom: 'Scan the QR code on the Jam Stage to join the jam.',
       connecting: 'Connecting…', reconnecting: 'Reconnecting…', waiting: 'Waiting for the game…',
@@ -83,7 +83,7 @@ export const STRINGS = {
     heroes: { betty: 'Betty Lou', axolotl: 'Princesa Ajolote', catstar: 'Catstar', leafwish: 'LeafWish', tuko: 'Tuko' },
     bunkhouse: 'La cabaña', bunkPlan: 'Construye una cabaña acogedora para que lleguen nuevos saltarines.', build: 'Construir',
     bunkWho: 'Toca un saltarín para invitarlo a la granja.', movedIn: '¡{name} se mudó a la granja!',
-    party: { btn: 'Jugar con teléfonos', scan: 'Escanea con la cámara del teléfono para unirte: toca en el escenario o empieza el día para saltar juntos. Hasta cuatro teléfonos.', none: 'Todavía no se ha unido nadie.', copy: 'Copiar enlace', copied: '¡Copiado!', stop: 'Terminar', done: 'Listo' },
+    party: { local: 'Local', direct: 'Directo', relay: 'Relevo', btn: 'Jugar con teléfonos', scan: 'Escanea con la cámara del teléfono para unirte: toca en el escenario o empieza el día para saltar juntos. Hasta cuatro teléfonos.', none: 'Todavía no se ha unido nadie.', copy: 'Copiar enlace', copied: '¡Copiado!', stop: 'Terminar', done: 'Listo' },
     remote: {
       pick: 'Elige tu saltarín', change: 'Cambiar', off: 'Sin conexión', noRoom: 'Escanea el código QR del escenario para unirte.',
       connecting: 'Conectando…', reconnecting: 'Reconectando…', waiting: 'Esperando al juego…',
@@ -135,7 +135,7 @@ export const STRINGS = {
     heroes: { betty: '贝蒂·露', axolotl: '六角恐龙公主', catstar: '星星猫', leafwish: '许愿叶', tuko: '图科' },
     bunkhouse: '小木屋', bunkPlan: '盖一间温馨的小木屋，让新伙伴搬进来。', build: '建造',
     bunkWho: '点一个伙伴，邀请它来农场。', movedIn: '{name}搬进来了！',
-    party: { btn: '用手机一起玩', scan: '用手机相机扫描加入：在音乐舞台合奏，或开始新的一天一起跳。最多四部手机。', none: '还没有人加入。', copy: '复制链接', copied: '已复制！', stop: '结束', done: '完成' },
+    party: { local: '本地', direct: '直连', relay: '中继', btn: '用手机一起玩', scan: '用手机相机扫描加入：在音乐舞台合奏，或开始新的一天一起跳。最多四部手机。', none: '还没有人加入。', copy: '复制链接', copied: '已复制！', stop: '结束', done: '完成' },
     remote: {
       pick: '选择角色', change: '更换', off: '未连接', noRoom: '扫描音乐舞台上的二维码加入合奏。',
       connecting: '正在连接…', reconnecting: '正在重新连接…', waiting: '等待游戏…',

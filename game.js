@@ -3987,7 +3987,64 @@ function partyRoom() {   // kept for the browser session, so a reload keeps the 
   return r;
 }
 const partyLink = () => new URL('remote/', location.href).href.split('#')[0].replace(/\?.*$/, '') + '#r=' + party.room + (DEBUG && RELAY !== window.FARMHOP_RELAY_URL ? '&relay=' + encodeURIComponent(RELAY) : '');
-function partySend(to, obj) { if (party.ws && party.ws.readyState === 1) party.ws.send(to + '|' + JSON.stringify(obj)); }
+function relaySend(to, msg) { if (party.ws && party.ws.readyState === 1) party.ws.send(to + '|' + msg); }
+// To one phone (or '*' for all): straight down its direct link when it has one, else through the relay.
+function partySend(to, obj) {
+  const msg = JSON.stringify(obj), open = slot => peers.get(+slot)?.dc?.readyState === 'open';
+  if (to !== '*') { if (open(to)) peers.get(+to).dc.send(msg); else relaySend(to, msg); return; }
+  if (![...peers.keys()].some(open)) { relaySend('*', msg); return; }
+  for (const slot of party.players.keys()) { if (open(slot)) peers.get(slot).dc.send(msg); else relaySend(slot, msg); }
+}
+
+// ---------- direct links (WebRTC) ----------
+// Every phone starts on the relay, then offers this screen a direct WebRTC data
+// channel, set up through the relay. On the same Wi-Fi the browsers connect over
+// the home network (a few milliseconds instead of a trip to Cloudflare), or else
+// straight across the internet; notes and hops then travel on it. If it can't
+// connect, or drops, everything carries on through the relay as before.
+// path: 'local' (same network), 'direct' (peer to peer across the internet), '' (relay).
+const ICE = [{ urls: 'stun:stun.cloudflare.com:3478' }];
+const peers = new Map();   // slot -> { pc, dc, path }
+function rtcSignal(slot, m) {
+  if (m.sdp?.type === 'offer') {   // a phone (re)starting its direct link
+    closePeer(slot);
+    if (!window.RTCPeerConnection) return;
+    const p = { pc: new RTCPeerConnection({ iceServers: ICE }), dc: null, path: '' };
+    peers.set(slot, p);
+    p.pc.onicecandidate = e => { if (e.candidate) relaySend(slot, JSON.stringify({ t: 'rtc', c: e.candidate.toJSON() })); };
+    p.pc.ondatachannel = e => {
+      const dc = p.dc = e.channel;
+      dc.onopen = () => notePath(slot, p);
+      dc.onmessage = ev => { let mm; try { mm = JSON.parse(ev.data); } catch { return; } onPlayer(slot, mm, true); };
+      dc.onclose = () => { if (peers.get(slot) === p) closePeer(slot); };
+    };
+    p.pc.onconnectionstatechange = () => { if (['failed', 'closed'].includes(p.pc.connectionState) && peers.get(slot) === p) closePeer(slot); };
+    p.pc.setRemoteDescription(m.sdp)
+      .then(() => p.pc.createAnswer()).then(a => p.pc.setLocalDescription(a))
+      .then(() => relaySend(slot, JSON.stringify({ t: 'rtc', sdp: p.pc.localDescription })))
+      .catch(() => closePeer(slot));
+  } else if (m.c) peers.get(slot)?.pc.addIceCandidate(m.c).catch(() => {});
+}
+async function notePath(slot, p) {   // which way did the browsers connect?
+  p.path = 'direct';
+  try {
+    const stats = await p.pc.getStats();
+    let pair = null;
+    stats.forEach(s => { if (s.type === 'transport' && s.selectedCandidatePairId) pair = stats.get(s.selectedCandidatePairId); });
+    if (!pair) stats.forEach(s => { if (s.type === 'candidate-pair' && s.nominated && s.state === 'succeeded') pair = s; });
+    if (pair && stats.get(pair.localCandidateId)?.candidateType === 'host') p.path = 'local';   // no router in the way: same network
+  } catch {}
+  renderParty();
+  partySend(slot, { t: 'path', path: p.path });
+}
+function closePeer(slot) {
+  const p = peers.get(slot);
+  if (!p) return;
+  peers.delete(slot);
+  try { p.dc?.close(); p.pc.close(); } catch {}
+  partySend(slot, { t: 'path', path: '' });
+  renderParty();
+}
 function partyStart() {
   if (!RELAY || party.on) return;
   party.on = true;
@@ -4031,6 +4088,8 @@ function partyConnect() {
 }
 function partyStop() {
   partySend('*', { t: 'bye' });
+  relaySend('*', JSON.stringify({ t: 'bye' }));
+  for (const slot of [...peers.keys()]) closePeer(slot);
   party.on = false;
   clearTimeout(party.timer);
   clearInterval(party.ping);
@@ -4090,7 +4149,11 @@ function sendLobby(slot) {
   partySend(slot, { t: 'lobby', heroes: ownedHeroes().map(h => ({ id: h.id, pad: h.pad })), taken: taken() });
 }
 function lobbyAll() { for (const [slot, p] of party.players) if (!p.hero) sendLobby(slot); }
-function onPlayer(slot, m) {
+function onPlayer(slot, m, direct = false) {
+  if (m.t === 'rtc') { if (!direct) rtcSignal(slot, m); return; }
+  // Once a phone's direct link is open its notes and hops come that way; one still
+  // on its way through the relay is older than what's already arrived, so skip it.
+  if (!direct && peers.get(slot)?.dc?.readyState === 'open' && (m.t === 'note' || m.t === 'drum' || m.t === 'hop')) return;
   const pl = party.players.get(slot);
   if (m.t === 'hello' || m.t === 'pick') {
     const want = m.t === 'pick' ? m.hero : m.hero;
@@ -4152,6 +4215,7 @@ function addPlayerModel(pl) {
   jam.scene.add(pl.m.group);
 }
 function dropPlayer(slot) {
+  closePeer(slot);
   const pl = party.players.get(slot);
   if (!pl) return;
   for (const key of [...jam.held.keys()]) if (key.startsWith('r' + slot + '-')) letGo(key);
@@ -4200,7 +4264,10 @@ function loadQr() {
 let qrFor = '';
 function renderParty() {
   const list = [...party.players.entries()].filter(([, p]) => p.hero).sort((a, b) => a[0] - b[0]);
-  const chip = ([slot, p]) => `<span class="partyChip" style="--c:${HEROES.find(h => h.id === p.hero).pad}"><b>${slot}</b>${heroName(p.hero)}</span>`;
+  const chip = ([slot, p]) => {
+    const path = peers.get(slot)?.path || 'relay';
+    return `<span class="partyChip" style="--c:${HEROES.find(h => h.id === p.hero).pad}"><b>${slot}</b>${heroName(p.hero)}<i class="path ${path}">${t('party.' + path)}</i></span>`;
+  };
   $('partyChips').innerHTML = list.map(chip).join('');
   $('partyList').innerHTML = list.length ? list.map(chip).join('') : '<span class="partyNone"></span>';
   const none = $('partyList').querySelector('.partyNone');
