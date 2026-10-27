@@ -1926,7 +1926,7 @@ function freshHopper(h, id, x = 0, r = 0) {
     model: addXray(HEROES.find(o => o.id === id).build()),
   });
   if (h.slot || (h.remote && h.key === 'h')) {   // friends' hoppers (and the host's, on a guest's screen) wear their player's colour
-    const mark = new THREE.Mesh(MARK_GEO, toon({ color: MARK_COLORS[h.slot] }));
+    const mark = new THREE.Mesh(MARK_GEO, toon({ color: MARK_COLORS[h.col ?? h.slot] }));
     mark.position.y = 1.62;   // above even Catstar's spring
     h.model.group.add(mark);
     h.mark = mark;
@@ -2110,7 +2110,7 @@ function respawn(h) {
     freshHopper(h, h.hero, x, r);
     h.active = true;
     h.hop = { fx: x, fz: -r, fy: 2.4, tx: x, tz: -r, ty: LANE_Y[lane.type], t: 0, fromR: r, toR: r, h: 0 };   // drops in from above
-    burst(x, 1.2, -r, [0xffd23f, 0xffffff, MARK_COLORS[h.slot] || 0xff8fc8], 14, 1.5, 3, 0.09, 0.7);
+    burst(x, 1.2, -r, [0xffd23f, 0xffffff, MARK_COLORS[h.col ?? h.slot] || 0xff8fc8], 14, 1.5, 3, 0.09, 0.7);
     sfx.place();
     tellHopper(h);
     roadSend({ t: 'rb', k: h.key, x, r });
@@ -2940,7 +2940,7 @@ function syncPlayerWalkers() {
   for (const w of farm.walkers) if (!isPlayerKey(w.key)) hideWalker(w, played.has(w.id) && w.id !== heroId);
   toGuests({ t: 'crew', walkers: crewList() });
 }
-const crewList = () => farm.walkers.map(w => ({ k: w.key, hero: w.id, hidden: !!w.hidden, host: w.key === heroId, x: w.x, z: w.z, tx: w.tx, tz: w.tz }));
+const crewList = () => farm.walkers.map(w => ({ k: w.key, hero: w.id, hidden: !!w.hidden, host: w.key === heroId, col: isPlayerKey(w.key) ? colorOf(+w.key.slice(1)) : 0, x: w.x, z: w.z, tx: w.tx, tz: w.tz }));
 // Between rounds everyone can hop their own hopper around the yard, one hop at a
 // time: friends with their phone's hop pad, the TV with the arrow keys, WASD, the
 // controller, or a tap on the grass. Left alone for a while, a hopper goes back to wandering.
@@ -3063,7 +3063,7 @@ function updateWalkers(dt, t) {
 function playerMarks() {
   if (!GUEST && ![...party.players.values()].some(p => p.hero)) return [[walkerOf(heroId), -1]];
   return farm.walkers.filter(w => !w.hidden && (GUEST ? w.isHost : w.key === heroId) || isPlayerKey(w.key))
-    .map(w => [w, isPlayerKey(w.key) ? +w.key.slice(1) : 0]);
+    .map(w => [w, !isPlayerKey(w.key) ? 0 : GUEST ? w.col : colorOf(+w.key.slice(1))]);
 }
 // Called when arriving at the farm or picking a hopper: your hopper hops and turns to you.
 function placeFarmHero() {
@@ -3193,7 +3193,7 @@ function goRoadGuest(m) {
         if (!late) { freshHopper(P, P.hero, c.x, c.r); P.active = false; }
         continue;
       }
-      const h = { key: c.k, slot: c.slot || 0, hero: c.hero, remote: true };
+      const h = { key: c.k, slot: c.slot || 0, col: c.col ?? 0, hero: c.hero, remote: true };
       freshHopper(h, c.hero, c.x, c.r);
       h.active = false;
       if (!c.alive || c.parked) { h.alive = false; h.parked = !!c.parked; h.model.group.visible = false; }
@@ -3457,6 +3457,7 @@ window.addEventListener('keydown', e => {
     else if (e.code === 'KeyJ') stageAct();
     else if (e.code === 'KeyC') openHeroes();
     else if (e.code === 'KeyO') openSettings();
+    else if (KEYS[e.code] && keysPlayer() && e.code.startsWith('Arrow')) { if (!e.repeat && !game.picking) onPlayer(keysPlayer(), { t: 'hop', dx: KEYS[e.code][0], dr: KEYS[e.code][1] }); e.preventDefault(); }
     else if (KEYS[e.code] && hostFarmHop(...KEYS[e.code])) e.preventDefault();
     return;
   }
@@ -3464,6 +3465,7 @@ window.addEventListener('keydown', e => {
   if (game.state !== 'title' && game.state !== 'play') return;
   if (e.code === 'Space' && !e.repeat) { move(0, 1); e.preventDefault(); return; }
   const k = KEYS[e.code];
+  if (k && !e.repeat && keysPlayer() && e.code.startsWith('Arrow')) { onPlayer(keysPlayer(), { t: 'hop', dx: k[0], dr: k[1] }); e.preventDefault(); return; }   // the keyboard player
   if (k && !e.repeat) { move(...k); e.preventDefault(); }
 });
 
@@ -4380,7 +4382,7 @@ function partyStop() {
   clearInterval(party.ping);
   try { party.ws?.close(); } catch {}
   party.ws = null;
-  for (const slot of [...party.players.keys()]) dropPlayer(slot);
+  for (const [slot, p] of [...party.players]) if (!p.local) dropPlayer(slot);   // players on this screen stay
   try { sessionStorage.removeItem('bl-party-room'); } catch {}
   party.room = null;
   renderParty();
@@ -4394,7 +4396,7 @@ function setupCrew() {
   for (const [slot, pl] of [...party.players.entries()].sort((a, b) => a[0] - b[0])) {
     if (!pl.hero) continue;
     // A guest's hopper is moved on their own device ("remote"); a phone's, here.
-    pl.road = { slot, key: 'p' + slot, hero: pl.hero, parked: true, alive: false, active: false, remote: !!pl.guest };
+    pl.road = { slot, key: 'p' + slot, hero: pl.hero, col: pl.col, parked: true, alive: false, active: false, remote: !!pl.guest };
     game.crew.push(pl.road);
   }
 }
@@ -4410,7 +4412,7 @@ function placeCrew() {
   }
 }
 function addToRoad(slot, pl) {   // joined while a round is on
-  const h = pl.road = { slot, key: 'p' + slot, hero: pl.hero, parked: true, alive: false, active: false, remote: !!pl.guest };
+  const h = pl.road = { slot, key: 'p' + slot, hero: pl.hero, col: pl.col, parked: true, alive: false, active: false, remote: !!pl.guest };
   game.crew.push(h);
   if (game.state === 'title') { freshHopper(h, h.hero, [-2, 2, -1, 1][game.crew.length % 4], 0); }
   // A guest's device builds the road up to the team and drops them in beside it.
@@ -4421,7 +4423,7 @@ function addToRoad(slot, pl) {   // joined while a round is on
 function roadNews() {
   return {
     t: 'road', seed: game.seed, T: game.roadT, state: game.state, score: game.score, day: game.day,
-    crew: game.crew.map(h => ({ k: h.key, hero: h.hero, slot: h.slot, x: h.x, r: h.r, alive: !!h.alive, parked: !!h.parked })),
+    crew: game.crew.map(h => ({ k: h.key, hero: h.hero, slot: h.slot, col: h.col ?? 0, x: h.x, r: h.r, alive: !!h.alive, parked: !!h.parked })),
   };
 }
 function dropFromRoad(pl) {
@@ -4550,7 +4552,7 @@ function onRoadNews(h, m) {   // a friend's hopper, as their device reports it
     freshHopper(h, h.hero, +m.x, r);
     h.active = true;
     h.hop = { fx: h.x, fz: -r, fy: 2.4, tx: h.x, tz: -r, ty: lane ? LANE_Y[lane.type] : 0, t: 0, fromR: r, toR: r, h: 0 };
-    burst(h.x, 1.2, -r, [0xffd23f, 0xffffff, MARK_COLORS[h.slot] || 0xff8fc8], 14, 1.5, 3, 0.09, 0.7);
+    burst(h.x, 1.2, -r, [0xffd23f, 0xffffff, MARK_COLORS[h.col ?? h.slot] || 0xff8fc8], 14, 1.5, 3, 0.09, 0.7);
   } else if (m.t === 'rp') {
     h.parked = true;
     h.model.group.visible = false;
@@ -4650,6 +4652,79 @@ function followBeat(pos) {   // guest: line our tune up with the host's, if it's
   if (off > 0.08) music.seek(want);
 }
 
+// ---------- player colours ----------
+// The host is player 1 (red); everyone else takes the first colour free when they
+// join: blue, yellow, green, then purple.
+function colorOf(slot) { return slot ? party.players.get(slot)?.col ?? Math.min(slot, 4) : 0; }
+function freeColor(slot) {
+  const used = new Set([...party.players].filter(([s, p]) => s !== slot && p.hero).map(([, p]) => p.col));
+  for (let c = 1; c < MARK_COLORS.length; c++) if (!used.has(c)) return c;
+  return MARK_COLORS.length - 1;
+}
+
+// ---------- local co-op: more players on this screen ----------
+// Extra controllers (press Start or A on one to join) and a keyboard player (the
+// arrow keys, while the host keeps WASD) play right here as players of their own:
+// a hopper on the farm, on the road (split screen with two) and on the Jam Stage.
+// They sit in slots after the phones' (5-8) and play through the very messages a
+// phone sends, so everything a phone can do, they can.
+const LOCAL_SLOTS = [5, 6, 7, 8];
+const localPlayers = () => [...party.players].filter(([, p]) => p.local);
+const keysPlayer = () => localPlayers().find(([, p]) => p.local.keys)?.[0];
+function addLocal(local) {
+  if (GUEST) return null;
+  const slot = LOCAL_SLOTS.find(s => !party.players.has(s));
+  if (!slot) return null;
+  const busy = new Set([heroId, ...[...party.players.values()].map(p => p.hero)]);   // a hopper nobody's playing, if there is one
+  const hero = ownedHeroes().map(h => h.id).find(id => !busy.has(id)) || heroId;
+  party.players.set(slot, { hero: null, kick: 0, local });
+  assign(slot, hero);
+  sfx.ensure();
+  sfx.place();
+  return slot;
+}
+function nextLocalHero(slot) {
+  const pl = party.players.get(slot), ids = ownedHeroes().map(h => h.id);
+  if (pl) assign(slot, ids[(ids.indexOf(pl.hero) + 1) % ids.length]);
+}
+const localPads = new Map();   // gamepad index -> { prev, stick, slot }
+function pollLocalPads(list) {
+  for (const gp of list) {
+    const st = localPads.get(gp.index) || { prev: [], stick: null, slot: null };
+    localPads.set(gp.index, st);
+    const down = gp.buttons.map(b => b.pressed), prev = st.prev;
+    st.prev = down;
+    const pressed = i => down[i] && !prev[i], released = i => !down[i] && prev[i];
+    const ax = gp.axes[0] || 0, ay = gp.axes[1] || 0, mag = Math.hypot(ax, ay);
+    const stick = mag > 0.55 ? (Math.abs(ax) > Math.abs(ay) ? (ax > 0 ? 'right' : 'left') : (ay > 0 ? 'down' : 'up')) : mag > 0.3 ? st.stick : null;
+    const flick = stick && stick !== st.stick ? stick : null;
+    st.stick = stick;
+    const dir = pressed(12) ? 'up' : pressed(13) ? 'down' : pressed(14) ? 'left' : pressed(15) ? 'right' : flick;
+    if (st.slot && !party.players.get(st.slot)?.local) st.slot = null;   // removed from the menu
+    if (!st.slot) {   // Start or A: join in
+      if ((pressed(9) || pressed(0)) && !jam.open && ['farm', 'title', 'play'].includes(game.state)) { st.slot = addLocal({ pad: gp.index }); renderParty(); }
+      continue;
+    }
+    const slot = st.slot, pl = party.players.get(slot), send = m => onPlayer(slot, m);
+    if (jam.open) {   // the six buttons play the row the d-pad picked; left/right shift the octave
+      if (dir === 'up' || dir === 'down') pl.row = clamp((pl.row ?? 1) + (dir === 'down' ? 1 : -1), 0, JAM_ROWS - 1);
+      if (dir === 'left' || dir === 'right') send({ t: 'oct', v: clamp(pl.oct + (dir === 'right' ? 1 : -1), -1, 1) });
+      PAD_BTNS.forEach((b, col) => {
+        if (pressed(b)) { st[b] = pl.row ?? 1; send({ t: 'note', r: st[b], c: col, on: true }); }
+        if (released(b)) send({ t: 'note', r: st[b] ?? 1, c: col, on: false });
+      });
+      continue;
+    }
+    if (game.picking) continue;
+    if (dir) send({ t: 'hop', dx: DIRS[dir][0], dr: DIRS[dir][1] });
+    if (released(0)) send({ t: 'hop', dx: 0, dr: 1 });   // A, like a tap: hop forward
+    if (game.state === 'farm') {
+      if (pressed(3)) nextLocalHero(slot);                   // Y: the next hopper
+      if (pressed(8)) { dropPlayer(slot); renderParty(); }    // Back / Select: leave
+    }
+  }
+}
+
 // ---------- guests: friends playing the game on their own device ----------
 const guests = () => [...party.players.entries()].filter(([, p]) => p.guest);
 function toGuests(obj, except) { for (const [slot] of guests()) if (slot !== except) partySend(slot, obj); }
@@ -4668,11 +4743,11 @@ if (!GUEST) onFarmSave = () => {   // bought, built or moved something: guests g
 function assign(slot, hero) {
   const old = party.players.get(slot);
   if (old?.m) { jam.scene?.remove(old.m.group); disposeHero(old.m); }
-  const pl = { hero, oct: 0, sus: 0.35, drums: false, kick: 0, m: null, banjo: null, guest: !!old?.guest };
+  const pl = { hero, oct: 0, sus: 0.35, drums: false, kick: 0, m: null, banjo: null, guest: !!old?.guest, local: old?.local || null, col: old?.col ?? freeColor(slot) };
   party.players.set(slot, pl);
   if (jam.scene) addPlayerModel(pl);
   if (old?.road) dropFromRoad(old);
-  partySend(slot, { t: 'joined', hero, pad: HEROES.find(h => h.id === hero).pad, drums: ownedDecor.has('drums'), mark: MARK_CSS[slot] });
+  partySend(slot, { t: 'joined', hero, pad: HEROES.find(h => h.id === hero).pad, drums: ownedDecor.has('drums'), mark: MARK_CSS[pl.col] });
   partySend(slot, { t: 'view', v: currentView(), score: game.score });
   if (game.where === 'road' && (game.state === 'title' || game.state === 'play')) addToRoad(slot, pl);
   lobbyAll();
@@ -4739,13 +4814,18 @@ function loadQr() {
 }
 let qrFor = '';
 function renderParty() {
-  const list = [...party.players.entries()].filter(([, p]) => p.hero).sort((a, b) => a[0] - b[0]);
+  const list = [...party.players.entries()].filter(([, p]) => p.hero).sort((a, b) => a[1].col - b[1].col);
   const chip = ([slot, p]) => {
-    const path = peers.get(slot)?.path || 'relay';
-    return `<span class="partyChip" style="--c:${HEROES.find(h => h.id === p.hero).pad}"><b>${slot}</b>${heroName(p.hero)}<i class="path ${path}">${t('party.' + path)}</i></span>`;
+    const path = p.local ? 'screen' : peers.get(slot)?.path || 'relay';
+    const how = p.local?.keys ? ' ⌨' : p.local ? ' 🎮' : '';
+    return `<span class="partyChip" style="--c:${HEROES.find(h => h.id === p.hero).pad}"><b style="background:${MARK_CSS[p.col]}">${p.col + 1}</b>${heroName(p.hero)}${how}<i class="path ${path}">${t('party.' + path)}</i></span>`;
   };
   $('partyChips').innerHTML = list.map(chip).join('');
-  $('partyList').innerHTML = list.length ? list.map(chip).join('') : '<span class="partyNone"></span>';
+  const far = list.filter(([, p]) => !p.local), here = list.filter(([, p]) => p.local);
+  $('partyList').innerHTML = far.length ? far.map(chip).join('') : '<span class="partyNone"></span>';
+  // Players on this screen: tap to change hopper, ✕ to leave.
+  $('partyLocal').innerHTML = here.map(([slot, p]) => `<button class="localChip" data-slot="${slot}">${chip([slot, p])}<span class="x" data-x="${slot}" aria-label="${t('party.leave')}">✕</span></button>`).join('');
+  $('partyKeys').hidden = !!keysPlayer() || here.length >= LOCAL_SLOTS.length;
   const none = $('partyList').querySelector('.partyNone');
   if (none) none.textContent = t('party.none');
   $('partyBtn').classList.toggle('live', party.on);
@@ -4781,6 +4861,12 @@ function closeParty() {
 $('phonesBtn').addEventListener('click', () => { sfx.ensure(); if (game.state === 'farm') openParty(); });
 $('partyBtn').addEventListener('click', () => { sfx.ensure(); openParty(); });
 $('partyDone').addEventListener('click', closeParty);
+$('partyKeys').addEventListener('click', () => { addLocal({ keys: true }); renderParty(); });
+$('partyLocal').addEventListener('click', e => {
+  const x = e.target.closest('[data-x]'), b = e.target.closest('[data-slot]');
+  if (x) { dropPlayer(+x.dataset.x); renderParty(); }
+  else if (b) nextLocalHero(+b.dataset.slot);
+});
 $('partyStop').addEventListener('click', () => { partyStop(); closeParty(); });
 $('partyCopy').addEventListener('click', () => {
   navigator.clipboard?.writeText(inviteLink()).then(() => { $('partyCopy').textContent = t('party.copied'); setTimeout(() => { $('partyCopy').textContent = t('party.copy'); }, 1500); }).catch(() => {});
@@ -4953,7 +5039,9 @@ function showPadHints() {
 }
 window.addEventListener('gamepadconnected', showPadHints);
 function pollPad() {
-  const gp = [...(navigator.getGamepads ? navigator.getGamepads() : [])].find(p => p && p.connected);
+  const pads = [...(navigator.getGamepads ? navigator.getGamepads() : [])].filter(p => p && p.connected);
+  if (!GUEST) pollLocalPads(pads.slice(1));   // more controllers: more players on this screen
+  const gp = pads[0];
   if (!gp) return;
   const down = gp.buttons.map(b => b.pressed), prev = pad.prev;
   pad.prev = down;
@@ -5095,6 +5183,7 @@ if (guestNet) {
       else if (c.k !== myKey() && !w.leap && Math.hypot(w.x - c.x, w.z - c.z) > 0.6) Object.assign(w, { x: c.x, z: c.z, tx: c.tx, tz: c.tz });
       hideWalker(w, c.hidden);
       w.isHost = !!c.host;
+      w.col = c.col ?? 0;
     }
   };
   const keepHero = () => { try { sessionStorage.setItem('bl-guest-hero', heroId); } catch {} };   // the same hopper after a reload

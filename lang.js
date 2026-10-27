@@ -41,9 +41,11 @@ export const STRINGS = {
     bunkhouse: 'Bunkhouse', bunkPlan: 'Build a cozy cabin so new hoppers can move in.', build: 'Build',
     bunkWho: 'Tap a hopper to invite them to the farm.', movedIn: '{name} moved in!',
     party: {
+      here: 'On this screen', screen: 'Here', leave: 'Leave', addKeys: 'Add a keyboard player (arrow keys)',
+      padJoin: 'Another controller? Press Start on it to join. Y changes hopper, Back leaves. Tap a player here to change their hopper.',
       local: 'Local', direct: 'Direct', relay: 'Relay', invite: 'Send invite', inviteCopied: 'Invite link copied!',
       inviteText: "Come hop with me in Betty Lou's Farm Hop! Open this to play along from wherever you are.",
-      btn: 'Play with phones', scan: 'Scan with a phone camera to join: jam on the Jam Stage, or start the day to hop together. Up to four phones. Friends far away? Send them an invite: they\'ll hop around this farm on their own phone or computer.', none: 'Nobody has joined yet.', copy: 'Copy link', copied: 'Copied!', stop: 'Stop', done: 'Done' },
+      btn: 'Play together', scan: 'Scan with a phone camera to join: jam on the Jam Stage, or start the day to hop together. Up to four phones. Friends far away? Send them an invite: they\'ll hop around this farm on their own phone or computer.', none: 'Nobody has joined yet.', copy: 'Copy link', copied: 'Copied!', stop: 'Stop', done: 'Done' },
     remote: {
       pick: 'Pick your hopper', change: 'Change', off: 'Not connected', noRoom: 'Scan the QR code on the Jam Stage to join the jam.',
       connecting: 'Connecting…', reconnecting: 'Reconnecting…', waiting: 'Waiting for the game…',
@@ -105,9 +107,11 @@ export const STRINGS = {
     bunkhouse: 'La cabaña', bunkPlan: 'Construye una cabaña acogedora para que lleguen nuevos saltarines.', build: 'Construir',
     bunkWho: 'Toca un saltarín para invitarlo a la granja.', movedIn: '¡{name} se mudó a la granja!',
     party: {
+      here: 'En esta pantalla', screen: 'Aquí', leave: 'Salir', addKeys: 'Añadir jugador de teclado (flechas)',
+      padJoin: '¿Otro mando? Pulsa Start en él para unirte. Y cambia de saltarín, Back sale. Toca a un jugador aquí para cambiar su saltarín.',
       local: 'Local', direct: 'Directo', relay: 'Relevo', invite: 'Enviar invitación', inviteCopied: '¡Enlace copiado!',
       inviteText: '¡Ven a saltar conmigo en Betty Lou\'s Farm Hop! Ábrelo para jugar desde donde estés.',
-      btn: 'Jugar con teléfonos', scan: 'Escanea con la cámara del teléfono para unirte: toca en el escenario o empieza el día para saltar juntos. Hasta cuatro teléfonos. ¿Amigos lejos? Envíales una invitación: saltarán por esta granja en su propio teléfono o computadora.', none: 'Todavía no se ha unido nadie.', copy: 'Copiar enlace', copied: '¡Copiado!', stop: 'Terminar', done: 'Listo' },
+      btn: 'Jugar juntos', scan: 'Escanea con la cámara del teléfono para unirte: toca en el escenario o empieza el día para saltar juntos. Hasta cuatro teléfonos. ¿Amigos lejos? Envíales una invitación: saltarán por esta granja en su propio teléfono o computadora.', none: 'Todavía no se ha unido nadie.', copy: 'Copiar enlace', copied: '¡Copiado!', stop: 'Terminar', done: 'Listo' },
     remote: {
       pick: 'Elige tu saltarín', change: 'Cambiar', off: 'Sin conexión', noRoom: 'Escanea el código QR del escenario para unirte.',
       connecting: 'Conectando…', reconnecting: 'Reconectando…', waiting: 'Esperando al juego…',
@@ -169,9 +173,11 @@ export const STRINGS = {
     bunkhouse: '小木屋', bunkPlan: '盖一间温馨的小木屋，让新伙伴搬进来。', build: '建造',
     bunkWho: '点一个伙伴，邀请它来农场。', movedIn: '{name}搬进来了！',
     party: {
+      here: '在这块屏幕上', screen: '本机', leave: '离开', addKeys: '添加键盘玩家（方向键）',
+      padJoin: '还有手柄？按它的 Start 加入。Y 换角色，Back 退出。点这里的玩家可以给他换角色。',
       local: '本地', direct: '直连', relay: '中继', invite: '发送邀请', inviteCopied: '邀请链接已复制！',
       inviteText: '来和我一起玩 Betty Lou\'s Farm Hop 吧！打开链接，在哪里都能一起玩。',
-      btn: '用手机一起玩', scan: '用手机相机扫描加入：在音乐舞台合奏，或开始新的一天一起跳。最多四部手机。朋友在远方？发送邀请，他们可以在自己的手机或电脑上在这个农场里跳来跳去。', none: '还没有人加入。', copy: '复制链接', copied: '已复制！', stop: '结束', done: '完成' },
+      btn: '一起玩', scan: '用手机相机扫描加入：在音乐舞台合奏，或开始新的一天一起跳。最多四部手机。朋友在远方？发送邀请，他们可以在自己的手机或电脑上在这个农场里跳来跳去。', none: '还没有人加入。', copy: '复制链接', copied: '已复制！', stop: '结束', done: '完成' },
     remote: {
       pick: '选择角色', change: '更换', off: '未连接', noRoom: '扫描音乐舞台上的二维码加入合奏。',
       connecting: '正在连接…', reconnecting: '正在重新连接…', waiting: '等待游戏…',

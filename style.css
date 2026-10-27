@@ -469,6 +469,13 @@ body.guest #phonesBtn, body.guest #partyBtn, body.guest #play { display: none !i
 .partyQr svg { width: 100%; height: 100%; }
 .partyScan { margin: 0; font-size: 15px; line-height: 1.3; opacity: .8; }
 .partyScan:empty { display: none; }
+.partyHere { display: flex; flex-direction: column; align-items: center; gap: 6px; padding-top: 10px; border-top: 2px dashed rgba(58, 36, 66, .2); }
+.partyHere h3 { margin: 0; font-size: 16px; }
+.partyHere .partyScan { margin: 0; }
+.localChip { all: unset; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.localChip .partyChip { pointer-events: none; }
+.localChip .x { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--cream-d); border: 2px solid var(--ink); font-size: 12px; font-weight: 700; }
+.partyChip .path.screen { background: #fff; }
 .partyList { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; min-height: 26px; }
 .partyNone { font-size: 14px; opacity: .6; }
 .partyActions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
