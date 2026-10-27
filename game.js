@@ -2844,12 +2844,70 @@ function spawnWalkers() {
     farm.group.add(farm.marker);
   }
 }
+// Between rounds everyone can hop their own hopper around the yard, one hop at a
+// time: friends with their phone's hop pad, the TV with the arrow keys, WASD, the
+// controller, or a tap on the grass. Left alone for a while, a hopper goes back to wandering.
+const FARM_STEP = 1, STEER_IDLE = 25;
+const walkerOf = id => farm.walkers?.find(w => w.id === id);
+const roomAt = (w, x, z) => x > YARD.x0 && x < YARD.x1 && z > YARD.z0 && z < YARD.z1 && !blockedAt(x, z)
+  && farm.walkers.every(o => o === w || Math.hypot(x - o.x, z - o.z) > 0.7);
+function leapTo(w, x, z) {   // false (and a little bump in place) when a wall or a friend is in the way
+  const ok = roomAt(w, x, z);
+  if (x !== w.x || z !== w.z) w.face = Math.atan2(-(x - w.x), -(z - w.z));
+  w.hop = 0;
+  w.leap = ok ? { x0: w.x, z0: w.z, x1: x, z1: z, t: 0, up: 0.4 } : { x0: w.x, z0: w.z, x1: w.x, z1: w.z, t: 0, up: 0.15 };
+  w.wait = STEER_IDLE;
+  sfx.hop(w.id);
+  return ok;
+}
+function farmHop(id, dx, dr) {
+  const w = walkerOf(id);
+  if (!w) return;
+  if (w.leap) { w.queued = [dx, dr]; return; }   // pressed again mid-hop: go straight after this one
+  w.goal = null;
+  leapTo(w, w.x + dx * FARM_STEP, w.z - dr * FARM_STEP);
+}
+function hopToward(id, x, z) {   // a tap on the grass: hop over there
+  const w = walkerOf(id);
+  if (!w) return;
+  w.goal = { x, z };
+  if (!w.leap) nextLeap(w);
+}
+function nextLeap(w) {
+  const dx = w.goal.x - w.x, dz = w.goal.z - w.z, d = Math.hypot(dx, dz);
+  if (d < 0.35) { w.goal = null; return; }
+  const s = Math.min(FARM_STEP, d), a = Math.atan2(dz, dx);
+  for (const turn of [0, 0.6, -0.6, 1.2, -1.2]) {   // something in the way: try stepping round it
+    const x = w.x + Math.cos(a + turn) * s, z = w.z + Math.sin(a + turn) * s;
+    if (roomAt(w, x, z) && (!turn || Math.hypot(w.goal.x - x, w.goal.z - z) < d)) { leapTo(w, x, z); return; }
+  }
+  w.goal = null;
+  leapTo(w, w.x, w.z);
+}
+// The TV's own hopper, from the keyboard or a controller
+function hostFarmHop(dx, dr) {
+  if (game.state !== 'farm' || game.picking || decor.on || jam.open) return false;
+  farmHop(heroId, dx, dr);
+  return true;
+}
 function updateWalkers(dt, t) {
   for (const w of farm.walkers) {
     const { inner, group, tails } = w.m;
     const dx = w.tx - w.x, dz = w.tz - w.z, d = Math.hypot(dx, dz);
     let sway = Math.sin(t * 2.2 + w.ph) * 0.1;
-    if (w.hop > 0) {                                 // happy hop
+    if (w.leap) {                                    // steered from a phone
+      const L = w.leap;
+      L.t = Math.min(1, L.t + dt / 0.2);
+      w.x = w.tx = lerp(L.x0, L.x1, L.t);
+      w.z = w.tz = lerp(L.z0, L.z1, L.t);
+      inner.position.y = Math.sin(Math.PI * L.t) * L.up;
+      inner.rotation.z = 0;
+      if (L.t >= 1) {
+        w.leap = null;
+        if (w.queued) { const [qx, qr] = w.queued; w.queued = null; farmHop(w.id, qx, qr); }
+        else if (w.goal) nextLeap(w);
+      }
+    } else if (w.hop > 0) {                                 // happy hop
       w.hop = Math.max(0, w.hop - dt);
       inner.position.y = Math.sin(Math.PI * (1 - w.hop / 0.5)) * 0.4;
     } else if (d > 0.05) {                           // waddle toward the next spot
@@ -3112,7 +3170,8 @@ function tapFarm(x, y) {
   if (w) { w.hop = 0.5; sfx.hop(w.id); return; }
   if (hit(farm.pieces.bunk.group)) { openBunk(); return; }
   if (hit(farm.pieces.stage.group)) { stageAct(); return; }
-  if (hit(farm.pieces.pond.group)) openPond();
+  if (hit(farm.pieces.pond.group)) { openPond(); return; }
+  if (groundAt(x, y, _a)) hopToward(heroId, _a.x - farm.group.position.x, _a.z - farm.group.position.z);
 }
 // Stop the page itself from scrolling or bouncing, but let panels (pickers, settings) scroll.
 document.addEventListener('touchmove', e => { if (!e.target.closest('.sheet, input[type=range]')) e.preventDefault(); }, { passive: false });
@@ -3213,6 +3272,7 @@ window.addEventListener('keydown', e => {
     else if (e.code === 'KeyJ') stageAct();
     else if (e.code === 'KeyC') openHeroes();
     else if (e.code === 'KeyO') openSettings();
+    else if (KEYS[e.code] && hostFarmHop(...KEYS[e.code])) e.preventDefault();
     return;
   }
   if (game.state === 'over' && (e.code === 'Space' || e.code === 'Enter')) { goFarm(); return; }
@@ -4183,10 +4243,11 @@ function onPlayer(slot, m, direct = false) {
   if (m.t === 'leave') { dropPlayer(slot); party.players.set(slot, { hero: null, kick: 0 }); renderParty(); return; }
   if (!pl || !pl.hero) return;
   if (m.t === 'hop') {
-    if (game.where !== 'road') return;
-    if (!pl.road) addToRoad(slot, pl);
     const dx = clamp(m.dx | 0, -1, 1), dr = dx ? 0 : clamp(m.dr | 0, -1, 1);
-    if (dx || dr) move(dx, dr, pl.road);
+    if (!dx && !dr) return;
+    if (game.where === 'farm') { if (game.state === 'farm' && !jam.open && !decor.on) farmHop(pl.hero, dx, dr); return; }
+    if (!pl.road) addToRoad(slot, pl);
+    move(dx, dr, pl.road);
     return;
   }
   if (m.t === 'oct') pl.oct = clamp(+m.v || 0, -1, 1);
@@ -4654,6 +4715,7 @@ function pollPad() {
     else if (pressed(3)) openHeroes();
     else if (pressed(2)) openPond();
     else if (pressed(8)) openSettings();   // Select / View button
+    else if (dir) hostFarmHop(...DIRS[dir]);
     return;
   }
   if (game.state === 'over') {

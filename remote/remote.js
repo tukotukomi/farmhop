@@ -59,7 +59,13 @@ function renderView() {
   if (me.view === 'jam') show('deck');
   else if (me.view === 'road') { show('hop'); renderMe(); }
   else if (me.view === 'over') show('msg', t('remote.over', { n: me.score }));
-  else show('msg', t('remote.farm'));
+  else {   // on the farm: hop around the yard while the TV gets ready
+    show('hop');
+    $('changeBtn').hidden = false;
+    clearInterval(backTimer);
+    $('hopPad').classList.remove('out');
+    $('hopState').textContent = t('remote.farm');
+  }
 }
 let backTimer = null;
 function renderMe() {   // knocked out: a countdown until the hopper drops back in
@@ -257,7 +263,7 @@ const HOP_KEYS = { ArrowUp: [0, 1], KeyW: [0, 1], Space: [0, 1], ArrowDown: [0, 
 const padEl = (r, c) => pads.children[r * 6 + c];
 window.addEventListener('keydown', e => {
   if (!me.hero || e.repeat || e.target.closest?.('input')) return;
-  if (me.view === 'road' && HOP_KEYS[e.code]) { hop(...HOP_KEYS[e.code]); e.preventDefault(); return; }
+  if ((me.view === 'road' || me.view === 'farm') && HOP_KEYS[e.code]) { hop(...HOP_KEYS[e.code]); e.preventDefault(); return; }
   if (me.view !== 'jam') return;
   if (me.drums) {
     if (e.code in DRUM_KEYS) { send({ t: 'drum', d: DRUM_KEYS[e.code] }); e.preventDefault(); }
