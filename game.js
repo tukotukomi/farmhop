@@ -2597,10 +2597,64 @@ function buildSwing(g) {   // a wooden A-frame with a pink seat that sways
   return t => { seat.rotation.x = Math.sin(t * 1.7) * 0.28; };
 }
 
+// A price bubble floating over a plot: a sunflower and how many it takes to build.
+// It always faces the camera and gets no ink outline.
+function costTag(g, n, x, y, z) {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 128;
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const font = '600 80px Fredoka, system-ui, sans-serif';
+  const paint = () => {
+    const k = c.getContext('2d');
+    k.clearRect(0, 0, c.width, c.height);
+    k.beginPath();
+    k.roundRect(6, 6, 244, 116, 58);
+    k.fillStyle = '#fff4e0';
+    k.fill();
+    k.lineWidth = 7;
+    k.strokeStyle = '#3a2442';
+    k.stroke();
+    for (let i = 0; i < 10; i++) {                       // the sunflower: petals, then the middle
+      const a = i * Math.PI / 5;
+      k.beginPath();
+      k.ellipse(78 + Math.cos(a) * 22, 64 + Math.sin(a) * 22, 15, 9, a, 0, Math.PI * 2);
+      k.fillStyle = i % 2 ? '#ffcc1a' : '#ffb000';
+      k.fill();
+    }
+    k.beginPath();
+    k.arc(78, 64, 16, 0, Math.PI * 2);
+    k.fillStyle = '#7a4a1c';
+    k.fill();
+    k.font = font;
+    k.fillStyle = '#3a2442';
+    k.textAlign = 'center';
+    k.textBaseline = 'middle';
+    k.fillText(n, 170, 70);
+    tex.needsUpdate = true;
+  };
+  paint();
+  document.fonts?.load(font).then(paint, () => {});   // again once the game's font is in
+  const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex }));
+  tag.scale.set(1.5, 0.75, 1);
+  tag.position.set(x, y, z);
+  tag.layers.set(GLOW_LAYER);
+  tag.userData.tag = true;
+  g.add(tag);
+}
+// Takes down a plot or building's meshes before it's built again.
+function clearPiece(g) {
+  for (const c of [...g.children]) {
+    g.remove(c);
+    c.geometry?.dispose();
+    if (c.userData.tag) { c.material.map.dispose(); c.material.dispose(); }
+  }
+}
+
 function buildStage() {
   const g = farm.stage;
   if (!g) return;
-  for (const c of [...g.children]) { g.remove(c); c.geometry?.dispose(); }
+  clearPiece(g);
   const v = new VB(0.6), WOOD = 0x9c6b3c, WOOD_D = 0x7a4f2c, CURTAIN = 0x7d58d6, CURTAIN_L = 0x9b74ee;
   if (!farm.stageBuilt) {                                                     // a plot with a sign that has a music note on it
     v.rbox(2.3, 0.05, 1.8, 0, 0, 0, 0xc9a06a, 0.2);
@@ -2614,6 +2668,7 @@ function buildStage() {
     v.rbox(0.02, 0.24, 0.02, 0.01, 0.78, 0.56, 0x3a2442, 0.005);
     v.rbox(0.09, 0.03, 0.02, 0.05, 0.88, 0.56, 0x3a2442, 0.005, 0, 0, -0.5);
     g.add(v.mesh());
+    costTag(g, STAGE_COST, 0, 1.55, 0.5);
     return;
   }
   v.rbox(2.4, 0.3, 1.8, 0, 0.15, 0, WOOD, 0.05);                              // the stage floor
@@ -2668,7 +2723,7 @@ function buildDrumKit(g) {
 function buildBunk() {
   const g = farm.bunk;
   if (!g) return;
-  for (const c of [...g.children]) { g.remove(c); c.geometry?.dispose(); }
+  clearPiece(g);
   const v = new VB(0.6);
   const LOG = 0xc98a4b, LOG_D = 0xa86c34, END = 0xf0c48a, WOOD = 0x8a5a33;
   if (!farm.bunkBuilt) {                                                     // a plot: dirt, stakes and string, a pile of logs
@@ -2688,6 +2743,7 @@ function buildBunk() {
     v.cyl(0.09, 0.09, 0.03, 0.5, 0.72, 0.51, 0xffc21a, Math.PI / 2, 0, 0);
     v.cyl(0.04, 0.04, 0.035, 0.5, 0.72, 0.52, 0x7a4a1c, Math.PI / 2, 0, 0);
     g.add(v.mesh());
+    costTag(g, BUNK_COST, 0.5, 1.5, 0.45);
     return;
   }
   const W = 1.8, D = 1.4, H = 1.0, r = 0.09;
