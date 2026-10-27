@@ -28,24 +28,42 @@ try {
   if (!pid) sessionStorage.setItem('fhPid', pid = crypto.randomUUID().replace(/-/g, ''));
 } catch { pid = crypto.randomUUID().replace(/-/g, ''); }
 
-const me = { hero: null, pad: '#ff7fb8', oct: 0, sus: 0.35, drums: false, hasDrums: false };
+const me = { hero: null, pad: '#ff7fb8', oct: 0, sus: 0.35, drums: false, hasDrums: false, view: 'farm', score: 0, alive: true, back: 0 };
 let ws = null, retry = 0, ended = false, pingTimer = null;
 
 $('pickTitle').textContent = t('remote.pick');
 $('susLabel').textContent = t('sustain');
 $('octLabel').textContent = t('octave');
 $('changeBtn').textContent = t('remote.change');
+$('hopHint').textContent = t('remote.hopHint');
 
 function status(text, ok) {
   $('status').textContent = text;
   $('dot').classList.toggle('ok', !!ok);
 }
-function show(which, text) {   // 'msg', 'picker' or 'deck'
+function show(which, text) {   // 'msg', 'picker', 'deck' (jam pads) or 'hop' (the road)
   $('msg').hidden = which !== 'msg';
   $('picker').hidden = which !== 'picker';
   $('deck').hidden = which !== 'deck';
+  $('hop').hidden = which !== 'hop';
   if (text != null) $('msg').textContent = text;
-  $('changeBtn').hidden = which !== 'deck';
+  $('changeBtn').hidden = !me.hero || which === 'hop' || which === 'picker';
+}
+// Once a hopper is picked, the TV decides what this phone shows.
+function renderView() {
+  if (!me.hero) return;
+  if (me.view === 'jam') show('deck');
+  else if (me.view === 'road') { show('hop'); renderMe(); }
+  else if (me.view === 'over') show('msg', t('remote.over', { n: me.score }));
+  else show('msg', t('remote.farm'));
+}
+let backTimer = null;
+function renderMe() {   // knocked out: a countdown until the hopper drops back in
+  clearInterval(backTimer);
+  $('hopPad').classList.toggle('out', !me.alive);
+  const tick = () => { $('hopState').textContent = me.alive ? '' : t('remote.back', { n: Math.max(1, me.back) }); };
+  tick();
+  if (!me.alive) backTimer = setInterval(() => { me.back = Math.max(1, me.back - 1); tick(); }, 1000);
 }
 const send = obj => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); };
 
@@ -106,8 +124,20 @@ function handle(msg) {
     send({ t: 'sus', v: me.sus });
     send({ t: 'mode', drums: me.drums });
     setMode(me.drums);
-    show('deck');
+    me.alive = true;
+    $('dot').style.background = msg.mark || '';
+    document.documentElement.style.setProperty('--mark', msg.mark || 'transparent');
+    renderView();
     wake();
+  } else if (msg.t === 'view') {
+    me.view = msg.v;
+    me.score = msg.score || 0;
+    if (msg.v !== 'road') me.alive = true;
+    renderView();
+  } else if (msg.t === 'me') {
+    me.alive = !!msg.alive;
+    me.back = msg.back || 0;
+    if (me.view === 'road') renderMe();
   } else if (msg.t === 'bye') {
     ended = true;
     status(t('remote.off'));
@@ -205,6 +235,33 @@ function setMode(on) {
   $('instBtn').setAttribute('aria-label', me.drums ? t('aria.instHopper', { name: heroName(me.hero || 'betty') }) : t('aria.instDrums'));
 }
 $('instBtn').addEventListener('click', () => { setMode(!me.drums); send({ t: 'mode', drums: me.drums }); });
+
+// ---------- the hop pad ----------
+const hopPad = $('hopPad');
+let press = null;
+function hop(dx, dr) {
+  if (!me.alive) return;
+  send({ t: 'hop', dx, dr });
+  if (navigator.vibrate) navigator.vibrate(10);
+}
+hopPad.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  press = { x: e.clientX, y: e.clientY, id: e.pointerId };
+  hopPad.classList.add('on');
+});
+hopPad.addEventListener('pointerup', e => {
+  hopPad.classList.remove('on');
+  if (!press || press.id !== e.pointerId) return;
+  const dx = e.clientX - press.x, dy = e.clientY - press.y;
+  press = null;
+  if (Math.hypot(dx, dy) < 24) hop(0, 1);                      // a tap: forward
+  else if (Math.abs(dx) > Math.abs(dy)) hop(dx > 0 ? 1 : -1, 0);
+  else hop(0, dy < 0 ? 1 : -1);
+});
+hopPad.addEventListener('pointercancel', () => { press = null; hopPad.classList.remove('on'); });
+for (const b of document.querySelectorAll('.hopKeys .round')) {
+  b.addEventListener('pointerdown', e => { e.preventDefault(); hop(+b.dataset.dx, +b.dataset.dr); });
+}
 
 // Keep the screen on while jamming, where the phone allows it.
 let lock = null;

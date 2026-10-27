@@ -176,20 +176,6 @@
     </div>
   </div>
   <button id="jamClose" class="closeBtn bubble" data-i18n-aria="aria.close" aria-label="Close">&#x2715;</button>
-  <div id="party" class="partyPanel" hidden role="dialog" aria-modal="true" aria-labelledby="partyTitle">
-    <div class="panel">
-      <h2 id="partyTitle" data-i18n="party.btn">Jam with phones</h2>
-      <div id="partyQr" class="partyQr"></div>
-      <p class="partyScan" data-i18n="party.scan">Scan with a phone camera to jam along.</p>
-      <p id="partyStatus" class="partyScan"></p>
-      <div id="partyList" class="partyList"></div>
-      <div class="partyActions">
-        <button id="partyCopy" class="chipBtn" data-i18n="party.copy">Copy link</button>
-        <button id="partyStop" class="chipBtn" data-i18n="party.stop">Stop</button>
-        <button id="partyDone" class="chipBtn go" data-i18n="party.done">Done</button>
-      </div>
-    </div>
-  </div>
 </div>
 
 <div id="settings" class="sheet" role="dialog" aria-modal="true" aria-labelledby="setTitle">
@@ -222,6 +208,21 @@
       <p class="setNote" id="gfxNote"></p>
     </div>
     <button id="setClose" class="closeBtn bubble" data-i18n-aria="aria.close" aria-label="Close">&#x2715;</button>
+  </div>
+</div>
+
+<div id="party" class="partyPanel" hidden role="dialog" aria-modal="true" aria-labelledby="partyTitle">
+  <div class="panel">
+    <h2 id="partyTitle" data-i18n="party.btn">Jam with phones</h2>
+    <div id="partyQr" class="partyQr"></div>
+    <p class="partyScan" data-i18n="party.scan">Scan with a phone camera to jam along.</p>
+    <p id="partyStatus" class="partyScan"></p>
+    <div id="partyList" class="partyList"></div>
+    <div class="partyActions">
+      <button id="partyCopy" class="chipBtn" data-i18n="party.copy">Copy link</button>
+      <button id="partyStop" class="chipBtn" data-i18n="party.stop">Stop</button>
+      <button id="partyDone" class="chipBtn go" data-i18n="party.done">Done</button>
+    </div>
   </div>
 </div>
 
@@ -273,6 +274,10 @@
   </div>
 </div>
 
+<button id="phonesBtn" class="bubble" data-i18n-aria="aria.phones" aria-label="Play with phones">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="8.5" height="15" rx="2" fill="#fff" stroke="#3a2442" stroke-width="1.5"/><rect x="12.5" y="5" width="8.5" height="15" rx="2" fill="#fff" stroke="#3a2442" stroke-width="1.5"/><circle cx="7.25" cy="11.5" r="1.8" fill="#ff7fb8"/><circle cx="16.75" cy="12.5" r="1.8" fill="#8fd8ff"/></svg>
+  <b id="phonesCount"></b>
+</button>
 <button id="gear" class="bubble" data-i18n-aria="aria.settings" aria-label="Settings">
   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 2.5h3.4l.5 2.6 1.6.7 2.2-1.5 2.4 2.4-1.5 2.2.7 1.6 2.6.5v3.4l-2.6.5-.7 1.6 1.5 2.2-2.4 2.4-2.2-1.5-1.6.7-.5 2.6h-3.4l-.5-2.6-1.6-.7-2.2 1.5-2.4-2.4 1.5-2.2-.7-1.6-2.6-.5v-3.4l2.6-.5.7-1.6-1.5-2.2 2.4-2.4 2.2 1.5 1.6-.7z" fill="#fff" stroke="#3a2442" stroke-width="1.5" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.2" fill="#bd96ff" stroke="#3a2442" stroke-width="1.5"/></svg>
 </button>

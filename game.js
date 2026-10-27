@@ -319,7 +319,8 @@ function updateFlies(dt) {
   if (game.day < 0.35 && game.state === 'play' && flies.length < 30 && Math.random() < dt * 14) {
     const m = new THREE.Mesh(PGEO, FLY_MAT);
     m.layers.set(GLOW_LAYER);
-    m.position.set(P.x + rand(-5, 5), rand(0.3, 1.4), P.z + rand(-9, 3));
+    const f = roadFocus();
+    m.position.set(f.x + rand(-5, 5), rand(0.3, 1.4), f.z + rand(-9, 3));
     scene.add(m);
     flies.push({ m, t: 0, life: rand(2, 4), ph: rand(0, 6) });
   }
@@ -1717,7 +1718,7 @@ function updateLane(lane, dt, time) {
         burst(m.x - lane.dir * 0.4, 0.5, -lane.r + rand(-0.5, 0.5), [0xf3f0d0, 0xdff5c8], 1, 0.4, 0.3, 0.2, 0.9, true);
       }
       m.buzz -= dt;
-      if (m.buzz <= 0 && game.state === 'play' && Math.abs(lane.r - P.r) < 4 && Math.abs(m.x - P.x) < 9) {
+      if (m.buzz <= 0 && game.state === 'play' && crewNear(lane.r, m.x, 4, 9)) {
         m.buzz = 0.45;
         sfx.buzz();
       }
@@ -1734,7 +1735,8 @@ function updateLane(lane, dt, time) {
 // the ground rumbles and dust lifts), then the bulls charge through.
 const WARN_T = 1.6;
 function updateStampede(lane, dt) {
-  const s = lane.stamp, near = Math.abs(lane.r - P.r), playing = game.state === 'play';
+  const s = lane.stamp, playing = game.state === 'play';
+  const near = Math.min(99, ...game.crew.filter(h => h.alive && !h.parked).map(h => Math.abs(lane.r - h.r)));
   const gx = -lane.dir * (COLS + 0.6);                    // the gate the bulls come through
   s.t -= dt;
   let open = s.state === 'charge', rattle = 0;
@@ -1782,7 +1784,7 @@ function updateStampede(lane, dt) {
       if (lane.dir * m.x > VIS + 3) { m.active = false; m.mesh.visible = false; }
       else {
         any = true;
-        if (near < 7 && playing && Math.abs(m.x - P.x) < 6) game.shake = Math.max(game.shake, 0.5 * (1 - near / 7));
+        if (near < 7 && playing && crewNear(lane.r, m.x, 7, 6)) game.shake = Math.max(game.shake, 0.5 * (1 - near / 7));
         if (Math.random() < dt * 30 && Math.abs(m.x) < VIS) {
           burst(m.x - lane.dir * 0.7, 0.1, -lane.r + rand(-0.3, 0.3), [0xe8d2b0, 0xdcc09a], 1, 0.6, 2.5, 0.2, 0.6, true);
         }
@@ -1795,47 +1797,79 @@ function updateStampede(lane, dt) {
   for (const g of lane.gates) g.rotation.y = g.userData.open * s.ang + rattle * Math.sin(game.time * 45 + g.position.x);
 }
 
-// ---------- player ----------
-const P = {};
-const game = { state: 'farm', where: 'farm', light: 1, dawn: 1, today: 0, day: 1, shake: 0, score: 0, top: store.get('bl-top', 0), coins: store.get('bl-coins', 0), camX: 0, camZ: 0, time: 0 };
+// ---------- the hoppers on the road ----------
+// P is the hopper played on this screen (touch, keys or a controller). In Co-Op Hop,
+// friends on phones (joined through the QR code, see "jam with phones") each bring
+// their own hopper: everyone shares the road, the daylight, the sunflowers and the
+// score. A knocked-out hopper drops back in beside the team a few seconds later;
+// the round ends when everyone is down at once, or when the sun sets.
+// Every function here takes the hopper it acts on (default P), so playing alone is
+// exactly the one-hopper game it always was.
+const P = { slot: 0 };
+const game = { state: 'farm', where: 'farm', light: 1, dawn: 1, today: 0, day: 1, shake: 0, score: 0, top: store.get('bl-top', 0), coins: store.get('bl-coins', 0), camX: 0, camZ: 0, time: 0, crew: [P] };
+const coop = () => game.crew.length > 1;
+const RESPAWN_T = 4;                                              // seconds before a knocked-out hopper drops back in
+const MARK_COLORS = [0, 0x8fd8ff, 0xff7fb8, 0xffd24a, 0x6bd864];  // the marker over each phone's hopper, by slot
+const MARK_CSS = ['', '#8fd8ff', '#ff7fb8', '#ffd24a', '#6bd864'];
+const MARK_GEO = new THREE.ConeGeometry(0.11, 0.22, 4).rotateX(Math.PI);   // a little diamond pointing down
 
-function resetPlayer() {
-  // Classic and Low start her turned toward the camera; Behind starts her facing down the road, back to the camera.
-  const startFace = VIEWS[viewIdx].ortho ? Math.PI + 0.36 : 0;
-  if (P.model) { scene.remove(P.model.group); disposeHero(P.model); }
-  Object.assign(P, {
-    x: 0, z: 0, y: 0, r: 0, hop: null, queue: null, log: null, alive: true,
+// (Re)build hopper h as hero `id`, standing on row r, column x.
+function freshHopper(h, id, x = 0, r = 0) {
+  // Classic and Low start turned toward the camera; Behind starts facing down the road, back to the camera.
+  const startFace = roadView().ortho ? Math.PI + 0.36 : 0;
+  if (h.model) { scene.remove(h.model.group); disposeHero(h.model); }
+  const lane = laneAt(r);
+  Object.assign(h, {
+    hero: id, x, z: -r, y: lane ? LANE_Y[lane.type] : 0, r, hop: null, queue: null, log: null, alive: true, parked: false, back: 0,
     face: startFace, faceTarget: startFace, held: false, sy: 1, jelly: 9,
     tailAng: 0, tailVel: 0, death: null, deathT: 0, vx: 0, vy: 0, vz: 0,
-    model: addXray(hero().build()),
+    model: addXray(HEROES.find(o => o.id === id).build()),
   });
-  scene.add(P.model.group);
+  if (h.slot) {   // phones' hoppers wear their player's colour
+    const mark = new THREE.Mesh(MARK_GEO, toon({ color: MARK_COLORS[h.slot] }));
+    mark.position.y = 1.62;   // above even Catstar's spring
+    h.model.group.add(mark);
+    h.mark = mark;
+  }
+  scene.add(h.model.group);
+}
+function resetPlayer() {
+  P.active = false;
+  freshHopper(P, heroId);
 }
 
 function laneAt(r) { return lanes.get(r); }
+// Co-Op Hop keeps the team together: nobody gets more than LEASH rows ahead of the
+// hindmost teammate still hopping (the camera follows that one).
+const LEASH = 7;
+const tooFarAhead = (h, r) => coop() && game.crew.some(o => o !== h && o.alive && !o.parked && o.active && r - o.r > LEASH);
 
-function move(dx, dr) {
+function move(dx, dr, h = P) {
   if (game.state === 'title') startGame();
-  if (game.state !== 'play' || !P.alive) return;
-  if (P.hop) { P.queue = [dx, dr]; return; }
-  P.faceTarget = dr > 0 ? 0 : dr < 0 ? Math.PI : dx < 0 ? Math.PI / 2 : -Math.PI / 2;
-  const tr = P.r + dr;
+  if (game.state !== 'play') return;
+  if (h.parked) { h.active = true; respawn(h); return; }   // sat out so far: hop in beside the team
+  if (!h.alive) return;
+  h.active = true;
+  if (h.hop) { h.queue = [dx, dr]; return; }
+  h.faceTarget = dr > 0 ? 0 : dr < 0 ? Math.PI : dx < 0 ? Math.PI / 2 : -Math.PI / 2;
+  const tr = h.r + dr;
   const lane = laneAt(tr);
   if (!lane) return;
   const land = lane.type !== 'water';
-  let tx = P.x + dx;
+  let tx = h.x + dx;
   if (land) tx = Math.round(tx);
   const blocked = Math.abs(tx) > COLS + (land ? 0 : 0.49) || ((lane.type === 'grass' || lane.type === 'forest') && lane.blocked.has(tx))
-    || (dr < 0 && belowScreen(tx, -tr));   // can't back off the bottom of the screen
+    || (dr < 0 && belowScreen(tx, -tr))               // can't back off the bottom of the screen
+    || (dr > 0 && tooFarAhead(h, tr));                // ...or, with friends, run too far ahead
   if (blocked) {
-    P.hop = { fx: P.x, fz: P.z, fy: P.y, tx: P.x, tz: P.z, ty: P.y, t: 0, fromR: P.r, toR: P.r, h: 0.15, bump: true };
+    h.hop = { fx: h.x, fz: h.z, fy: h.y, tx: h.x, tz: h.z, ty: h.y, t: 0, fromR: h.r, toR: h.r, h: 0.15, bump: true };
     sfx.bump();
     return;
   }
-  P.hop = { fx: P.x, fz: P.z, fy: P.y, tx, tz: -tr, ty: LANE_Y[lane.type], t: 0, fromR: P.r, toR: tr, h: 0.5 };
-  P.log = null;
-  P.tailVel += 9;
-  sfx.hop(heroId);
+  h.hop = { fx: h.x, fz: h.z, fy: h.y, tx, tz: -tr, ty: LANE_Y[lane.type], t: 0, fromR: h.r, toR: tr, h: 0.5 };
+  h.log = null;
+  h.tailVel += 9;
+  sfx.hop(h.hero);
 }
 
 // Each hopper kicks up their own little puff on landing.
@@ -1846,31 +1880,31 @@ const PUFFS = {
   leafwish: [[0x6cc94a, 0x8fe070, 0x4fa83a], false],        // leaves
   tuko: [[0xff8a2a, 0xffb24a, 0xd2541a], false],            // autumn leaves
 };
-function hopPuff() {
-  const [cols, soft] = PUFFS[heroId] || PUFFS.betty;
-  burst(P.x, P.y + 0.05, P.z, cols, 6, 1, 2, soft ? 0.13 : 0.08, 0.45, soft);
+function hopPuff(h = P) {
+  const [cols, soft] = PUFFS[h.hero] || PUFFS.betty;
+  burst(h.x, h.y + 0.05, h.z, cols, 6, 1, 2, soft ? 0.13 : 0.08, 0.45, soft);
 }
 
-function land() {
-  const h = P.hop;
-  P.hop = null;
-  P.x = h.tx; P.z = h.tz; P.y = h.ty; P.r = h.toR;
-  if (h.bump) { P.jelly = 0.12; if (P.queue) { const q = P.queue; P.queue = null; move(...q); } return; }
-  const lane = laneAt(P.r);
+function land(h = P) {
+  const hp = h.hop;
+  h.hop = null;
+  h.x = hp.tx; h.z = hp.tz; h.y = hp.ty; h.r = hp.toR;
+  if (hp.bump) { h.jelly = 0.12; if (h.queue) { const q = h.queue; h.queue = null; move(...q, h); } return; }
+  const lane = laneAt(h.r);
   if (lane.type === 'water') {
-    const m = lane.movers.find(m => Math.abs(m.x - P.x) < m.len / 2 + 0.12);
-    if (!m) return die('splash');
+    const m = lane.movers.find(m => Math.abs(m.x - h.x) < m.len / 2 + 0.12);
+    if (!m) return die('splash', null, lane, h);
     const left = m.x - m.len / 2;
-    const off = clamp(Math.floor(P.x - left) + 0.5, 0.5, m.len - 0.5);
-    P.x = left + off;
-    P.log = m;
+    const off = clamp(Math.floor(h.x - left) + 0.5, 0.5, m.len - 0.5);
+    h.x = left + off;
+    h.log = m;
     m.bob = 0.12;
-  } else if (lane.type === 'pads' && !lane.padCols.has(P.x)) {
-    return die('splash');
+  } else if (lane.type === 'pads' && !lane.padCols.has(h.x)) {
+    return die('splash', null, lane, h);
   }
-  P.jelly = 0;   // start the landing wobble
-  hopPuff();
-  const coin = lane.coins.find(c => c.c === P.x);
+  h.jelly = 0;   // start the landing wobble
+  hopPuff(h);
+  const coin = lane.coins.find(c => c.c === h.x);
   if (coin) {
     lane.group.remove(coin.m);
     lane.coins.splice(lane.coins.indexOf(coin), 1);
@@ -1878,103 +1912,148 @@ function land() {
     game.today++;
     store.set('bl-coins', game.coins);
     sfx.coin();
-    burst(P.x, 0.6, P.z, [0xffd23f, 0xffe680, 0xffffff], 10, 1.5, 4, 0.08, 0.5);
+    burst(h.x, 0.6, h.z, [0xffd23f, 0xffe680, 0xffffff], 10, 1.5, 4, 0.08, 0.5);
     hud();
   }
-  if (P.r > game.score) {   // new ground: the sun climbs back up a little
-    game.day = Math.min(1, game.day + DAY_GAIN * (P.r - game.score));
-    game.score = P.r;
+  if (h.r > game.score) {   // new ground: the sun climbs back up a little
+    game.day = Math.min(1, game.day + DAY_GAIN * (h.r - game.score));
+    game.score = h.r;
     hud();
   }
-  if (P.queue) { const q = P.queue; P.queue = null; move(...q); }
+  if (h.queue) { const q = h.queue; h.queue = null; move(...q, h); }
 }
 
 // Which death each moving thing causes, and which animation each death uses.
 const HIT_BY = { bull: 'launch', cow: 'bonk', geese: 'goose', combine: 'harvest', plane: 'dusted' };
 const FLAT = new Set(['squash', 'harvest']), KNOCK = new Set(['bonk', 'goose']), FLY = new Set(['launch', 'dusted']);
 
-function die(kind, mover, lane) {
-  if (!P.alive) return;
-  P.alive = false;
-  P.death = kind;
-  P.deathT = 0;
-  P.hop = null;
-  P.queue = null;
-  P.log = null;
-  game.state = 'dead';
-  const { inner } = P.model;
+function die(kind, mover, lane, h = P) {
+  if (!h.alive) return;
+  h.alive = false;
+  h.death = kind;
+  h.deathT = 0;
+  h.hop = null;
+  h.queue = null;
+  h.log = null;
+  const { inner } = h.model;
   if (FLAT.has(kind)) {
-    P.y = LANE_Y[lane.type];
+    h.y = LANE_Y[lane.type];
     inner.scale.set(1.35, 0.12, 1.35);
     if (kind === 'harvest') {
       sfx.chomp();
-      burst(P.x, 0.3, P.z, [0xe9c46a, 0xf2d37a, 0xc9a23e, ...RAINBOW], 22, 2.5, 5, 0.1, 0.8);
+      burst(h.x, 0.3, h.z, [0xe9c46a, 0xf2d37a, 0xc9a23e, ...RAINBOW], 22, 2.5, 5, 0.1, 0.8);
     } else {
       sfx.squash();
-      burst(P.x, 0.2, P.z, [0xff8fc8, 0x3e6fd8, ...RAINBOW], 14, 2.5, 3, 0.1, 0.6);
+      burst(h.x, 0.2, h.z, [0xff8fc8, 0x3e6fd8, ...RAINBOW], 14, 2.5, 3, 0.1, 0.6);
     }
   } else if (KNOCK.has(kind)) {
-    P.y = 0;
-    P.vx = lane.dir;
+    h.y = 0;
+    h.vx = lane.dir;
     if (kind === 'goose') {
       sfx.honk();
-      burst(P.x, 0.6, P.z, [0xffffff, 0xf2f2f2, 0xffe46b], 14, 1.5, 3, 0.09, 1.0);
+      burst(h.x, 0.6, h.z, [0xffffff, 0xf2f2f2, 0xffe46b], 14, 1.5, 3, 0.09, 1.0);
     } else {
       sfx.moo();
-      burst(P.x, 1.1, P.z, [0xffd93b, 0xffffff], 8, 1.2, 3, 0.1, 0.8);
+      burst(h.x, 1.1, h.z, [0xffd93b, 0xffffff], 8, 1.2, 3, 0.1, 0.8);
     }
   } else if (FLY.has(kind)) {
     if (kind === 'dusted') {
-      P.vx = lane.dir * 5; P.vy = 7; P.vz = rand(-1, 1);
+      h.vx = lane.dir * 5; h.vy = 7; h.vz = rand(-1, 1);
       sfx.launch();
-      burst(P.x, 0.7, P.z, [0xf3f0d0, 0xdff5c8, 0xffffff], 18, 2, 2, 0.2, 1.0);
+      burst(h.x, 0.7, h.z, [0xf3f0d0, 0xdff5c8, 0xffffff], 18, 2, 2, 0.2, 1.0);
     } else {
-      P.vx = lane.dir * 7; P.vy = 11; P.vz = rand(-1.5, 1.5);
+      h.vx = lane.dir * 7; h.vy = 11; h.vz = rand(-1.5, 1.5);
       sfx.launch();
-      burst(P.x, 0.3, P.z, [0xc89a6a, 0xa87a4a], 12, 2, 3, 0.15, 0.7);
+      burst(h.x, 0.3, h.z, [0xc89a6a, 0xa87a4a], 12, 2, 3, 0.15, 0.7);
     }
   } else if (kind === 'splash' || kind === 'swept') {
     sfx.splash();
-    burst(P.x, 0, P.z, [0xffffff, 0xbfe9ff, 0x56c3ee], 18, 1.8, 5, 0.12, 0.7);
+    burst(h.x, 0, h.z, [0xffffff, 0xbfe9ff, 0x56c3ee], 18, 1.8, 5, 0.12, 0.7);
   } else if (kind === 'night') {        // the sun went down: turn round, yawn, lie down for the night
-    P.faceTarget = Math.PI + 0.36;
-    sfx.lullaby();
+    h.faceTarget = Math.PI + 0.36;
+    if (h === game.crew.find(o => o.death === 'night')) sfx.lullaby();
   }
+  game.lastDeath = h;
+  if (coop() && kind !== 'night' && game.crew.some(o => o.alive && !o.parked)) {   // friends still going: back in a moment
+    h.back = RESPAWN_T;
+    tellHopper(h);
+    return;
+  }
+  if (game.state === 'dead') return;   // the round is already ending
+  game.state = 'dead';
+  for (const o of game.crew) o.back = 0;
   if (game.score > game.top) { game.top = game.score; store.set('bl-top', game.top); game.record = true; }
   setTimeout(gameOver, kind === 'night' ? 1800 : 1100);
 }
 
-function updatePlayer(dt) {
-  const { group, inner, tails } = P.model;
+// Back onto the road beside the hindmost teammate who's still going: the nearest
+// grass row at or behind them that's on screen, in the closest open column.
+function respawn(h) {
+  const team = game.crew.filter(o => o !== h && o.alive && !o.parked);
+  if (!team.length || game.state !== 'play') { h.back = 0.5; return; }
+  const anchor = team.reduce((a, b) => (b.r < a.r ? b : a));
+  const cols = Array.from({ length: COLS * 2 + 1 }, (_, i) => i - COLS).sort((a, b) => Math.abs(a - anchor.x) - Math.abs(b - anchor.x));
+  for (let r = anchor.r; r >= anchor.r - 8; r--) {
+    const lane = laneAt(r);
+    if (!lane || belowScreen(anchor.x, -r)) break;
+    if (lane.type !== 'grass' && lane.type !== 'forest') continue;
+    const x = cols.find(c => !lane.blocked.has(c) && !game.crew.some(o => o !== h && o.alive && o.r === r && Math.round(o.x) === c));
+    if (x == null) continue;
+    freshHopper(h, h.hero, x, r);
+    h.active = true;
+    h.hop = { fx: x, fz: -r, fy: 2.4, tx: x, tz: -r, ty: LANE_Y[lane.type], t: 0, fromR: r, toR: r, h: 0 };   // drops in from above
+    burst(x, 1.2, -r, [0xffd23f, 0xffffff, MARK_COLORS[h.slot] || 0xff8fc8], 14, 1.5, 3, 0.09, 0.7);
+    sfx.place();
+    tellHopper(h);
+    return;
+  }
+  h.back = 0.5;   // nowhere safe just now: try again shortly
+}
 
-  if (P.alive) {
-    if (P.hop) {
-      const h = P.hop;
-      h.t += dt / HOP_T;
-      const t = Math.min(1, h.t);
-      P.x = lerp(h.fx, h.tx, t);
-      P.z = lerp(h.fz, h.tz, t);
-      P.y = lerp(h.fy, h.ty, t) + Math.pow(Math.sin(Math.PI * t), 0.6) * h.h;   // a floaty, flat-topped arc
-      if (h.t >= 1) land();
-    } else if (P.log) {
-      const lane = laneAt(P.r);
-      P.x += lane.dir * lane.speed * dt;
-      P.y = LANE_Y.water + P.log.mesh.position.y - P.log.y;
-      if (Math.abs(P.x) > COLS + 1.1) die('swept');
+function updatePlayer(dt) {
+  for (const h of [...game.crew]) updateHopper(h, dt);
+}
+function updateHopper(h, dt) {
+  if (h.parked) return;
+  const { group, inner, tails } = h.model;
+
+  if (h.alive) {
+    if (h.hop) {
+      const hp = h.hop;
+      hp.t += dt / HOP_T;
+      const t = Math.min(1, hp.t);
+      h.x = lerp(hp.fx, hp.tx, t);
+      h.z = lerp(hp.fz, hp.tz, t);
+      h.y = lerp(hp.fy, hp.ty, t) + Math.pow(Math.sin(Math.PI * t), 0.6) * hp.h;   // a floaty, flat-topped arc
+      if (hp.t >= 1) land(h);
+    } else if (h.log) {
+      const lane = laneAt(h.r);
+      h.x += lane.dir * lane.speed * dt;
+      h.y = LANE_Y.water + h.log.mesh.position.y - h.log.y;
+      if (Math.abs(h.x) > COLS + 1.1) die('swept', null, lane, h);
     }
+    // In Co-Op Hop a hopper nobody has moved yet sits the round out once the team leaves it behind.
+    if (coop() && !h.active && !h.hop && game.state === 'play' && belowScreen(h.x, h.z)) {
+      h.parked = true;
+      group.visible = false;
+      return;
+    }
+  } else if (h.back > 0 && (h.back -= dt) <= 0) {
+    respawn(h);
+    if (h.alive) return;
   }
 
   // collisions with traffic
-  if (P.alive && game.state === 'play') {
-    const row = P.hop ? (P.hop.t > 0.5 ? P.hop.toR : P.hop.fromR) : P.r;
+  if (h.alive && game.state === 'play') {
+    const row = h.hop ? (h.hop.t > 0.5 ? h.hop.toR : h.hop.fromR) : h.r;
     const lane = laneAt(row);
     if (lane && (lane.movers.length && lane.type !== 'water')) {
       for (const m of lane.movers) {
         if (!m.active) continue;
-        if (Math.abs(m.x - P.x) < m.len / 2 + 0.2) {
-          if (P.hop) { P.x = Math.round(P.hop.t > 0.5 ? P.hop.tx : P.hop.fx); P.z = -row; }
-          P.r = row;
-          die(HIT_BY[m.kind] || 'squash', m, lane);
+        if (Math.abs(m.x - h.x) < m.len / 2 + 0.2) {
+          if (h.hop) { h.x = Math.round(h.hop.t > 0.5 ? h.hop.tx : h.hop.fx); h.z = -row; }
+          h.r = row;
+          die(HIT_BY[m.kind] || 'squash', m, lane, h);
           break;
         }
       }
@@ -1982,50 +2061,64 @@ function updatePlayer(dt) {
   }
 
   // death animations
-  if (!P.alive) {
-    P.deathT += dt;
-    const t = P.deathT;
-    if (FLY.has(P.death)) {
-      P.vy -= 22 * dt;
-      P.x += P.vx * dt; P.y += P.vy * dt; P.z += P.vz * dt;
+  if (!h.alive) {
+    h.deathT += dt;
+    const t = h.deathT;
+    if (FLY.has(h.death)) {
+      h.vy -= 22 * dt;
+      h.x += h.vx * dt; h.y += h.vy * dt; h.z += h.vz * dt;
       inner.rotation.x += 13 * dt;
       inner.rotation.z += 7 * dt;
-    } else if (KNOCK.has(P.death)) {
-      inner.rotation.z = lerp(inner.rotation.z, -P.vx * Math.PI / 2, Math.min(1, dt * 14));
-      if (t < 0.35) P.x += P.vx * 2.5 * dt;
-    } else if (P.death === 'splash' || P.death === 'swept') {
-      P.y = lerp(P.y, -1.3, Math.min(1, dt * 4));
-    } else if (P.death === 'night' && t > 0.5) {
+    } else if (KNOCK.has(h.death)) {
+      inner.rotation.z = lerp(inner.rotation.z, -h.vx * Math.PI / 2, Math.min(1, dt * 14));
+      if (t < 0.35) h.x += h.vx * 2.5 * dt;
+    } else if (h.death === 'splash' || h.death === 'swept') {
+      h.y = lerp(h.y, -1.3, Math.min(1, dt * 4));
+    } else if (h.death === 'night' && t > 0.5) {
       inner.rotation.x = lerp(inner.rotation.x, 1.35, Math.min(1, dt * 3));   // settles onto her back
     }
+    if (h.back > 0 && t > 1.2) group.visible = Math.floor(t * 8) % 2 === 0;   // blinks while waiting to drop back in
   }
 
   // squash & stretch, facing, pigtail bounce
   // The hop: crouch while held, stretch tall and lean into the hop on take-off,
   // tuck into a squash coming down, then settle with a jelly wobble.
-  if (!FLAT.has(P.death)) {
-    const flying = P.alive && P.hop && !P.hop.bump, k = flying ? Math.min(1, P.hop.t) : 0;
-    if (flying) P.sy = 1 + 0.16 * Math.cos(Math.PI * k);                       // 1.16 at take-off -> 0.84 at touch-down
-    else if (P.alive && P.held) P.sy = lerp(P.sy, 0.78, Math.min(1, dt * 25));  // wind-up crouch
-    else if (P.alive) { P.jelly += dt; P.sy = 1 - 0.17 * Math.exp(-P.jelly * 7) * Math.cos(P.jelly * 26); }
-    else P.sy = lerp(P.sy, 1, Math.min(1, dt * 25));
-    inner.scale.set(1 + (1 - P.sy) * 0.55, P.sy, 1 + (1 - P.sy) * 0.55);
-    if (P.alive) inner.rotation.x = flying ? -0.34 * Math.sin(Math.PI * k) : lerp(inner.rotation.x, 0, Math.min(1, dt * 14));
+  if (!FLAT.has(h.death)) {
+    const flying = h.alive && h.hop && !h.hop.bump, k = flying ? Math.min(1, h.hop.t) : 0;
+    if (flying) h.sy = 1 + 0.16 * Math.cos(Math.PI * k);                       // 1.16 at take-off -> 0.84 at touch-down
+    else if (h.alive && h.held) h.sy = lerp(h.sy, 0.78, Math.min(1, dt * 25));  // wind-up crouch
+    else if (h.alive) { h.jelly += dt; h.sy = 1 - 0.17 * Math.exp(-h.jelly * 7) * Math.cos(h.jelly * 26); }
+    else h.sy = lerp(h.sy, 1, Math.min(1, dt * 25));
+    inner.scale.set(1 + (1 - h.sy) * 0.55, h.sy, 1 + (1 - h.sy) * 0.55);
+    if (h.alive) inner.rotation.x = flying ? -0.34 * Math.sin(Math.PI * k) : lerp(inner.rotation.x, 0, Math.min(1, dt * 14));
   }
-  let da = P.faceTarget - P.face;
+  let da = h.faceTarget - h.face;
   da = Math.atan2(Math.sin(da), Math.cos(da));
-  P.face += da * Math.min(1, dt * 20);
-  P.tailVel += (-70 * P.tailAng - 7 * P.tailVel) * dt;
-  P.tailAng += P.tailVel * dt;
-  const idle = Math.sin(game.time * 3) * 0.04;
+  h.face += da * Math.min(1, dt * 20);
+  h.tailVel += (-70 * h.tailAng - 7 * h.tailVel) * dt;
+  h.tailAng += h.tailVel * dt;
+  const idle = Math.sin(game.time * 3 + h.slot) * 0.04;
   for (const t of tails) {
-    t.rotation[t.userData.axis || 'z'] = t.userData.side * (P.tailAng * 0.12 + idle);
-    if (t.userData.boing) t.scale.y = 1 + P.tailAng * 0.3 + idle;   // Catstar's spring
+    t.rotation[t.userData.axis || 'z'] = t.userData.side * (h.tailAng * 0.12 + idle);
+    if (t.userData.boing) t.scale.y = 1 + h.tailAng * 0.3 + idle;   // Catstar's spring
   }
+  if (h.mark) { h.mark.position.y = 1.62 + Math.sin(game.time * 4 + h.slot) * 0.05; h.mark.rotation.y += dt * 2; }
 
-  group.position.set(P.x, P.y, P.z);
-  group.rotation.y = P.face;
+  group.position.set(h.x, h.y, h.z);
+  group.rotation.y = h.face;
 }
+// Where the road camera looks: the hopper alone, or in Co-Op Hop the hindmost of
+// the team still going (so nobody is left behind), centred on everyone across.
+function roadFocus() {
+  if (!coop()) return P;
+  const going = game.crew.filter(h => h.alive && !h.parked);
+  const movers = going.filter(h => h.active);
+  const set = movers.length ? movers : going;
+  if (!set.length) return { x: game.camX, z: game.camZ + roadView().lead, alive: false };
+  const hind = set.reduce((a, b) => (b.z > a.z ? b : a));
+  return { x: set.reduce((s, h) => s + h.x, 0) / set.length, z: hind.z, alive: true };
+}
+const crewNear = (r, x, dr, dx) => game.crew.some(h => h.alive && !h.parked && Math.abs(r - h.r) < dr && (x == null || Math.abs(x - h.x) < dx));
 
 // ---------- camera ----------
 // Three ways to watch the road (Settings > View); the farm always uses the first.
@@ -2042,7 +2135,8 @@ const VIEWS = [   // in Settings order; Behind is the default
 const FARM_VIEW = VIEWS[1];   // the farm always uses the Classic framing
 // Saved under a new key so everyone starts on Behind (the old key held a position in the old order).
 let viewIdx = Math.max(0, VIEWS.findIndex(v => v.id === store.get('bl-view2', 'behind')));
-const activeView = () => game.where === 'road' ? VIEWS[viewIdx] : FARM_VIEW;
+const roadView = () => VIEWS[viewIdx];   // Co-Op Hop uses whichever view is picked in Settings, too
+const activeView = () => game.where === 'road' ? roadView() : FARM_VIEW;
 const fog = new THREE.Fog(0xa8dcff, 22, 40);
 const skyCol = new THREE.Color(0xa8dcff);
 function useCamera(c) {
@@ -2071,7 +2165,7 @@ function resize() {
 }
 window.addEventListener('resize', resize);
 
-const _t = new THREE.Vector3(), _look = new THREE.Vector3();
+const _t = new THREE.Vector3(), _look = new THREE.Vector3(), _off = new THREE.Vector3();
 function updateCamera(dt) {
   const V = activeView();
   useCamera(V.ortho ? orthoCam : perspCam);
@@ -2079,15 +2173,18 @@ function updateCamera(dt) {
   if (orthoCam.zoom !== zoom) { orthoCam.zoom = zoom; orthoCam.updateProjectionMatrix(); }
   if (game.where === 'farm') _t.set(farmCam.x, 0, FARM_Z - 1.4 + farmCam.z);   // the farm: framed, but you can drag and zoom to look around
   else {
-    const desired = P.z - V.lead;
+    const F = roadFocus();
+    const desired = F.z - V.lead;
     // Classic and Low only ever move forward; Behind follows the hopper both ways, like a third-person camera.
-    if (P.alive && (desired < game.camZ || !V.ortho)) game.camZ += (desired - game.camZ) * Math.min(1, dt * 5);
+    if (F.alive && (desired < game.camZ || !V.ortho)) game.camZ += (desired - game.camZ) * Math.min(1, dt * 5);
     // Classic and Low drift gently with the hopper; Behind keeps the hopper centred.
-    const follow = V.ortho ? clamp(P.x, -2.5, 2.5) * 0.6 : P.x;
-    if (P.alive) game.camX += (follow - game.camX) * Math.min(1, dt * (V.ortho ? 3 : 6));
+    const follow = V.ortho ? clamp(F.x, -2.5, 2.5) * 0.6 : F.x;
+    if (F.alive) game.camX += (follow - game.camX) * Math.min(1, dt * (V.ortho ? 3 : 6));
     _t.set(game.camX, 0, game.camZ);
   }
-  camera.position.copy(_t).add(V.off);
+  // Co-Op Hop's Behind camera sits further back and higher, so the whole team fits.
+  const pull = game.where === 'road' && coop() && !V.ortho ? 1.45 : 1;
+  camera.position.copy(_t).add(_off.copy(V.off).multiplyScalar(pull));
   _look.copy(_t);
   _look.y = V.lookY || 0;
   camera.lookAt(_look);
@@ -2711,9 +2808,12 @@ function newWorld() {
   game.today = 0;
   game.record = false;
   game.camX = 0;
-  game.camZ = -VIEWS[viewIdx].lead;
+  game.crew = [P];
+  setupCrew();
+  game.camZ = -roadView().lead;
   resetPlayer();
   ensureLanes();
+  placeCrew();
   hud();
 }
 
@@ -2755,6 +2855,7 @@ function goRoad() {   // sunrise, then onto the road at first light
     document.body.classList.remove('farm', 'show-logo');
     document.body.classList.add('ready');
     setHint();
+    tellView();
   });
 }
 function goFarm() {   // after a round: a quick fade home
@@ -2764,6 +2865,9 @@ function goFarm() {   // after a round: a quick fade home
 }
 function enterFarm() {
   music?.setLevel(1);
+  for (const h of game.crew) if (h !== P && h.model) { scene.remove(h.model.group); disposeHero(h.model); h.model = null; }
+  game.crew = [P];
+  setTimeout(tellView);
   $('over').classList.remove('show');
   document.body.classList.remove('over', 'ready');
   document.body.classList.add('farm');
@@ -2783,7 +2887,9 @@ function gameOver() {
   music?.setLevel(0.45);   // duck the tune under the sign
   game.state = 'over';
   document.body.classList.add('over');
-  $('overMsg').textContent = t('death.' + (P.death in STRINGS.en.death ? P.death : 'other'), { name: heroName(heroId) });
+  const last = game.lastDeath || P;
+  $('overMsg').textContent = t('death.' + (last.death in STRINGS.en.death ? last.death : 'other'), { name: heroName(last.hero) });
+  tellView();
   $('overGain').textContent = game.today === 0 ? t('gainNone') : game.today === 1 ? t('gain1') : t('gainN', { n: game.today });
   const over = $('over');
   over.classList.toggle('record', !!game.record);
@@ -2904,6 +3010,7 @@ const KEYS = {
 window.addEventListener('keyup', e => { if (jam.open) letGo('k' + e.code); });
 window.addEventListener('keydown', e => {
   sfx.ensure();
+  if (partyOpen()) { if (e.code === 'Escape' || e.code === 'Enter') closeParty(); e.preventDefault(); return; }
   if (game.picking && settingsOpen()) {   // Settings: arrows change things, Escape or Enter closes
     const nav = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[e.code];
     if (nav) { document.body.classList.add('keys'); settingsNav(nav); }
@@ -3015,9 +3122,9 @@ function step(dt) {
   updateCamera(dt);
   if (game.where === 'road') ensureLanes();
   updateParts(dt);
-  if (game.state === 'play' && P.alive) {   // the day wears on
-    game.day -= dayDrain(P.r) * dt;
-    if (game.day <= 0) { game.day = 0; die('night'); }
+  if (game.state === 'play' && game.crew.some(h => h.alive && !h.parked)) {   // the day wears on
+    game.day -= dayDrain(game.score) * dt;
+    if (game.day <= 0) { game.day = 0; for (const h of game.crew) if (h.alive && !h.parked) die('night', null, null, h); }
   }
   game.dawn = Math.min(1, game.dawn + dt * 0.4);   // after the sunrise, the road brightens to full day
   game.light = game.where === 'farm' ? FARM_LIGHT : Math.min(game.day, game.dawn);
@@ -3696,6 +3803,7 @@ function openJam() {
   setOctave(0);
   setSustain(jam.sustain);
   jamResize();
+  tellView();
   jam.input = null;   // start with hints for the last thing used, or what this device has
   setJamInput(document.body.classList.contains('pad') ? 'pad' : document.body.classList.contains('keys') || matchMedia('(hover: hover) and (pointer: fine)').matches ? 'keys' : 'touch');
 }
@@ -3705,6 +3813,7 @@ function closeJam() {
   $('jam').classList.remove('show');
   game.picking = anyPanel();
   letGoAll();
+  tellView();
 }
 function jamFrame(dt) {
   const m = jam.model;
@@ -3813,6 +3922,50 @@ function partyStop() {
   party.room = null;
   renderParty();
 }
+// ---------- Co-Op Hop ----------
+// Starting the day with phones joined takes their hoppers onto the road too, in a
+// row along the start line. A phone that joins mid-round drops in beside the team
+// on its first hop. Each phone is told which screen to show: the jam pads, the hop
+// pad, or a "waiting on the farm" note.
+function setupCrew() {
+  for (const [slot, pl] of [...party.players.entries()].sort((a, b) => a[0] - b[0])) {
+    if (!pl.hero) continue;
+    pl.road = { slot, hero: pl.hero, parked: true, alive: false, active: false };
+    game.crew.push(pl.road);
+  }
+}
+function placeCrew() {
+  const lane = laneAt(0), spots = [-2, 2, -1, 1, -3, 3, -4, 4];
+  let i = 0;
+  for (const h of game.crew) {
+    if (h === P) continue;
+    let x = spots[i++ % spots.length];
+    if (lane?.blocked?.has(x)) x = spots.find(c => !lane.blocked.has(c)) ?? 0;
+    freshHopper(h, h.hero, x, 0);
+    h.active = false;
+  }
+}
+function addToRoad(slot, pl) {   // joined while a round is on
+  const h = pl.road = { slot, hero: pl.hero, parked: true, alive: false, active: false };
+  game.crew.push(h);
+  if (game.state === 'title') { freshHopper(h, h.hero, [-2, 2, -1, 1][game.crew.length % 4], 0); }
+  tellView();
+}
+function dropFromRoad(pl) {
+  const h = pl.road;
+  if (!h) return;
+  game.crew = game.crew.filter(o => o !== h);
+  if (h.model) { scene.remove(h.model.group); disposeHero(h.model); }
+  pl.road = null;
+}
+function currentView() {
+  if (jam.open) return 'jam';
+  if (game.where === 'road') return game.state === 'over' || game.state === 'dead' || game.state === 'dusk' ? 'over' : 'road';
+  return 'farm';
+}
+function tellView() { partySend('*', { t: 'view', v: currentView(), score: game.score }); }
+function tellHopper(h) { if (h.slot) partySend(h.slot, { t: 'me', alive: h.alive, back: Math.ceil(h.back) }); }
+
 const taken = () => [heroId, ...[...party.players.values()].map(p => p.hero)];
 function sendLobby(slot) {
   partySend(slot, { t: 'lobby', heroes: ownedHeroes().map(h => ({ id: h.id, pad: h.pad })), taken: taken() });
@@ -3828,6 +3981,13 @@ function onPlayer(slot, m) {
   }
   if (m.t === 'leave') { dropPlayer(slot); party.players.set(slot, { hero: null, kick: 0 }); renderParty(); return; }
   if (!pl || !pl.hero) return;
+  if (m.t === 'hop') {
+    if (game.where !== 'road') return;
+    if (!pl.road) addToRoad(slot, pl);
+    const dx = clamp(m.dx | 0, -1, 1), dr = dx ? 0 : clamp(m.dr | 0, -1, 1);
+    if (dx || dr) move(dx, dr, pl.road);
+    return;
+  }
   if (m.t === 'oct') pl.oct = clamp(+m.v || 0, -1, 1);
   else if (m.t === 'sus') pl.sus = clamp(+m.v || 0, 0, 1);
   else if (m.t === 'mode') { pl.drums = !!m.drums && ownedDecor.has('drums'); if (pl.banjo) pl.banjo.visible = !pl.drums; }
@@ -3857,7 +4017,10 @@ function assign(slot, hero) {
   const pl = { hero, oct: 0, sus: 0.35, drums: false, kick: 0, m: null, banjo: null };
   party.players.set(slot, pl);
   if (jam.scene) addPlayerModel(pl);
-  partySend(slot, { t: 'joined', hero, pad: HEROES.find(h => h.id === hero).pad, drums: ownedDecor.has('drums') });
+  if (old?.road) dropFromRoad(old);
+  partySend(slot, { t: 'joined', hero, pad: HEROES.find(h => h.id === hero).pad, drums: ownedDecor.has('drums'), mark: MARK_CSS[slot] });
+  partySend(slot, { t: 'view', v: currentView(), score: game.score });
+  if (game.where === 'road' && (game.state === 'title' || game.state === 'play')) addToRoad(slot, pl);
   lobbyAll();
   layoutStage();
   renderParty();
@@ -3874,6 +4037,7 @@ function dropPlayer(slot) {
   if (!pl) return;
   for (const key of [...jam.held.keys()]) if (key.startsWith('r' + slot + '-')) letGo(key);
   if (pl.m) { jam.scene?.remove(pl.m.group); disposeHero(pl.m); }
+  dropFromRoad(pl);
   party.players.delete(slot);
   lobbyAll();
   layoutStage();
@@ -3924,6 +4088,8 @@ function renderParty() {
   if (none) none.textContent = t('party.none');
   $('partyBtn').classList.toggle('live', party.on);
   $('partyCount').textContent = list.length ? list.length : '';
+  $('phonesBtn').classList.toggle('live', list.length > 0);
+  $('phonesCount').textContent = list.length ? list.length : '';
   if (!party.on || !partyOpen()) return;
   const link = partyLink();
   if (qrFor !== link) {
@@ -3942,9 +4108,14 @@ function renderParty() {
 function openParty() {
   partyStart();
   $('party').hidden = false;
+  game.picking = true;
   renderParty();
 }
-const closeParty = () => { $('party').hidden = true; };
+function closeParty() {
+  $('party').hidden = true;
+  game.picking = jam.open || anyPanel();
+}
+$('phonesBtn').addEventListener('click', () => { sfx.ensure(); if (game.state === 'farm') openParty(); });
 $('partyBtn').addEventListener('click', () => { sfx.ensure(); openParty(); });
 $('partyDone').addEventListener('click', closeParty);
 $('partyStop').addEventListener('click', () => { partyStop(); closeParty(); });
@@ -4114,6 +4285,7 @@ function pollPad() {
   if (dir || down.some(Boolean)) { showPadHints(); sfx.ensure(); dismissLogo(); }
   const pick = pressed(2) || pressed(3);
 
+  if (partyOpen()) { if (pressed(0) || pressed(1) || pressed(9)) closeParty(); return; }
   if (game.picking && settingsOpen()) {
     if (dir) settingsNav(dir);
     if (pressed(1) || pressed(8) || pressed(9)) closeSettings();
@@ -4206,4 +4378,4 @@ setHint();
 hud();
 applyLang();
 requestAnimationFrame(frame);
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam };
