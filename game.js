@@ -50,6 +50,7 @@ const guestNet = GUEST && window.FARMHOP_RELAY_URL
   ? await joinFarm(GUEST, joinArgs.get('relay') || window.FARMHOP_RELAY_URL, t, () => { try { return sessionStorage.getItem('bl-guest-hero') || JSON.parse(localStorage.getItem('bl-hero')); } catch { return null; } })
   : null;
 let guestKeys = guestNet ? { ...guestNet.farm.keys, 'bl-owned-v2': true } : null;
+let guestKey = guestNet?.farm.me || null;   // which hopper on the farm is ours: 'p' + our slot
 const farmKey = k => FARM_KEYS.includes(k) || k === 'bl-hero' || k === 'bl-owned-v2';
 let onFarmSave = null;   // the host tells its guests when the farm changes
 
@@ -772,7 +773,7 @@ if (!store.get('bl-owned-v2', false)) {
 const owned = new Set([...STARTERS, ...store.get('bl-owned', [])].filter(id => HEROES.some(h => h.id === id)));
 const ownedHeroes = () => HEROES.filter(h => owned.has(h.id));
 let heroId = store.get('bl-hero', 'betty');
-if (!owned.has(heroId)) heroId = 'betty';
+if (!owned.has(heroId) && !GUEST) heroId = 'betty';   // a guest may bring a hopper from their own farm
 const hero = () => HEROES.find(h => h.id === heroId) || HEROES[0];
 
 // ---------- traffic & animals: rounded, with moving parts ----------
@@ -2823,7 +2824,7 @@ function pathClear(ax, az, bx, bz) {
 function nextSpot(w) {
   for (let tries = 0; tries < 40; tries++) {
     const x = rand(YARD.x0, YARD.x1), z = rand(YARD.z0, YARD.z1);
-    const roomy = (farm.walkers || []).every(o => o === w || Math.hypot(x - o.tx, z - o.tz) > 1.4);   // don't crowd the others
+    const roomy = (farm.walkers || []).every(o => o === w || o.hidden || Math.hypot(x - o.tx, z - o.tz) > 1.4);   // don't crowd the others
     if (Math.hypot(x - w.x, z - w.z) > 1.2 && roomy && !blockedAt(x, z) && pathClear(w.x, w.z, x, z)) return [x, z];
   }
   return [w.x, w.z];
@@ -2837,10 +2838,11 @@ const MARKER_GEO = (() => {                        // a little sunflower that fl
   v.cyl(0.085, 0.085, 0.06, 0, 0, 0.02, 0x7a4a1c, Math.PI / 2, 0, 0);
   return v.geometry();
 })();
-// at = [x, z] to start somewhere particular (a new friend steps out of the Bunkhouse door)
-function addWalker(h, at) {
+// at = [x, z] to start somewhere particular (a new friend steps out of the Bunkhouse door).
+// key: the hopper's id for the farm's own hoppers, 'p' + slot for a friend playing.
+function addWalker(h, at, key = h.id) {
   const m = h.build();
-  const w = { id: h.id, m, x: 0, z: 0, tx: 0, tz: 0, wait: rand(0.3, 2.5), ph: rand(0, 6), face: Math.PI + 0.36, hop: 0 };
+  const w = { id: h.id, key, m, x: 0, z: 0, tx: 0, tz: 0, wait: rand(0.3, 2.5), ph: rand(0, 6), face: Math.PI + 0.36, hop: 0 };
   if (at) [w.x, w.z] = at;
   else freeSpot(w);
   w.tx = w.x; w.tz = w.z;
@@ -2859,14 +2861,41 @@ function spawnWalkers() {
     farm.marker.castShadow = true;
     farm.group.add(farm.marker);
   }
+  syncPlayerWalkers();
 }
+function removeWalker(w) {
+  farm.group.remove(w.m.group);
+  disposeHero(w.m);
+  farm.walkers.splice(farm.walkers.indexOf(w), 1);
+}
+function hideWalker(w, on) {
+  w.hidden = on;
+  w.m.group.visible = !on;
+  if (on) w.leap = w.goal = w.queued = null;
+}
+// Every friend playing (a phone in the room or a guest far away) gets a hopper of
+// their own on the farm, even the same one as someone else's: four Leaf Wishes is
+// fine. The farm's own hopper of that kind steps out of sight meanwhile, unless
+// it's the host's.
+const isPlayerKey = k => /^p\d$/.test(k);
+function syncPlayerWalkers() {
+  if (!farm.walkers || GUEST) return;
+  const want = new Map([...party.players].filter(([, p]) => p.hero).map(([slot, p]) => ['p' + slot, p.hero]));
+  for (const w of [...farm.walkers]) if (isPlayerKey(w.key) && want.get(w.key) !== w.id) removeWalker(w);
+  for (const [key, id] of want) if (!walkerOf(key)) addWalker(HEROES.find(h => h.id === id), null, key);
+  const played = new Set(want.values());
+  for (const w of farm.walkers) if (!isPlayerKey(w.key)) hideWalker(w, played.has(w.id) && w.id !== heroId);
+  toGuests({ t: 'crew', walkers: crewList() });
+}
+const crewList = () => farm.walkers.map(w => ({ k: w.key, hero: w.id, hidden: !!w.hidden, x: w.x, z: w.z, tx: w.tx, tz: w.tz }));
 // Between rounds everyone can hop their own hopper around the yard, one hop at a
 // time: friends with their phone's hop pad, the TV with the arrow keys, WASD, the
 // controller, or a tap on the grass. Left alone for a while, a hopper goes back to wandering.
 const FARM_STEP = 1, STEER_IDLE = 25;
-const walkerOf = id => farm.walkers?.find(w => w.id === id);
+const walkerOf = key => farm.walkers?.find(w => w.key === key);
+const myKey = () => GUEST ? guestKey : heroId;   // the hopper this screen steers
 const roomAt = (w, x, z) => x > YARD.x0 && x < YARD.x1 && z > YARD.z0 && z < YARD.z1 && !blockedAt(x, z)
-  && farm.walkers.every(o => o === w || Math.hypot(x - o.x, z - o.z) > 0.7);
+  && farm.walkers.every(o => o === w || o.hidden || Math.hypot(x - o.x, z - o.z) > 0.7);
 function leapTo(w, x, z) {   // false (and a little bump in place) when a wall or a friend is in the way
   const ok = roomAt(w, x, z);
   if (x !== w.x || z !== w.z) w.face = Math.atan2(-(x - w.x), -(z - w.z));
@@ -2874,8 +2903,8 @@ function leapTo(w, x, z) {   // false (and a little bump in place) when a wall o
   const up = ok ? 0.4 : 0.15;
   landLeap(w, x, z, up);
   // Everyone on this farm sees it: a guest tells the host, the host tells its guests.
-  if (GUEST) { if (w.id === heroId) guestNet.send({ t: 'leap', x, z, up }); }
-  else toGuests({ t: 'leap', id: w.id, x, z, up });
+  if (GUEST) { if (w.key === myKey()) guestNet.send({ t: 'leap', x, z, up }); }
+  else toGuests({ t: 'leap', k: w.key, x, z, up });
   return ok;
 }
 function landLeap(w, x, z, up) {
@@ -2912,11 +2941,12 @@ function nextLeap(w) {
 // The TV's own hopper, from the keyboard or a controller
 function hostFarmHop(dx, dr) {
   if (game.state !== 'farm' || game.picking || decor.on || jam.open) return false;
-  farmHop(heroId, dx, dr);
+  farmHop(myKey(), dx, dr);
   return true;
 }
 function updateWalkers(dt, t) {
   for (const w of farm.walkers) {
+    if (w.hidden) continue;
     const { inner, group, tails } = w.m;
     const dx = w.tx - w.x, dz = w.tz - w.z, d = Math.hypot(dx, dz);
     let sway = Math.sin(t * 2.2 + w.ph) * 0.1;
@@ -2929,7 +2959,7 @@ function updateWalkers(dt, t) {
       inner.rotation.z = 0;
       if (L.t >= 1) {
         w.leap = null;
-        if (w.queued) { const [qx, qr] = w.queued; w.queued = null; farmHop(w.id, qx, qr); }
+        if (w.queued) { const [qx, qr] = w.queued; w.queued = null; farmHop(w.key, qx, qr); }
         else if (w.goal) nextLeap(w);
       }
     } else if (w.hop > 0) {                                 // happy hop
@@ -2950,7 +2980,7 @@ function updateWalkers(dt, t) {
       inner.rotation.z = lerp(inner.rotation.z, 0, Math.min(1, dt * 10));
       if ((w.wait -= dt) <= 0) {
         if (GUEST) w.wait = 1;   // on a friend's farm, the host decides where everyone wanders
-        else { [w.tx, w.tz] = nextSpot(w); toGuests({ t: 'walk', id: w.id, x: w.x, z: w.z, tx: w.tx, tz: w.tz }); }
+        else { [w.tx, w.tz] = nextSpot(w); toGuests({ t: 'walk', k: w.key, x: w.x, z: w.z, tx: w.tx, tz: w.tz }); }
       }
     }
     let da = w.face - group.rotation.y;
@@ -2959,7 +2989,7 @@ function updateWalkers(dt, t) {
     group.position.set(w.x, 0, w.z);
     for (const tl of tails) tl.rotation[tl.userData.axis || 'z'] = tl.userData.side * sway;
   }
-  const me = farm.walkers.find(w => w.id === heroId);
+  const me = walkerOf(myKey());
   if (me) {
     farm.marker.position.set(me.x, me.top + 0.32 + Math.sin(t * 3) * 0.06 + me.m.inner.position.y, me.z);
     farm.marker.rotation.y = Math.sin(t * 1.5) * 0.5;
@@ -2968,7 +2998,8 @@ function updateWalkers(dt, t) {
 // Called when arriving at the farm or picking a hopper: your hopper hops and turns to you.
 function placeFarmHero() {
   if (!farm.walkers) spawnWalkers();
-  const me = farm.walkers.find(w => w.id === heroId);
+  syncPlayerWalkers();   // the host's own hopper is back in sight if a friend had it
+  const me = walkerOf(myKey());
   if (me) { me.hop = 0.5; me.face = Math.PI + 0.36; }
 }
 
@@ -3194,14 +3225,14 @@ function tapFarm(x, y) {
   _ndc.set(x / window.innerWidth * 2 - 1, -(y / window.innerHeight) * 2 + 1);
   _ray.setFromCamera(_ndc, camera);
   const hit = (obj) => _ray.intersectObject(obj, true).length > 0;
-  const w = farm.walkers.find(w => hit(w.m.group));
+  const w = farm.walkers.find(w => !w.hidden && hit(w.m.group));
   if (w) { w.hop = 0.5; sfx.hop(w.id); return; }
   if (!GUEST) {   // a guest's taps on buildings just hop there
     if (hit(farm.pieces.bunk.group)) { openBunk(); return; }
     if (hit(farm.pieces.stage.group)) { stageAct(); return; }
     if (hit(farm.pieces.pond.group)) { openPond(); return; }
   }
-  if (groundAt(x, y, _a)) hopToward(heroId, _a.x - farm.group.position.x, _a.z - farm.group.position.z);
+  if (groundAt(x, y, _a)) hopToward(myKey(), _a.x - farm.group.position.x, _a.z - farm.group.position.z);
 }
 // Stop the page itself from scrolling or bouncing, but let panels (pickers, settings) scroll.
 document.addEventListener('touchmove', e => { if (!e.target.closest('.sheet, input[type=range]')) e.preventDefault(); }, { passive: false });
@@ -3404,7 +3435,7 @@ HEROES.forEach((h, i) => {
   card.addEventListener('click', () => pickHero(h.id));
   heroGrid.append(card);
 });
-const shownCards = () => [...heroGrid.children].filter(c => !c.hidden);
+const shownCards = () => [...heroGrid.children].filter(c => !c.hidden && c.dataset.id);   // not the Host Hoppers heading
 // Arrow keys / d-pad through a grid of cards, however many columns fit the screen.
 function gridStep(cards, i, dir) {
   const cols = Math.max(1, cards.filter(c => c.offsetTop === cards[0].offsetTop).length);
@@ -4258,17 +4289,17 @@ function onPlayer(slot, m, direct = false) {
   if (!direct && peers.get(slot)?.dc?.readyState === 'open' && (m.t === 'note' || m.t === 'drum' || m.t === 'hop' || m.t === 'leap')) return;
   const pl = party.players.get(slot);
   if (m.t === 'hello' && m.guest) {   // a friend playing on their own device: send them the farm
-    const hero = heroFor(slot, m.hero);
     party.players.set(slot, { hero: null, kick: 0, guest: true });
-    assign(slot, hero);
-    partySend(slot, { t: 'farm', farm: farmSnap(hero) });
+    assign(slot, anyHero(m.hero) ? m.hero : 'betty');
+    partySend(slot, { t: 'farm', farm: farmSnap(slot) });
     return;
   }
-  if (m.t === 'pick' && pl?.guest) { assign(slot, heroFor(slot, m.hero) === m.hero ? m.hero : pl.hero); return; }
+  // A guest may play any hopper: one from their own farm, or one of ours.
+  if (m.t === 'pick' && pl?.guest) { if (anyHero(m.hero)) assign(slot, m.hero); return; }
   if (m.t === 'leap') {
-    const w = pl?.guest && game.where === 'farm' && walkerOf(pl.hero);
+    const w = pl?.guest && game.where === 'farm' && walkerOf('p' + slot);
     const x = clamp(+m.x, YARD.x0, YARD.x1), z = clamp(+m.z, YARD.z0, YARD.z1), up = clamp(+m.up || 0, 0, 0.5);
-    if (w && isFinite(x) && isFinite(z)) { landLeap(w, x, z, up); toGuests({ t: 'leap', id: w.id, x, z, up }, slot); }
+    if (w && isFinite(x) && isFinite(z)) { landLeap(w, x, z, up); toGuests({ t: 'leap', k: w.key, x, z, up }, slot); }
     return;
   }
   if (m.t === 'hello' || m.t === 'pick') {
@@ -4282,7 +4313,7 @@ function onPlayer(slot, m, direct = false) {
   if (m.t === 'hop') {
     const dx = clamp(m.dx | 0, -1, 1), dr = dx ? 0 : clamp(m.dr | 0, -1, 1);
     if (!dx && !dr) return;
-    if (game.where === 'farm') { if (game.state === 'farm' && !jam.open && !decor.on) farmHop(pl.hero, dx, dr); return; }
+    if (game.where === 'farm') { if (game.state === 'farm' && !jam.open && !decor.on) farmHop('p' + slot, dx, dr); return; }
     if (!pl.road) addToRoad(slot, pl);
     move(dx, dr, pl.road);
     return;
@@ -4313,21 +4344,17 @@ function onPlayer(slot, m, direct = false) {
 // ---------- guests: friends playing the game on their own device ----------
 const guests = () => [...party.players.entries()].filter(([, p]) => p.guest);
 function toGuests(obj, except) { for (const [slot] of guests()) if (slot !== except) partySend(slot, obj); }
-function farmSnap(hero) {   // the farm's settings, which hopper they are, and where everyone is
+function farmSnap(slot) {   // the farm's settings, which hopper they're playing, and where everyone is
   const keys = {};
   for (const k of FARM_KEYS) { const v = store.get(k, null); if (v !== null) keys[k] = v; }
-  if (hero) keys['bl-hero'] = hero;
-  return { keys, walkers: (farm.walkers || []).map(w => ({ id: w.id, x: w.x, z: w.z, tx: w.tx, tz: w.tz })) };
+  keys['bl-hero'] = party.players.get(slot)?.hero || 'betty';
+  return { keys, me: 'p' + slot, walkers: farm.walkers ? crewList() : [] };
 }
-function heroFor(slot, want) {   // the hopper they asked for if it's free, else the first free one
-  const busy = new Set([heroId, ...[...party.players].filter(([s]) => s !== slot).map(([, p]) => p.hero)]);
-  const free = id => owned.has(id) && !busy.has(id);
-  return free(want) ? want : ownedHeroes().map(h => h.id).find(free) || (owned.has(want) ? want : 'betty');
-}
+const anyHero = id => HEROES.some(h => h.id === id);
 let farmTimer = null;
 if (!GUEST) onFarmSave = () => {   // bought, built or moved something: guests get the new farm
   clearTimeout(farmTimer);
-  farmTimer = setTimeout(() => { for (const [slot, p] of guests()) partySend(slot, { t: 'farm', farm: farmSnap(p.hero) }); }, 400);
+  farmTimer = setTimeout(() => { for (const [slot] of guests()) partySend(slot, { t: 'farm', farm: farmSnap(slot) }); }, 400);
 };
 function assign(slot, hero) {
   const old = party.players.get(slot);
@@ -4342,6 +4369,7 @@ function assign(slot, hero) {
   lobbyAll();
   layoutStage();
   renderParty();
+  syncPlayerWalkers();
 }
 function addPlayerModel(pl) {
   pl.m = HEROES.find(h => h.id === pl.hero).build();
@@ -4361,6 +4389,7 @@ function dropPlayer(slot) {
   lobbyAll();
   layoutStage();
   renderParty();
+  syncPlayerWalkers();
 }
 // Everyone in a row across the stage, yours in the middle; the drum kit moves to the back.
 function layoutStage() {
@@ -4727,13 +4756,43 @@ applyLang();
 requestAnimationFrame(frame);
 if (guestNet) {
   document.body.classList.add('guest');
+  // The picker: hoppers from this player's own farm first, then the host's under "Host Hoppers".
+  const mine = (() => {
+    try {
+      const own = JSON.parse(localStorage.getItem('bl-owned')) || [];
+      const before = !JSON.parse(localStorage.getItem('bl-owned-v2')) && ['bl-top', 'bl-coins', 'bl-hero', 'bl-pond'].some(k => localStorage.getItem(k) !== null);
+      return new Set([...STARTERS, ...own, ...(before ? ['axolotl', 'catstar', 'leafwish'] : [])]);   // as the old farms were
+    } catch { return new Set(STARTERS); }
+  })();
+  const head = document.createElement('h3');
+  head.className = 'gridHead';
+  head.dataset.i18n = 'hostHoppers';
+  head.textContent = t('hostHoppers');
+  const cards = [...heroGrid.children];
+  for (const c of cards) c.hidden = !mine.has(c.dataset.id) && !owned.has(c.dataset.id);
+  heroGrid.append(...cards.filter(c => mine.has(c.dataset.id)), head, ...cards.filter(c => !mine.has(c.dataset.id)));
+  head.hidden = !cards.some(c => !mine.has(c.dataset.id) && owned.has(c.dataset.id));
+  markHero();
+  // Everyone on the host's farm: its own hoppers and each friend's, ours included.
+  const applyCrew = list => {
+    const keys = new Set(list.map(c => c.k));
+    for (const w of [...farm.walkers]) if (!keys.has(w.key)) removeWalker(w);
+    for (const c of list) {
+      let w = walkerOf(c.k);
+      if (w && w.id !== c.hero) { removeWalker(w); w = null; }
+      if (!w) w = Object.assign(addWalker(HEROES.find(h => h.id === c.hero) || HEROES[0], [c.x, c.z], c.k), { tx: c.tx, tz: c.tz });
+      else if (c.k !== myKey() && !w.leap && Math.hypot(w.x - c.x, w.z - c.z) > 0.6) Object.assign(w, { x: c.x, z: c.z, tx: c.tx, tz: c.tz });
+      hideWalker(w, c.hidden);
+    }
+  };
   const keepHero = () => { try { sessionStorage.setItem('bl-guest-hero', heroId); } catch {} };   // the same hopper after a reload
   keepHero();
   const LOOKS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage'];
   guestNet.on(m => {
-    if (m.t === 'leap') { const w = walkerOf(m.id); if (w && m.id !== heroId) landLeap(w, +m.x, +m.z, +m.up); }
+    if (m.t === 'leap') { const w = walkerOf(m.k); if (w && m.k !== myKey()) landLeap(w, +m.x, +m.z, +m.up); }
+    else if (m.t === 'crew') applyCrew(m.walkers || []);
     else if (m.t === 'walk') {
-      const w = walkerOf(m.id);
+      const w = walkerOf(m.k);
       if (w && !w.leap) { if (Math.hypot(w.x - m.x, w.z - m.z) > 0.6) { w.x = m.x; w.z = m.z; } w.tx = m.tx; w.tz = m.tz; }
     } else if (m.t === 'farm') {
       // Something new was bought, built or moved: start again on the new farm. Sunflowers just update.
@@ -4743,21 +4802,15 @@ if (guestNet) {
       game.top = guestKeys['bl-top'] ?? 0;
       hud();
     } else if (m.t === 'joined') {
-      if (m.hero !== heroId) {
-        heroId = guestKeys['bl-hero'] = m.hero;
-        markHero();
-        placeFarmHero();
-      }
+      if (m.hero !== heroId) { heroId = guestKeys['bl-hero'] = m.hero; markHero(); }
       keepHero();
     } else if (m.t === 'view') {
       if (m.v === 'farm') guestNet.note.hide();
       else guestNet.note.show(t('guest.away'));
     }
   });
-  for (const s of guestNet.farm.walkers || []) {   // everyone where they are on the host's farm
-    const w = walkerOf(s.id);
-    if (w) Object.assign(w, { x: s.x, z: s.z, tx: s.tx, tz: s.tz });
-  }
+  applyCrew(guestNet.farm.walkers || []);
+  placeFarmHero();
   setHint();
 }
 if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam };

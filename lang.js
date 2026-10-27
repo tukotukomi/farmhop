@@ -10,6 +10,7 @@ export const LANGS = [
 export const STRINGS = {
   en: {
     best: 'Best {n}',
+    hostHoppers: 'Host Hoppers',
     hintGuest: "Your friend's farm", hintGuestSub: 'Tap the grass to hop around',
     hintGuestPad: "Your friend's farm", hintGuestPadSub: 'D-pad: hop around · Y: hopper',
     guest: {
@@ -72,6 +73,7 @@ export const STRINGS = {
   },
   es: {
     best: 'Récord {n}',
+    hostHoppers: 'Saltarines del anfitrión',
     hintGuest: 'La granja de tu amigo', hintGuestSub: 'Toca la hierba para saltar',
     hintGuestPad: 'La granja de tu amigo', hintGuestPadSub: 'Cruceta: saltar · Y: saltarín',
     guest: {
@@ -134,6 +136,7 @@ export const STRINGS = {
   },
   zh: {
     best: '最佳 {n}',
+    hostHoppers: '主人的角色',
     hintGuest: '朋友的农场', hintGuestSub: '点草地跳来跳去',
     hintGuestPad: '朋友的农场', hintGuestPadSub: '方向键：跳来跳去 · Y：选角色',
     guest: {

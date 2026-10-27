@@ -309,6 +309,7 @@ body.show-logo #hint { display: none; }   /* the logo greets you first; the tip 
 }
 .sheet h2 { margin: 0 0 14px; text-align: center; font-size: 26px; font-weight: 700; }
 #heroGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+#heroGrid .gridHead { grid-column: 1 / -1; margin: 8px 0 -4px; font-size: 16px; text-align: left; }
 .heroCard {
   position: relative; display: flex; flex-direction: column; align-items: center;
   border: 3px solid var(--ink); border-radius: 22px; padding: 6px 4px 10px; cursor: pointer;
