@@ -29,7 +29,7 @@ const ROOM_ID_PATTERN = /^[A-Za-z0-9_-]{22,64}$/;
 const PID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
 const SLOTS = 4;
 const MAX_HOST_MESSAGE = 16384;
-const MAX_PLAYER_MESSAGE = 8192; // small commands, plus the direct-link handshake (WebRTC offers run a few KB)
+const MAX_PLAYER_MESSAGE = 32768; // small commands, plus the direct-link handshake (about 9 KB when it asks for the game's picture)
 const MAX_MESSAGES_PER_SECOND = { host: 120, player: 60 };
 
 export default {

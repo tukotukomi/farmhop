@@ -1015,6 +1015,7 @@ const sfx = (() => {
   let ctx = null, master = null, out = null, musicBus = null, noiseBuf = null;
   let muted = store.get('bl-mute', false);
   const vol = { music: store.get('bl-vol-music', 0.8), fx: store.get('bl-vol-fx', 0.9) };
+  let castDest = null;   // a copy of everything you hear, for Remote Play
   function ensure() {
     if (!ctx) {
       const AC = window.AudioContext || window.webkitAudioContext;
@@ -1197,6 +1198,12 @@ const sfx = (() => {
     // A soft tone in the hopper's own colour that rings under the hop sound while a
     // Jam Stage pad is held, then fades out once it's let go. amt (0..1) is the
     // sustain slider: louder and a longer fade the higher it is. Returns release().
+    // The game's sound (music and effects, after the mute) as a stream track, for Remote Play.
+    castAudio() {
+      if (!ctx) return null;
+      if (!castDest) { castDest = ctx.createMediaStreamDestination(); out.connect(castDest); }
+      return castDest.stream.getAudioTracks()[0];
+    },
     hold(id, n, amt) {
       if (!ctx || muted || amt <= 0) return null;
       const t = ctx.currentTime, o = ctx.createOscillator(), f1 = ctx.createBiquadFilter(), g = ctx.createGain();
@@ -3258,6 +3265,7 @@ function frame(now) {
   const dt = (now - last) / 1000;
   if (!game.frozen) { watchFrames(dt); step(Math.min(0.05, dt)); }   // frozen: tests drive the frames themselves
   if (jam.open) jamFrame(Math.min(0.05, dt));
+  castFrame();
   last = now;
   requestAnimationFrame(frame);
 }
@@ -4014,12 +4022,22 @@ function rtcSignal(slot, m) {
     p.pc.onicecandidate = e => { if (e.candidate) relaySend(slot, JSON.stringify({ t: 'rtc', c: e.candidate.toJSON() })); };
     p.pc.ondatachannel = e => {
       const dc = p.dc = e.channel;
-      dc.onopen = () => notePath(slot, p);
+      dc.onopen = () => { notePath(slot, p); capVideo(p); };
       dc.onmessage = ev => { let mm; try { mm = JSON.parse(ev.data); } catch { return; } onPlayer(slot, mm, true); };
       dc.onclose = () => { if (peers.get(slot) === p) closePeer(slot); };
     };
     p.pc.onconnectionstatechange = () => { if (['failed', 'closed'].includes(p.pc.connectionState) && peers.get(slot) === p) closePeer(slot); };
     p.pc.setRemoteDescription(m.sdp)
+      .then(() => {   // a friend far away asked to see and hear the game: send it down this link
+        for (const tr of p.pc.getTransceivers()) {
+          const track = tr.receiver.track.kind === 'video' ? castTrack() : (sfx.ensure(), sfx.castAudio());
+          if (!track) continue;
+          tr.direction = 'sendonly';
+          tr.sender.replaceTrack(track);
+          p.watching = true;
+        }
+        castCount();
+      })
       .then(() => p.pc.createAnswer()).then(a => p.pc.setLocalDescription(a))
       .then(() => relaySend(slot, JSON.stringify({ t: 'rtc', sdp: p.pc.localDescription })))
       .catch(() => closePeer(slot));
@@ -4042,6 +4060,7 @@ function closePeer(slot) {
   if (!p) return;
   peers.delete(slot);
   try { p.dc?.close(); p.pc.close(); } catch {}
+  castCount();
   partySend(slot, { t: 'path', path: '' });
   renderParty();
 }
@@ -4266,7 +4285,8 @@ function renderParty() {
   const list = [...party.players.entries()].filter(([, p]) => p.hero).sort((a, b) => a[0] - b[0]);
   const chip = ([slot, p]) => {
     const path = peers.get(slot)?.path || 'relay';
-    return `<span class="partyChip" style="--c:${HEROES.find(h => h.id === p.hero).pad}"><b>${slot}</b>${heroName(p.hero)}<i class="path ${path}">${t('party.' + path)}</i></span>`;
+    const tv = peers.get(slot)?.watching ? `<i class="path watch" title="${t('party.watching')}">📺</i>` : '';
+    return `<span class="partyChip" style="--c:${HEROES.find(h => h.id === p.hero).pad}"><b>${slot}</b>${heroName(p.hero)}<i class="path ${path}">${t('party.' + path)}</i>${tv}</span>`;
   };
   $('partyChips').innerHTML = list.map(chip).join('');
   $('partyList').innerHTML = list.length ? list.map(chip).join('') : '<span class="partyNone"></span>';
@@ -4308,7 +4328,80 @@ $('partyStop').addEventListener('click', () => { partyStop(); closeParty(); });
 $('partyCopy').addEventListener('click', () => {
   navigator.clipboard?.writeText(partyLink()).then(() => { $('partyCopy').textContent = t('party.copied'); setTimeout(() => { $('partyCopy').textContent = t('party.copy'); }, 1500); }).catch(() => {});
 });
+// "Send invite": the same link, asking for the picture too (&far=1), through the
+// phone's share sheet (Messages, WhatsApp...) or copied on a computer.
+const inviteLink = () => partyLink() + '&far=1';
+$('partyInvite').addEventListener('click', async () => {
+  sfx.ensure();
+  const url = inviteLink();
+  if (navigator.share) {
+    try { await navigator.share({ title: "Betty Lou's Farm Hop", text: t('party.inviteText'), url }); return; }
+    catch (e) { if (e.name === 'AbortError') return; }
+  }
+  navigator.clipboard?.writeText(url).then(() => {
+    $('partyInvite').textContent = t('party.inviteCopied');
+    setTimeout(() => { $('partyInvite').textContent = t('party.invite'); }, 1800);
+  }).catch(() => {});
+});
 if (RELAY) try { if (sessionStorage.getItem('bl-party-room')) partyStart(); } catch {}   // a reload mid-jam picks the phones back up
+
+// ---------- Remote Play ----------
+// Friends far away see and hear the game: each finished frame (the road, or the
+// Jam Stage) is copied with the score and daylight into a small canvas, at most
+// 1280 wide, streamed down their direct link with the game's sound. Nothing goes
+// through Cloudflare. It only runs while someone is watching.
+const cast = { canvas: null, g: null, track: null, viewers: 0 };
+function castTrack() {
+  if (!cast.canvas) {
+    cast.canvas = document.createElement('canvas');
+    cast.canvas.width = 640; cast.canvas.height = 360;
+    cast.g = cast.canvas.getContext('2d');
+    cast.track = cast.canvas.captureStream(30).getVideoTracks()[0];
+  }
+  return cast.track;
+}
+const castCount = () => { cast.viewers = [...peers.values()].filter(p => p.watching).length; };
+function capVideo(p) {   // keep each stream to a sensible size for home internet
+  for (const s of p.pc.getSenders()) {
+    if (s.track?.kind !== 'video') continue;
+    const prm = s.getParameters();
+    if (!prm.encodings?.length) prm.encodings = [{}];
+    prm.encodings[0].maxBitrate = 2500000;
+    prm.encodings[0].maxFramerate = 30;
+    s.setParameters(prm).catch(() => {});
+  }
+}
+function castFrame() {
+  if (!cast.viewers || !cast.g) return;
+  const W = window.innerWidth, H = window.innerHeight, k = Math.min(1, 1280 / Math.max(W, H));
+  const w = Math.round(W * k) & ~1, h = Math.round(H * k) & ~1, g = cast.g;
+  if (cast.canvas.width !== w || cast.canvas.height !== h) { cast.canvas.width = w; cast.canvas.height = h; }
+  if (jam.open) {   // the stage: its backdrop and floor are page styling, so paint them in
+    const jc = $('jamCanvas'), r = jc.getBoundingClientRect();
+    const sky = g.createLinearGradient(0, r.top * k, 0, r.bottom * k);
+    sky.addColorStop(0, '#5b3f8a');
+    sky.addColorStop(0.78, '#3a2442');
+    g.fillStyle = '#241830';
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = sky;
+    g.fillRect(r.left * k, r.top * k, r.width * k, r.height * k);
+    g.fillStyle = '#b07a46';
+    g.fillRect(r.left * k, (r.top + r.height * 0.76) * k, r.width * k, r.height * 0.24 * k);
+    g.drawImage(jc, r.left * k, r.top * k, r.width * k, r.height * k);
+  } else g.drawImage(canvas, 0, 0, w, h);
+  if (game.where === 'road') {   // the score and the daylight clock, like the HUD
+    const s = Math.max(0.6, h / 600);
+    g.fillStyle = '#fff8ec'; g.strokeStyle = '#3a2442'; g.lineWidth = 3 * s;
+    g.beginPath(); g.roundRect(12 * s, 12 * s, 70 * s, 48 * s, 16 * s); g.fill(); g.stroke();
+    g.fillStyle = '#3a2442'; g.font = `700 ${30 * s}px Fredoka, system-ui, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(game.score, 47 * s, 37 * s);
+    const cx = 112 * s, cy = 36 * s, rr = 22 * s, d = clamp(game.day, 0, 1);
+    g.fillStyle = '#4a3a6e'; g.beginPath(); g.arc(cx, cy, rr, 0, Math.PI * 2); g.fill();
+    g.fillStyle = d > 0.5 ? '#ffd24a' : d > 0.2 ? '#ff9a3c' : '#bd96ff';
+    g.beginPath(); g.moveTo(cx, cy); g.arc(cx, cy, rr, -Math.PI / 2, -Math.PI / 2 + d * Math.PI * 2); g.closePath(); g.fill();
+    g.beginPath(); g.arc(cx, cy, rr, 0, Math.PI * 2); g.stroke();
+  }
+}
 
 // ---------- settings (from the farm only) ----------
 // Language, music and effects volume, the road's view angle, and the art style.
@@ -4572,4 +4665,4 @@ setHint();
 hud();
 applyLang();
 requestAnimationFrame(frame);
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, cast, castFrame, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam };
