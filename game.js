@@ -208,14 +208,9 @@ function ramp(levels) {
   t.needsUpdate = true;
   return t;
 }
-// Two looks: "cel" (soft three-band toon, plum ink) and "bold" (hard two-tone
-// shadows that match the unlit sides, thick black ink, punchier colour).
-const LOOKS = {
-  cel: { ramp: ramp([95, 175, 255]), sky: 0xfff4ec, ground: 0x7d6fa8, hemi: 1.15, sun: 2.9, ink: 0x2b1d33, inkMix: 0.9, line: 1, sat: 1 },
-  bold: { ramp: ramp([0, 255]), sky: 0xfff6f0, ground: 0xfff6f0, hemi: 2.1, sun: 1.5, ink: 0x000000, inkMix: 1, line: 1.6, sat: 1.3 },
-};
+// The look: a soft three-band toon with plum ink.
+const look = { ramp: ramp([95, 175, 255]), sky: 0xfff4ec, ground: 0x7d6fa8, hemi: 1.15, sun: 2.9, ink: 0x2b1d33, inkMix: 0.9, line: 1, sat: 1 };
 const toons = [];
-let look = LOOKS.cel;
 const toon = opts => {
   const m = new THREE.MeshToonMaterial({ gradientMap: look.ramp, ...opts });
   toons.push(m);
@@ -333,8 +328,8 @@ function resizeCel() {
   postMat.uniforms.texel.value.set(px / size.x, px / size.y);
   postMat.uniforms.texelN.value.set(pn / size.x, pn / size.y);
 }
-function applyLook(name) {
-  const L = look = LOOKS[name] || LOOKS.cel;
+function applyLook() {
+  const L = look;
   for (const m of toons) m.gradientMap = L.ramp;
   hemi.color.setHex(L.sky);
   hemi.groundColor.setHex(L.ground);
@@ -372,8 +367,7 @@ function updateDay() {
   mixHex(A[1], B[1], t, sun.color);
   sun.intensity = look.sun * lerp(A[2], B[2], t);
   mixHex(A[3], B[3], t, hemi.color);
-  if (look.sky === look.ground) hemi.groundColor.copy(hemi.color);   // the Bold look keeps its flat ambient
-  else mixHex(A[4], B[4], t, hemi.groundColor);
+  mixHex(A[4], B[4], t, hemi.groundColor);
   hemi.intensity = look.hemi * lerp(A[5], B[5], t);
   mixHex(A[6], B[6], t, postMat.uniforms.grade.value);
   SUN_OFF.y = lerp(A[7], B[7], t);
@@ -2231,21 +2225,13 @@ function roadFocus() {
 const crewNear = (r, x, dr, dx) => game.crew.some(h => h.alive && !h.parked && Math.abs(r - h.r) < dr && (x == null || Math.abs(x - h.x) < dx));
 
 // ---------- camera ----------
-// Three ways to watch the road (Settings > View); the farm always uses the first.
-//   Classic: orthographic, about 36 degrees down, from behind and to the right.
-//   Low:     orthographic, about 20 degrees down, halfway to the ground.
-//   Behind:  a perspective camera just behind the hopper, about 20 degrees down,
-//            with sky above the fields and distant lanes fading into it.
+//   The road:  a perspective camera just behind the hopper, about 20 degrees down,
+//              with sky above the fields and distant lanes fading into it.
+//   The farm:  orthographic, about 36 degrees down, from behind and to the right.
 // lead = how far ahead of the hopper the camera looks; ahead/behind = rows kept loaded.
-const VIEWS = [   // in Settings order; Behind is the default
-  { id: 'behind', ortho: false, off: new THREE.Vector3(0, 3.2, 8.4), lead: 5, ahead: 32, behind: 16, shadow: 26, lookY: 0.3 },
-  { id: 'classic', ortho: true, off: CAM_OFF, lead: 4, ahead: AHEAD, behind: BEHIND, shadow: 24 },
-  { id: 'low', ortho: true, off: new THREE.Vector3(1.5, 3.0, 8.4), lead: 7, ahead: 28, behind: 30, shadow: 30 },
-];
-const FARM_VIEW = VIEWS[1];   // the farm always uses the Classic framing
-// Saved under a new key so everyone starts on Behind (the old key held a position in the old order).
-let viewIdx = Math.max(0, VIEWS.findIndex(v => v.id === store.get('bl-view2', 'behind')));
-const roadView = () => VIEWS[viewIdx];   // Co-Op Hop uses whichever view is picked in Settings, too
+const ROAD_VIEW = { id: 'behind', ortho: false, off: new THREE.Vector3(0, 3.2, 8.4), lead: 5, ahead: 32, behind: 16, shadow: 26, lookY: 0.3 };
+const FARM_VIEW = { id: 'classic', ortho: true, off: CAM_OFF, lead: 4, ahead: AHEAD, behind: BEHIND, shadow: 24 };
+const roadView = () => ROAD_VIEW;
 const activeView = () => game.where === 'road' ? roadView() : FARM_VIEW;
 const fog = new THREE.Fog(0xa8dcff, 22, 40);
 const skyCol = new THREE.Color(0xa8dcff);
@@ -3471,9 +3457,7 @@ window.addEventListener('keydown', e => {
 
 $('play').addEventListener('click', () => { sfx.ensure(); goFarm(); });
 // Look: ?look=bold in the URL wins, otherwise the last one picked on this device.
-let lookName = new URLSearchParams(location.search).get('look') || store.get('bl-look', 'cel');
-if (!LOOKS[lookName]) lookName = 'cel';
-applyLook(lookName);
+applyLook();
 const soundBtn = $('sound');
 soundBtn.classList.toggle('muted', sfx.muted);
 soundBtn.addEventListener('click', () => { sfx.ensure(); soundBtn.classList.toggle('muted', sfx.toggle()); });
@@ -4892,15 +4876,9 @@ if (RELAY && !GUEST) try { if (sessionStorage.getItem('bl-party-room')) partySta
 // Language, music and effects volume, the road's view angle, and the art style.
 // With a controller or arrow keys: up/down picks a row, left/right changes it.
 const settingsOpen = () => $('settings').classList.contains('show');
-const SET_ROWS = ['lang', 'music', 'fx', 'view', 'coop', 'art', 'gfx'];
+const SET_ROWS = ['lang', 'music', 'fx', 'coop', 'gfx'];
 const GFX_CHOICES = ['auto', ...Q_LEVELS];
 let setFocus = 0;
-// Little diagrams for the views: an eye above the ground, looking down at the hopper.
-const VIEW_ICONS = [[10, 14], [30, 4], [34, 11]].map(([ex, ey]) =>
-  '<svg viewBox="0 0 46 28" aria-hidden="true"><path d="M3 24 H43" stroke="#3a2442" stroke-width="2" stroke-linecap="round"/>' +
-  `<path d="M${ex} ${ey} L20 21" stroke="#7d58d6" stroke-width="1.6" stroke-dasharray="2.5 2.5" fill="none"/>` +
-  '<circle cx="20" cy="21" r="2.6" fill="#ff7fb8" stroke="#3a2442" stroke-width="1.2"/>' +
-  `<circle cx="${ex}" cy="${ey}" r="3.6" fill="#fff" stroke="#3a2442" stroke-width="1.5"/><circle cx="${ex - 1}" cy="${ey + 0.6}" r="1.5" fill="#3a2442"/></svg>`);
 function segment(el, labels, current, pick, icons) {
   el.innerHTML = '';
   labels.forEach((label, i) => {
@@ -4921,14 +4899,11 @@ function setVolSlider(id, v) {
 }
 function renderSettings() {
   segment($('segLang'), LANGS.map(l => l.label), LANGS.findIndex(l => l.id === lang), i => setLang(LANGS[i].id));
-  segment($('segView'), t('views'), viewIdx, setView, VIEW_ICONS);
-  segment($('segArt'), t('arts'), lookName === 'bold' ? 1 : 0, i => setLook(i ? 'bold' : 'cel'));
   segment($('segCoop'), t('coopScreens'), splitPref ? 1 : 0, i => setSplit(!!i));
   $('coopNote').textContent = t('coopNote');
   const gi = GFX_CHOICES.indexOf(gfx);
   segment($('segGfx'), t('gfxs'), gi, i => setGfx(GFX_CHOICES[i]));
   $('gfxNote').textContent = t('gfxNotes.' + gi, { level: t('gfxs')[GFX_CHOICES.indexOf(autoQ.level)] });
-  $('viewNote').textContent = t('viewNotes')[viewIdx] + (lang === 'zh' ? '' : ' ') + t('viewWhen');   // Chinese runs sentences together
   const v = sfx.volumes;
   setVolSlider('volMusic', v.music);
   setVolSlider('volFx', v.fx);
@@ -4940,11 +4915,6 @@ function setLang(id) {
   store.set('bl-lang', id);
   applyLang();
 }
-function setView(i) {
-  viewIdx = i;
-  store.set('bl-view2', VIEWS[i].id);
-  renderSettings();
-}
 function setGfx(name) {
   gfx = name;
   store.set('bl-gfx', name);
@@ -4955,12 +4925,6 @@ function setGfx(name) {
 function setSplit(on) {
   splitPref = on;
   store.set('bl-split', on);
-  renderSettings();
-}
-function setLook(name) {
-  lookName = name;
-  store.set('bl-look', name);
-  applyLook(name);
   renderSettings();
 }
 // Put every visible word into the chosen language.
@@ -5003,10 +4967,8 @@ function settingsNav(dir) {
     sfx.setVolume(row, clamp(Math.round((sfx.volumes[row] + d * 0.1) * 10) / 10, 0, 1));
     if (row === 'fx') sfx.hop(heroId);
     renderSettings();
-  } else if (row === 'view') setView((viewIdx + d + VIEWS.length) % VIEWS.length);
-  else if (row === 'coop') setSplit(!splitPref);
+  } else if (row === 'coop') setSplit(!splitPref);
   else if (row === 'gfx') setGfx(GFX_CHOICES[(GFX_CHOICES.indexOf(gfx) + d + GFX_CHOICES.length) % GFX_CHOICES.length]);
-  else setLook(lookName === 'bold' ? 'cel' : 'bold');
 }
 for (const [id, which] of [['volMusic', 'music'], ['volFx', 'fx']]) {
   $(id).addEventListener('input', e => {

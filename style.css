@@ -642,8 +642,6 @@ body.guest #phonesBtn, body.guest #partyBtn, body.guest #play { display: none !i
 .segBtn:active { transform: scale(.94); }
 .segBtn[aria-checked="true"] { background: var(--sun); font-weight: 700; }
 .segBtn:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
-.segView .segBtn { border-radius: 16px; padding: 6px 8px 7px; }
-.segView svg { width: 46px; height: 28px; }
 /* volume sliders: a cream track that fills with leaf green, a sunny knob */
 .vol {
   -webkit-appearance: none; appearance: none; width: 100%; height: 18px; margin: 4px 0;
