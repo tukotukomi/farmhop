@@ -4472,7 +4472,7 @@ $('partyBtn').addEventListener('click', () => { sfx.ensure(); openParty(); });
 $('partyDone').addEventListener('click', closeParty);
 $('partyStop').addEventListener('click', () => { partyStop(); closeParty(); });
 $('partyCopy').addEventListener('click', () => {
-  navigator.clipboard?.writeText(partyLink()).then(() => { $('partyCopy').textContent = t('party.copied'); setTimeout(() => { $('partyCopy').textContent = t('party.copy'); }, 1500); }).catch(() => {});
+  navigator.clipboard?.writeText(inviteLink()).then(() => { $('partyCopy').textContent = t('party.copied'); setTimeout(() => { $('partyCopy').textContent = t('party.copy'); }, 1500); }).catch(() => {});
 });
 // "Send invite": a link that opens the whole game on the friend's own device, on
 // this farm (see guest.js), through the share sheet (Messages, WhatsApp...) or copied.
