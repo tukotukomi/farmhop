@@ -3153,7 +3153,7 @@ function goRoad() {   // sunrise, then onto the road at first light
     document.body.classList.add('ready');
     setHint();
     // Friends on their own devices build the same road from the seed and line up beside us.
-    toGuests({ t: 'road', seed: game.seed, T: game.roadT, crew: game.crew.map(h => ({ k: h.key, hero: h.hero, slot: h.slot, x: h.x, r: h.r })) });
+    toGuests(roadNews());
     tellView();
   });
 }
@@ -3164,23 +3164,46 @@ function goRoadGuest(m) {
   sfx.rooster();
   Object.assign(farmCam, { x: 0, z: 0, zoom: FARM_ZOOM0 });
   game.state = 'sunrise';
+  const late = m.state === 'play';   // the team is already on its way
   transition('sunrise', 950, () => {
     game.seed = m.seed >>> 0;
     roadClock = { T: m.T, at: performance.now() };
     newWorld();
     for (const c of m.crew) {
-      if (c.k === guestKey) { freshHopper(P, P.hero, c.x, c.r); P.active = false; continue; }
+      if (c.k === guestKey) {
+        if (!late) { freshHopper(P, P.hero, c.x, c.r); P.active = false; }
+        continue;
+      }
       const h = { key: c.k, slot: c.slot || 0, hero: c.hero, remote: true };
       freshHopper(h, c.hero, c.x, c.r);
       h.active = false;
+      if (!c.alive || c.parked) { h.alive = false; h.parked = !!c.parked; h.model.group.visible = false; }
       game.crew.push(h);
     }
     game.where = 'road';
-    game.state = 'title';
     game.dawn = 0.12;
     document.body.classList.remove('farm', 'show-logo');
-    document.body.classList.add('ready');
+    if (late) {
+      // Catch the road up to now, build it out to the team, and drop in beside them in a moment.
+      game.state = 'play';
+      game.score = m.score | 0;
+      game.day = m.day;
+      for (const lane of lanes.values()) catchUp(lane, m.T);
+      game.roadT = m.T;
+      const team = game.crew.filter(h => h.remote && h.alive && !h.parked);
+      const at = team.length ? team.reduce((a, b) => (b.r < a.r ? b : a)) : { x: 0, r: game.score };
+      game.camZ = -at.r - roadView().lead;
+      game.camX = at.x;
+      ensureLanes();
+      P.alive = false;
+      P.back = 0.3;
+      P.model.group.visible = false;
+    } else {
+      game.state = 'title';
+      document.body.classList.add('ready');
+    }
     setHint();
+    hud();
   });
 }
 function goFarm() {   // after a round: a quick fade home
@@ -4343,11 +4366,19 @@ function placeCrew() {
   }
 }
 function addToRoad(slot, pl) {   // joined while a round is on
-  if (pl.guest) return;   // a guest joins at the start of the next day
-  const h = pl.road = { slot, key: 'p' + slot, hero: pl.hero, parked: true, alive: false, active: false };
+  const h = pl.road = { slot, key: 'p' + slot, hero: pl.hero, parked: true, alive: false, active: false, remote: !!pl.guest };
   game.crew.push(h);
   if (game.state === 'title') { freshHopper(h, h.hero, [-2, 2, -1, 1][game.crew.length % 4], 0); }
+  // A guest's device builds the road up to the team and drops them in beside it.
+  if (pl.guest) partySend(slot, roadNews());
   tellView();
+}
+// The road as it stands, for guests' devices: the seed, the clock and everyone on it.
+function roadNews() {
+  return {
+    t: 'road', seed: game.seed, T: game.roadT, state: game.state, score: game.score, day: game.day,
+    crew: game.crew.map(h => ({ k: h.key, hero: h.hero, slot: h.slot, x: h.x, r: h.r, alive: !!h.alive, parked: !!h.parked })),
+  };
 }
 function dropFromRoad(pl) {
   const h = pl.road;
@@ -4376,6 +4407,8 @@ function onPlayer(slot, m, direct = false) {
   if (!direct && peers.get(slot)?.dc?.readyState === 'open' && /^(note|drum|hop|leap|r[hdbpc])$/.test(m.t)) return;
   const pl = party.players.get(slot);
   if (m.t === 'hello' && m.guest) {   // a friend playing on their own device: send them the farm
+    const was = party.players.get(slot);
+    if (was?.road) dropFromRoad(was);   // reconnecting mid-round: their old hopper makes way
     party.players.set(slot, { hero: null, kick: 0, guest: true });
     assign(slot, anyHero(m.hero) ? m.hero : 'betty');
     partySend(slot, { t: 'farm', farm: farmSnap(slot) });
@@ -4531,7 +4564,7 @@ function assign(slot, hero) {
   if (old?.road) dropFromRoad(old);
   partySend(slot, { t: 'joined', hero, pad: HEROES.find(h => h.id === hero).pad, drums: ownedDecor.has('drums'), mark: MARK_CSS[slot] });
   partySend(slot, { t: 'view', v: currentView(), score: game.score });
-  if (!pl.guest && game.where === 'road' && (game.state === 'title' || game.state === 'play')) addToRoad(slot, pl);
+  if (game.where === 'road' && (game.state === 'title' || game.state === 'play')) addToRoad(slot, pl);
   lobbyAll();
   layoutStage();
   renderParty();
@@ -4993,7 +5026,7 @@ if (guestNet) {
         guestNet.note.hide();
         if (game.where === 'road' && game.state !== 'dusk') { game.state = 'dusk'; transition('dusk', 450, enterFarm); }
       } else if (m.v === 'jam') guestNet.note.show(t('guest.away'));
-      else if (game.where === 'farm' && game.state === 'farm') guestNet.note.show(t('guest.nextDay'));   // they're already out: next time
+      else if (m.v === 'over' && game.where === 'farm' && game.state === 'farm') guestNet.note.show(t('guest.nextDay'));   // their day is ending: next time
     }
   });
   applyCrew(guestNet.farm.walkers || []);
