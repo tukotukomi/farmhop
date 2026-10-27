@@ -16,7 +16,8 @@ export const STRINGS = {
     guest: {
       joining: "Joining your friend's farm…", waiting: 'Waiting for your friend to open Farm Hop…', reconnecting: 'Reconnecting…',
       ended: 'Your friend stopped playing together. Thanks for hopping by!', full: 'This farm is full: four friends are already playing.',
-      away: "Your friend is out on the road or the Jam Stage. Playing those together from afar is coming soon. You'll be back on the farm when they are.",
+      away: "Your friend is on the Jam Stage. Jamming together from afar is coming soon. You'll be back on the farm when they are.",
+      nextDay: "Your friend is already out on the road. You'll hop along with them from the start of the next day.",
     },
     hintFarm: 'Start the day', hintFarmSub: 'Tap the grass to hop around · spend sunflowers at the Fish Pond and Bunkhouse',
     hintFarmPad: 'Press A to start the day', hintFarmPadSub: 'D-pad: hop around · Y: hopper · X: pond · B: Bunkhouse · LB: Jam Stage · RB: decorate',
@@ -79,7 +80,8 @@ export const STRINGS = {
     guest: {
       joining: 'Entrando a la granja de tu amigo…', waiting: 'Esperando a que tu amigo abra Farm Hop…', reconnecting: 'Reconectando…',
       ended: 'Tu amigo dejó de jugar en grupo. ¡Gracias por pasar a saltar!', full: 'Esta granja está llena: ya hay cuatro amigos jugando.',
-      away: 'Tu amigo está en el camino o en el escenario. Jugar eso juntos a distancia llegará pronto. Volverás a la granja cuando vuelva.',
+      away: 'Tu amigo está en el escenario. Tocar juntos a distancia llegará pronto. Volverás a la granja cuando vuelva.',
+      nextDay: 'Tu amigo ya salió al camino. Saltarás con él desde el comienzo del próximo día.',
     },
     hintFarm: 'Empieza el día', hintFarmSub: 'Toca la hierba para saltar · gasta girasoles en el estanque y la cabaña',
     hintFarmPad: 'Pulsa A para empezar el día', hintFarmPadSub: 'Cruceta: saltar · Y: saltarín · X: estanque · B: cabaña · LB: escenario · RB: decorar',
@@ -142,7 +144,8 @@ export const STRINGS = {
     guest: {
       joining: '正在进入朋友的农场…', waiting: '等待朋友打开 Farm Hop…', reconnecting: '正在重新连接…',
       ended: '朋友已结束一起玩。谢谢你来跳一跳！', full: '这个农场已满：已经有四位朋友在玩了。',
-      away: '朋友正在路上或音乐舞台上。远程一起玩这些功能即将推出。朋友回来时你也会回到农场。',
+      away: '朋友正在音乐舞台上。远程一起合奏即将推出。朋友回来时你也会回到农场。',
+      nextDay: '朋友已经上路了。从下一天开始你就能和他们一起跳。',
     },
     hintFarm: '开始新的一天', hintFarmSub: '点草地跳过去 · 用向日葵升级鱼塘和小木屋',
     hintFarmPad: '按 A 开始新的一天', hintFarmPadSub: '方向键：跳来跳去 · Y：选角色 · X：鱼塘 · B：小木屋 · LB：舞台 · RB：装饰',

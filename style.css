@@ -443,7 +443,7 @@ body.pad .heroCard.focus, body.keys .heroCard.focus, .heroCard:focus-visible { o
 .partyChip .path.relay { background: var(--cream-d); }
 /* a guest on a friend's farm: just hopping, no shops or building */
 body.guest #bunkBtn, body.guest #start, body.guest #pondBtn, body.guest #decorBtn,
-body.guest #phonesBtn, body.guest #partyBtn { display: none !important; }
+body.guest #phonesBtn, body.guest #partyBtn, body.guest #play { display: none !important; }
 #guestWait {
   position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px;
   background: rgba(36, 24, 48, .55);

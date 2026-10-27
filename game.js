@@ -73,9 +73,22 @@ const belowScreen = (x, z, cam = camera) => {
 const RAINBOW = [0xff4b4b, 0xff9a2e, 0xffd93b, 0x5fd35f, 0x46a6ff, 0x9b6bff];
 const GREENS = [0x5cb83a, 0x4faa38, 0x68c444, 0x55b03f];
 
-const rand = (a, b) => a + Math.random() * (b - a);
+// rnd is Math.random, except while a lane of the road is being built: then it's
+// that row's own seeded generator, so every screen in Co-Op Hop builds the same road.
+let rnd = Math.random;
+const rand = (a, b) => a + rnd() * (b - a);
 const ri = (a, b) => Math.floor(rand(a, b + 1));
-const pick = a => a[Math.floor(Math.random() * a.length)];
+const pick = a => a[Math.floor(rnd() * a.length)];
+function seeded(seed) {   // mulberry32: small, quick, and the same everywhere
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), a | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const rowSeed = (r, salt = 0) => (Math.imul(game.seed, 2654435761) ^ Math.imul(r + 4096, 40503) ^ Math.imul(salt + 1, 9973)) >>> 0;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 // Difficulty. The opening is calm: OPEN rows of plain grass, the centre column
@@ -991,6 +1004,11 @@ KAYAKS.forEach((_, i) => { LEN['kayak2_' + i] = 2.2; LEN['kayak3_' + i] = 3.2; }
 const MODELS = {};
 function model(kind) {
   if (MODELS[kind]) return MODELS[kind];
+  const was = rnd;
+  rnd = Math.random;
+  try { return (MODELS[kind] = buildModel(kind)); } finally { rnd = was; }
+}
+function buildModel(kind) {
   let m;
   if (kind.startsWith('tractor')) { const [c, h] = TRACTORS[+kind.slice(7)]; m = buildTractor(c, h, false); }
   else if (kind.startsWith('wagon')) { const [c, h] = TRACTORS[+kind.slice(5)]; m = buildTractor(c, h, true); }
@@ -1001,7 +1019,7 @@ function model(kind) {
   else if (kind === 'combine') m = buildCombine();
   else if (kind === 'plane') m = buildPlane();
   else m = buildLog(LEN[kind]);
-  return (MODELS[kind] = m);
+  return m;
 }
 // How fast legs cycle per unit of ground covered, and how far they swing.
 const GAIT = { cow: [7, 0.4], bull: [3.2, 0.75], geese: [11, 0.6] };
@@ -1457,7 +1475,7 @@ function flowers(vb, x) {
   }
 }
 function blocker(vb, x, outer) {
-  const k = Math.random();
+  const k = rnd();
   if (outer) return k < 0.85 ? tree(vb, x, true) : bush(vb, x);
   if (k < 0.5) tree(vb, x, false);
   else if (k < 0.65) hay(vb, x);
@@ -1537,10 +1555,9 @@ function animateParts(m, speed, dt) {
     else p.rotation[u.axis] += dt * u.rate;
   }
 }
-function wrap(m) {
-  const half = SPAN / 2;
-  while (m.x - m.len / 2 > half) m.x -= SPAN;
-  while (m.x + m.len / 2 < -half) m.x += SPAN;
+function wrap(m) {   // round to the other side, well off screen
+  const lo = -SPAN / 2 - m.len / 2;
+  m.x = lo + (((m.x - lo) % SPAN) + SPAN) % SPAN;
 }
 
 function nextType(r, prev) {
@@ -1548,11 +1565,11 @@ function nextType(r, prev) {
     const d = diff(r), last = prev.type, early = r < STRAIGHT, on = k => r >= UNLOCK[k];
     let t;
     // a grass break after every hazard until STRAIGHT, tapering to 45% of the time by row 60
-    if (last !== 'grass' && Math.random() < lerp(1, 0.45, clamp((r - STRAIGHT) / (35 * PACE), 0, 1))) t = 'grass';
+    if (last !== 'grass' && rnd() < lerp(1, 0.45, clamp((r - STRAIGHT) / (35 * PACE), 0, 1))) t = 'grass';
     else {
       const w = [['grass', 0.2], ['road', 0.24 + 0.05 * d], ['pasture', on('pasture') ? 0.16 : 0], ['water', on('water') ? 0.2 : 0],
         ['bull', on('bull') ? 0.08 + 0.05 * d : 0], ['wheat', on('wheat') ? 0.1 : 0], ['crops', on('crops') ? 0.07 + 0.05 * d : 0]];
-      let k = Math.random() * w.reduce((s, x) => s + x[1], 0);
+      let k = rnd() * w.reduce((s, x) => s + x[1], 0);
       t = w.find(x => (k -= x[1]) < 0)[0];
       if (t === last && t !== 'grass') t = 'grass';
     }
@@ -1562,18 +1579,32 @@ function nextType(r, prev) {
     else if (t === 'bull') queue = Array(ri(1, d > 0.4 ? 2 : 1)).fill('bull');
     else if (t === 'wheat') queue = Array(r < 40 * PACE ? 1 : ri(1, 2)).fill('wheat');
     else if (t === 'crops') queue = ['crops'];
-    else if (on('pads') && last === 'grass' && Math.random() < 0.3) queue = ['pads', 'grass'];
+    else if (on('pads') && last === 'grass' && rnd() < 0.3) queue = ['pads', 'grass'];
     else queue = Array(r < 30 * PACE ? 1 : ri(1, 2 + Math.round(d))).fill('water');
   }
   return queue.shift();
 }
 
+// Each row is built from its own seeded generator, and its traffic is moved on to
+// where it is at this moment of the round (game.roadT), so a lane comes out the
+// same on every screen whenever that screen gets round to building it.
 function addLane(r) {
+  const was = rnd;
+  rnd = seeded(rowSeed(r));
+  try { buildLane(r); } finally { rnd = was; }
+  catchUp(lanes.get(r), game.roadT);
+}
+function catchUp(lane, T) {
+  if (!(T > 0)) return;
+  if (lane.type === 'bull') { for (let t = 0; t < T; t += 0.05) updateStampede(lane, Math.min(0.05, T - t), true); return; }
+  for (const m of lane.movers) { m.x += lane.dir * lane.speed * T; wrap(m); m.mesh.position.x = m.x; }
+}
+function buildLane(r) {
   const prev = lanes.get(r - 1) || null;
   const type = r < 0 ? 'forest' : r < OPEN ? 'grass' : nextType(r, prev);
   const lane = {
     r, type, movers: [], blocked: new Set(), reach: new Set(), coins: [],
-    dir: Math.random() < 0.5 ? 1 : -1, speed: 0, group: new THREE.Group(),
+    dir: rnd() < 0.5 ? 1 : -1, speed: 0, group: new THREE.Group(),
   };
   lane.group.position.z = -r;
   const vb = new VB(0.4);   // scenery: low detail, it's everywhere
@@ -1584,8 +1615,8 @@ function addLane(r) {
     strip(vb, 0, c, shade(c, 0.74));
     for (let x = -VIS; x <= VIS; x++) {
       if (Math.abs(x) <= COLS || Math.abs(x) > 11) continue;   // nothing past what the widest screen shows
-      if (type === 'forest' || Math.random() < 0.7) blocker(vb, x, true);
-      else if (Math.random() < 0.4) flowers(vb, x);
+      if (type === 'forest' || rnd() < 0.7) blocker(vb, x, true);
+      else if (rnd() < 0.4) flowers(vb, x);
     }
     if (type === 'forest') {
       for (let x = -COLS; x <= COLS; x++) { tree(vb, x, r < -3); lane.blocked.add(x); }  // short trees nearest the start
@@ -1608,9 +1639,9 @@ function addLane(r) {
       lane.reach = reach;
       for (let x = -COLS; x <= COLS; x++) {
         if (blocked.has(x)) blocker(vb, x, false);
-        else if (Math.random() < 0.18) flowers(vb, x);
+        else if (rnd() < 0.18) flowers(vb, x);
       }
-      if (r > 3 && Math.random() < 0.16 && reach.size) addSunflower(lane, pick([...reach]));
+      if (r > 3 && rnd() < 0.16 && reach.size) addSunflower(lane, pick([...reach]));
     }
   } else if (type === 'road') {
     strip(vb, -0.02, 0x5f5c66, shade(0x5f5c66, 0.72));
@@ -1621,15 +1652,15 @@ function addLane(r) {
     }
     lane.speed = rand(1.5, 2.9) * (1 + 0.7 * d);
     const color = ri(0, TRACTORS.length - 1);
-    addMovers(lane, () => (r >= UNLOCK.wagon && Math.random() < 0.25 ? 'wagon' : 'tractor') + (Math.random() < 0.5 ? color : ri(0, TRACTORS.length - 1)), 3, 7.5 - 2 * d);
-    if (Math.random() < 0.1) addSunflower(lane, ri(-COLS, COLS));
+    addMovers(lane, () => (r >= UNLOCK.wagon && rnd() < 0.25 ? 'wagon' : 'tractor') + (rnd() < 0.5 ? color : ri(0, TRACTORS.length - 1)), 3, 7.5 - 2 * d);
+    if (rnd() < 0.1) addSunflower(lane, ri(-COLS, COLS));
   } else if (type === 'pasture') {
     strip(vb, 0, 0xcfa66b, shade(0xcfa66b, 0.72));
     for (let i = 0; i < 14; i++) {
       const x = rand(-VIS, VIS);
       vb.box(0.14, 0.01, 0.1, x, 0.005, rand(-0.35, 0.35), Math.abs(x) <= COLS + 0.5 ? 0xb58e58 : 0x8a6c43);
     }
-    const k = Math.random();
+    const k = rnd();
     if (r >= UNLOCK.pastureBull && k < 0.3) {
       lane.speed = rand(5, 6.5) * (1 + 0.3 * d);
       addMovers(lane, () => 'bull', 9, 15);
@@ -1680,6 +1711,7 @@ function addLane(r) {
       lane.movers.push(m);
     }
     lane.stamp = { state: 'wait', t: rand(1.5, 4), cue: 0, ang: 0 };
+    lane.rng = seeded(rowSeed(r, 7));   // when the bulls come, and how many: the same on every screen
   } else if (type === 'wheat') {
     strip(vb, 0, 0xe9c46a, shade(0xe9c46a, 0.74));
     for (let x = -VIS; x <= VIS; x++) {                   // stubble tufts, purely decoration
@@ -1690,7 +1722,7 @@ function addLane(r) {
     }
     lane.speed = rand(0.9, 1.5) * (1 + 0.5 * d);
     addMovers(lane, () => 'combine', 5, 9 - 2 * d);
-    if (Math.random() < 0.12) addSunflower(lane, ri(-COLS, COLS));
+    if (rnd() < 0.12) addSunflower(lane, ri(-COLS, COLS));
   } else if (type === 'crops') {
     strip(vb, 0, 0x8a5e3c, shade(0x8a5e3c, 0.72));
     for (const z of [-0.3, 0.3]) {
@@ -1707,11 +1739,11 @@ function addLane(r) {
     strip(vb, -0.22, 0x56c3ee, shade(0x56c3ee, 0.74));
     if (type === 'water') {
       if (prev && prev.type === 'water') lane.dir = -prev.dir;
-      if (r >= UNLOCK.kayak && Math.random() < 0.35) {
+      if (r >= UNLOCK.kayak && rnd() < 0.35) {
         // a flotilla of kayaks: quicker than logs, and shorter
         lane.speed = rand(1.4, 2.3) * (1 + 0.4 * d);
         const col = ri(0, KAYAKS.length - 1);
-        addMovers(lane, () => 'kayak' + (Math.random() < 0.6 ? 2 : 3) + '_' + (Math.random() < 0.5 ? col : ri(0, KAYAKS.length - 1)), 1.3, 2.4 + d, -0.1);
+        addMovers(lane, () => 'kayak' + (rnd() < 0.6 ? 2 : 3) + '_' + (rnd() < 0.5 ? col : ri(0, KAYAKS.length - 1)), 1.3, 2.4 + d, -0.1);
       } else {
         lane.speed = rand(0.9, 1.9) * (1 + 0.45 * d);
         const lens = r < 30 * PACE ? ['log3', 'log4', 'log4'] : d > 0.5 ? ['log2', 'log2', 'log3'] : ['log2', 'log3', 'log3', 'log4'];
@@ -1724,7 +1756,7 @@ function addLane(r) {
       while (lane.padCols.size < want) lane.padCols.add(pick(cands));
       for (const x of lane.padCols) {
         vb.add(prim('pad', () => new THREE.CylinderGeometry(0.36, 0.36, 0.04, 16, 1, false, 0.5, Math.PI * 2 - 0.6)), 0x3fae49, x, -0.18, 0);   // round pad with a notch
-        if (Math.random() < 0.5) {   // a water lily
+        if (rnd() < 0.5) {   // a water lily
           for (let i = 0; i < 5; i++) { const a = i * Math.PI * 0.4; vb.ball(0.035, 0.07, 0.035, x - 0.12 + Math.cos(a) * 0.05, -0.1, -0.12 + Math.sin(a) * 0.05, 0xff8fc8, Math.sin(a) * 0.5, 0, -Math.cos(a) * 0.5); }
           vb.ball(0.03, 0.03, 0.03, x - 0.12, -0.08, -0.12, 0xffd93b);
         }
@@ -1790,24 +1822,24 @@ function updateLane(lane, dt, time) {
 // Stampede lane: wait, then a warning (the gate rattles and swings open while
 // the ground rumbles and dust lifts), then the bulls charge through.
 const WARN_T = 1.6;
-function updateStampede(lane, dt) {
-  const s = lane.stamp, playing = game.state === 'play';
+function updateStampede(lane, dt, quiet = false) {
+  const s = lane.stamp, playing = game.state === 'play' && !quiet;
   const near = Math.min(99, ...game.crew.filter(h => h.alive && !h.parked).map(h => Math.abs(lane.r - h.r)));
   const gx = -lane.dir * (COLS + 0.6);                    // the gate the bulls come through
   s.t -= dt;
   let open = s.state === 'charge', rattle = 0;
   if (s.state === 'wait') {
-    if (s.t <= 0) { s.state = 'warn'; s.t = WARN_T; s.cue = 0; }
+    if (s.t <= 0) { s.state = 'warn'; s.t += WARN_T; s.cue = 0; }
   } else if (s.state === 'warn') {
     const k = 1 - s.t / WARN_T;                            // 0 -> 1 through the warning
     open = k > 0.45;
     rattle = open ? 0 : 0.07;
     if (near < 7 && playing) game.shake = Math.max(game.shake, 0.7 * (0.3 + 0.7 * k) * (1 - near / 7));
-    if (Math.random() < dt * (30 + 90 * k)) {              // dust lifting off the lane, thickest by the gate
+    if (!quiet && Math.random() < dt * (30 + 90 * k)) {   // dust lifting off the lane, thickest by the gate
       const x = lerp(gx, -gx, Math.random() ** 1.5);
       burst(x, 0.05, -lane.r + rand(-0.4, 0.4), [0xe8d2b0, 0xdcc09a, 0xf2e2c8], 1, 0.3, 2.6, 0.24 + 0.12 * k, 0.9, true);
     }
-    if (Math.random() < dt * 25 * k) {                     // pebbles jumping on the shaking ground
+    if (!quiet && Math.random() < dt * 25 * k) {          // pebbles jumping on the shaking ground
       burst(rand(-COLS, COLS), 0.03, -lane.r + rand(-0.4, 0.4), [0x9aa0a6, 0x7a6a5a], 1, 0.15, 3.2, 0.06, 0.5);
     }
     s.cue -= dt;
@@ -1819,13 +1851,14 @@ function updateStampede(lane, dt) {
     if (s.t <= 0) {
       s.state = 'charge';
       s.creaked = false;
-      const n = ri(1, diff(lane.r) > 0.3 ? 3 : 2);
+      const n = 1 + Math.floor(lane.rng() * (diff(lane.r) > 0.3 ? 3 : 2)), late = -s.t;
       lane.movers.forEach((m, i) => {
         m.active = i < n;
         m.mesh.visible = m.active;
-        m.x = -lane.dir * (VIS + 2 + i * 1.9);
+        m.x = -lane.dir * (VIS + 2 + i * 1.9) + lane.dir * lane.speed * late;
         m.mesh.position.x = m.x;
       });
+      s.t = (2 * VIS + 5 + (n - 1) * 1.9) / lane.speed - late;   // until the last one is through
       if (near < 8 && playing) sfx.snort();
     }
   } else {
@@ -1841,14 +1874,19 @@ function updateStampede(lane, dt) {
       else {
         any = true;
         if (near < 7 && playing && crewNear(lane.r, m.x, 7, 6)) game.shake = Math.max(game.shake, 0.5 * (1 - near / 7));
-        if (Math.random() < dt * 30 && Math.abs(m.x) < VIS) {
+        if (!quiet && Math.random() < dt * 30 && Math.abs(m.x) < VIS) {
           burst(m.x - lane.dir * 0.7, 0.1, -lane.r + rand(-0.3, 0.3), [0xe8d2b0, 0xdcc09a], 1, 0.6, 2.5, 0.2, 0.6, true);
         }
       }
     }
-    if (!any) { s.state = 'wait'; s.t = rand(2.5, 6); }
+    if (s.t <= 0) {
+      for (const m of lane.movers) { m.active = false; m.mesh.visible = false; }
+      s.state = 'wait';
+      s.t += 2.5 + lane.rng() * 3.5;
+    }
   }
   // Swing the gate: snaps open fast, drifts shut slowly once the bulls are through.
+  if (quiet) return;
   s.ang = lerp(s.ang, open ? 1 : 0, Math.min(1, dt * (open ? 7 : 2.5)));
   for (const g of lane.gates) g.rotation.y = g.userData.open * s.ang + rattle * Math.sin(game.time * 45 + g.position.x);
 }
@@ -1864,6 +1902,10 @@ function updateStampede(lane, dt) {
 const P = { slot: 0 };
 const game = { state: 'farm', where: 'farm', light: 1, dawn: 1, today: 0, day: 1, shake: 0, score: 0, top: store.get('bl-top', 0), coins: store.get('bl-coins', 0), camX: 0, camZ: 0, time: 0, crew: [P] };
 const coop = () => game.crew.length > 1;
+// In Co-Op Hop with friends on their own devices, each device moves its own
+// hopper ("local") and shows the others as they report their hops ("remote").
+// The host's screen also moves the hoppers of phones used as controllers.
+function localCrew() { return game.crew.filter(h => !h.remote); }
 const RESPAWN_T = 4;                                              // seconds before a knocked-out hopper drops back in
 const MARK_COLORS = [0, 0x8fd8ff, 0xff7fb8, 0xffd24a, 0x6bd864];  // the marker over each phone's hopper, by slot
 const MARK_CSS = ['', '#8fd8ff', '#ff7fb8', '#ffd24a', '#6bd864'];
@@ -1898,7 +1940,7 @@ function laneAt(r) { return lanes.get(r); }
 // Co-Op Hop keeps the team together: nobody gets more than LEASH rows ahead of the
 // hindmost teammate still hopping (the camera follows that one).
 const LEASH = 7;
-const tooFarAhead = (h, r) => coop() && game.crew.some(o => o !== h && o.alive && !o.parked && o.active && r - o.r > (splitActive() ? 30 : LEASH));
+const tooFarAhead = (h, r) => coop() && game.crew.some(o => o !== h && o.alive && !o.parked && o.active && r - o.r > (splitActive() || o.remote ? 30 : LEASH));
 const camOf = h => (splitActive() && h.cam?.c) || camera;   // in split screen each hopper has its own
 
 function move(dx, dr, h = P) {
@@ -1921,8 +1963,10 @@ function move(dx, dr, h = P) {
   if (blocked) {
     h.hop = { fx: h.x, fz: h.z, fy: h.y, tx: h.x, tz: h.z, ty: h.y, t: 0, fromR: h.r, toR: h.r, h: 0.15, bump: true };
     sfx.bump();
+    roadSend({ t: 'rh', k: h.key, fx: h.x, fr: h.r, tx: h.x, tr: h.r, face: h.faceTarget, bump: true });
     return;
   }
+  roadSend({ t: 'rh', k: h.key, fx: h.x, fr: h.r, tx, tr, face: h.faceTarget });
   h.hop = { fx: h.x, fz: h.z, fy: h.y, tx, tz: -tr, ty: LANE_Y[lane.type], t: 0, fromR: h.r, toR: tr, h: 0.5 };
   h.log = null;
   h.tailVel += 9;
@@ -1948,21 +1992,23 @@ function land(h = P) {
   h.x = hp.tx; h.z = hp.tz; h.y = hp.ty; h.r = hp.toR;
   if (hp.bump) { h.jelly = 0.12; if (h.queue) { const q = h.queue; h.queue = null; move(...q, h); } return; }
   const lane = laneAt(h.r);
+  if (!lane) return;   // a friend's hopper out beyond the rows this screen keeps
   if (lane.type === 'water') {
     const m = lane.movers.find(m => Math.abs(m.x - h.x) < m.len / 2 + 0.12);
-    if (!m) return die('splash', null, lane, h);
+    if (!m) { if (h.remote) return; return die('splash', null, lane, h); }
     const left = m.x - m.len / 2;
     const off = clamp(Math.floor(h.x - left) + 0.5, 0.5, m.len - 0.5);
     h.x = left + off;
     h.log = m;
     m.bob = 0.12;
-  } else if (lane.type === 'pads' && !lane.padCols.has(h.x)) {
+  } else if (lane.type === 'pads' && !lane.padCols.has(h.x) && !h.remote) {
     return die('splash', null, lane, h);
   }
   h.jelly = 0;   // start the landing wobble
   hopPuff(h);
-  const coin = lane.coins.find(c => c.c === h.x);
+  const coin = !h.remote && lane.coins.find(c => c.c === h.x);   // a friend's device reports their own sunflowers
   if (coin) {
+    roadSend({ t: 'rc', r: h.r, c: coin.c });
     lane.group.remove(coin.m);
     lane.coins.splice(lane.coins.indexOf(coin), 1);
     game.coins++;
@@ -1986,6 +2032,7 @@ const FLAT = new Set(['squash', 'harvest']), KNOCK = new Set(['bonk', 'goose']),
 
 function die(kind, mover, lane, h = P) {
   if (!h.alive) return;
+  if (!h.remote) roadSend({ t: 'rd', k: h.key, kind, x: h.x, r: h.r, dir: lane?.dir || 1, type: lane?.type || 'grass' });
   h.alive = false;
   h.death = kind;
   h.deathT = 0;
@@ -2031,7 +2078,9 @@ function die(kind, mover, lane, h = P) {
     if (h === game.crew.find(o => o.death === 'night')) sfx.lullaby();
   }
   game.lastDeath = h;
+  if (GUEST) { if (!h.remote && kind !== 'night') h.back = RESPAWN_T; return; }   // the host's screen ends the round
   if (coop() && kind !== 'night' && game.crew.some(o => o.alive && !o.parked)) {   // friends still going: back in a moment
+    if (h.remote) return;   // their own device drops them back in
     h.back = RESPAWN_T;
     tellHopper(h);
     return;
@@ -2052,7 +2101,7 @@ function respawn(h) {
   const cols = Array.from({ length: COLS * 2 + 1 }, (_, i) => i - COLS).sort((a, b) => Math.abs(a - anchor.x) - Math.abs(b - anchor.x));
   for (let r = anchor.r; r >= anchor.r - 8; r--) {
     const lane = laneAt(r);
-    if (!lane || belowScreen(anchor.x, -r, camOf(anchor))) break;
+    if (!lane || (!anchor.remote && belowScreen(anchor.x, -r, camOf(anchor)))) break;
     if (lane.type !== 'grass' && lane.type !== 'forest') continue;
     const x = cols.find(c => !lane.blocked.has(c) && !game.crew.some(o => o !== h && o.alive && o.r === r && Math.round(o.x) === c));
     if (x == null) continue;
@@ -2062,6 +2111,7 @@ function respawn(h) {
     burst(x, 1.2, -r, [0xffd23f, 0xffffff, MARK_COLORS[h.slot] || 0xff8fc8], 14, 1.5, 3, 0.09, 0.7);
     sfx.place();
     tellHopper(h);
+    roadSend({ t: 'rb', k: h.key, x, r });
     return;
   }
   h.back = 0.5;   // nowhere safe just now: try again shortly
@@ -2087,21 +2137,22 @@ function updateHopper(h, dt) {
       const lane = laneAt(h.r);
       h.x += lane.dir * lane.speed * dt;
       h.y = LANE_Y.water + h.log.mesh.position.y - h.log.y;
-      if (Math.abs(h.x) > COLS + 1.1) die('swept', null, lane, h);
+      if (Math.abs(h.x) > COLS + 1.1 && !h.remote) die('swept', null, lane, h);
     }
     // In Co-Op Hop a hopper nobody has moved yet sits the round out once the team leaves it behind.
-    if (coop() && !h.active && !h.hop && game.state === 'play' && belowScreen(h.x, h.z, camOf(h))) {
+    if (coop() && !h.remote && !h.active && !h.hop && game.state === 'play' && belowScreen(h.x, h.z, camOf(h))) {
       h.parked = true;
       group.visible = false;
+      roadSend({ t: 'rp', k: h.key });
       return;
     }
-  } else if (h.back > 0 && (h.back -= dt) <= 0) {
+  } else if (!h.remote && h.back > 0 && (h.back -= dt) <= 0) {
     respawn(h);
     if (h.alive) return;
   }
 
   // collisions with traffic
-  if (h.alive && game.state === 'play') {
+  if (h.alive && !h.remote && game.state === 'play') {
     const row = h.hop ? (h.hop.t > 0.5 ? h.hop.toR : h.hop.fromR) : h.r;
     const lane = laneAt(row);
     if (lane && (lane.movers.length && lane.type !== 'water')) {
@@ -2167,8 +2218,8 @@ function updateHopper(h, dt) {
 // Where the road camera looks: the hopper alone, or in Co-Op Hop the hindmost of
 // the team still going (so nobody is left behind), centred on everyone across.
 function roadFocus() {
-  if (!coop()) return P;
-  const going = game.crew.filter(h => h.alive && !h.parked);
+  if (localCrew().length < 2) return P;
+  const going = localCrew().filter(h => h.alive && !h.parked);
   const movers = going.filter(h => h.active);
   const set = movers.length ? movers : going;
   if (!set.length) return { x: game.camX, z: game.camZ + roadView().lead, alive: false };
@@ -2232,16 +2283,16 @@ const _t = new THREE.Vector3(), _look = new THREE.Vector3(), _off = new THREE.Ve
 // wide screen, one above the other on a tall one), each camera following its own
 // hopper. With three or more, or if one hopper sits the round out, the team shares one view.
 let splitPref = store.get('bl-split', false);
-const splitActive = () => splitPref && game.where === 'road' && game.crew.length === 2 && game.crew.every(h => !h.parked && h.model);
+const splitActive = () => splitPref && game.where === 'road' && localCrew().length === 2 && localCrew().every(h => !h.parked && h.model);
 const _sz = new THREE.Vector2();
 function splitRects() {   // drawing-buffer pixels: the first hopper (the TV's) on the left or top
   const { x: W, y: H } = renderer.getDrawingBufferSize(_sz);
   return W >= H ? [[0, 0, W >> 1, H], [W >> 1, 0, W - (W >> 1), H]] : [[0, H >> 1, W, H - (H >> 1)], [0, 0, W, H >> 1]];
 }
 function splitViews() {
-  if (!splitActive() || !game.crew.every(h => h.cam)) return null;
+  if (!splitActive() || !localCrew().every(h => h.cam)) return null;
   const rects = splitRects();
-  return game.crew.map((h, i) => ({ cam: h.cam.c, rect: rects[i], x: h.cam.x, z: h.cam.z }));
+  return localCrew().map((h, i) => ({ cam: h.cam.c, rect: rects[i], x: h.cam.x, z: h.cam.z }));
 }
 function aimSun(x, z) {   // shadows are drawn around whichever half is being drawn
   sun.position.set(x, 0, z).add(SUN_OFF);
@@ -2269,7 +2320,7 @@ function splitCam(h, V) {
   return c;
 }
 function updateSplit(dt, V) {
-  for (const h of game.crew) {
+  for (const h of localCrew()) {
     const c = splitCam(h, V), going = h.alive && !h.parked;
     const desired = h.z - V.lead;
     if (going && (desired < c.z || !V.ortho)) c.z += (desired - c.z) * Math.min(1, dt * 5);
@@ -2287,9 +2338,9 @@ function updateSplit(dt, V) {
     c.c.updateMatrixWorld();
   }
   if (game.shake > 0.002) game.shake *= Math.exp(-dt * 5);
-  useCamera(game.crew[0].cam.c);
-  game.camX = game.crew[0].cam.x;
-  game.camZ = Math.max(...game.crew.map(h => h.cam.z));   // the hindmost half, for anything that reads one camera
+  useCamera(localCrew()[0].cam.c);
+  game.camX = localCrew()[0].cam.x;
+  game.camZ = Math.max(...localCrew().map(h => h.cam.z));   // the hindmost half, for anything that reads one camera
   const sc = sun.shadow.camera;
   if (sc.right !== V.shadow) {
     Object.assign(sc, { left: -V.shadow, right: V.shadow, top: V.shadow, bottom: -V.shadow });
@@ -2324,7 +2375,7 @@ function updateCamera(dt) {
     _t.set(game.camX, 0, game.camZ);
   }
   // Co-Op Hop's Behind camera sits further back and higher, so the whole team fits.
-  const pull = game.where === 'road' && coop() && !V.ortho ? 1.45 : 1;
+  const pull = game.where === 'road' && localCrew().length > 1 && !V.ortho ? 1.45 : 1;
   camera.position.copy(_t).add(_off.copy(V.off).multiplyScalar(pull));
   _look.copy(_t);
   _look.y = V.lookY || 0;
@@ -2346,7 +2397,7 @@ function updateCamera(dt) {
 
 function ensureLanes() {
   const V = activeView();
-  const rows = splitActive() && game.crew.every(h => h.cam) ? game.crew.map(h => Math.round(-h.cam.z)) : [Math.round(-game.camZ)];
+  const rows = splitActive() && localCrew().every(h => h.cam) ? localCrew().map(h => Math.round(-h.cam.z)) : [Math.round(-game.camZ)];
   while (genRow <= Math.max(...rows) + V.ahead) addLane(genRow++);
   for (const lane of [...lanes.values()]) if (lane.r < Math.min(...rows) - V.behind) removeLane(lane);
 }
@@ -3052,6 +3103,9 @@ function newWorld() {
   game.camX = 0;
   game.crew = [P];
   P.cam = null;
+  P.key = GUEST ? guestKey : 'h';
+  game.roadT = 0;
+  if (!GUEST) game.seed = (Math.random() * 2 ** 32) >>> 0;   // a guest gets the host's (see goRoadGuest)
   setupCrew();
   game.camZ = -roadView().lead;
   resetPlayer();
@@ -3098,11 +3152,39 @@ function goRoad() {   // sunrise, then onto the road at first light
     document.body.classList.remove('farm', 'show-logo');
     document.body.classList.add('ready');
     setHint();
+    // Friends on their own devices build the same road from the seed and line up beside us.
+    toGuests({ t: 'road', seed: game.seed, T: game.roadT, crew: game.crew.map(h => ({ k: h.key, hero: h.hero, slot: h.slot, x: h.x, r: h.r })) });
     tellView();
   });
 }
+// A guest's side of the sunrise: the host's road, the host's line-up.
+function goRoadGuest(m) {
+  closeHeroes();
+  closeSettings();
+  sfx.rooster();
+  Object.assign(farmCam, { x: 0, z: 0, zoom: FARM_ZOOM0 });
+  game.state = 'sunrise';
+  transition('sunrise', 950, () => {
+    game.seed = m.seed >>> 0;
+    roadClock = { T: m.T, at: performance.now() };
+    newWorld();
+    for (const c of m.crew) {
+      if (c.k === guestKey) { freshHopper(P, P.hero, c.x, c.r); P.active = false; continue; }
+      const h = { key: c.k, slot: c.slot || 0, hero: c.hero, remote: true };
+      freshHopper(h, c.hero, c.x, c.r);
+      h.active = false;
+      game.crew.push(h);
+    }
+    game.where = 'road';
+    game.state = 'title';
+    game.dawn = 0.12;
+    document.body.classList.remove('farm', 'show-logo');
+    document.body.classList.add('ready');
+    setHint();
+  });
+}
 function goFarm() {   // after a round: a quick fade home
-  if (game.state !== 'over') return;
+  if (game.state !== 'over' || GUEST) return;
   game.state = 'dusk';
   transition('dusk', 450, enterFarm);
 }
@@ -3355,8 +3437,11 @@ soundBtn.addEventListener('click', () => { sfx.ensure(); soundBtn.classList.togg
 // ---------- main loop ----------
 let last = performance.now();
 function step(dt) {
+  if (GUEST && game.where === 'road') dt = guestRoadDt(dt);   // keep in time with the host's road
   game.time += dt;
   if (game.where === 'road') {
+    game.roadT += dt;
+    if (!GUEST) tellRoad();
     for (const lane of lanes.values()) {
       updateLane(lane, dt, game.time);
       for (const c of lane.coins) {
@@ -4240,8 +4325,9 @@ function partyStop() {
 // pad, or a "waiting on the farm" note.
 function setupCrew() {
   for (const [slot, pl] of [...party.players.entries()].sort((a, b) => a[0] - b[0])) {
-    if (!pl.hero || pl.guest) continue;   // guests stay on the farm for now
-    pl.road = { slot, hero: pl.hero, parked: true, alive: false, active: false };
+    if (!pl.hero) continue;
+    // A guest's hopper is moved on their own device ("remote"); a phone's, here.
+    pl.road = { slot, key: 'p' + slot, hero: pl.hero, parked: true, alive: false, active: false, remote: !!pl.guest };
     game.crew.push(pl.road);
   }
 }
@@ -4257,7 +4343,8 @@ function placeCrew() {
   }
 }
 function addToRoad(slot, pl) {   // joined while a round is on
-  const h = pl.road = { slot, hero: pl.hero, parked: true, alive: false, active: false };
+  if (pl.guest) return;   // a guest joins at the start of the next day
+  const h = pl.road = { slot, key: 'p' + slot, hero: pl.hero, parked: true, alive: false, active: false };
   game.crew.push(h);
   if (game.state === 'title') { freshHopper(h, h.hero, [-2, 2, -1, 1][game.crew.length % 4], 0); }
   tellView();
@@ -4275,7 +4362,7 @@ function currentView() {
   return 'farm';
 }
 function tellView() { partySend('*', { t: 'view', v: currentView(), score: game.score }); }
-function tellHopper(h) { if (h.slot) partySend(h.slot, { t: 'me', alive: h.alive, back: Math.ceil(h.back) }); }
+function tellHopper(h) { if (h.slot && !h.remote && !GUEST) partySend(h.slot, { t: 'me', alive: h.alive, back: Math.ceil(h.back) }); }
 
 const taken = () => [heroId, ...[...party.players.values()].map(p => p.hero)];
 function sendLobby(slot) {
@@ -4286,7 +4373,7 @@ function onPlayer(slot, m, direct = false) {
   if (m.t === 'rtc') { if (!direct) rtcSignal(slot, m); return; }
   // Once a phone's direct link is open its notes and hops come that way; one still
   // on its way through the relay is older than what's already arrived, so skip it.
-  if (!direct && peers.get(slot)?.dc?.readyState === 'open' && (m.t === 'note' || m.t === 'drum' || m.t === 'hop' || m.t === 'leap')) return;
+  if (!direct && peers.get(slot)?.dc?.readyState === 'open' && /^(note|drum|hop|leap|r[hdbpc])$/.test(m.t)) return;
   const pl = party.players.get(slot);
   if (m.t === 'hello' && m.guest) {   // a friend playing on their own device: send them the farm
     party.players.set(slot, { hero: null, kick: 0, guest: true });
@@ -4296,6 +4383,14 @@ function onPlayer(slot, m, direct = false) {
   }
   // A guest may play any hopper: one from their own farm, or one of ours.
   if (m.t === 'pick' && pl?.guest) { if (anyHero(m.hero)) assign(slot, m.hero); return; }
+  if (/^r[hdbpc]$/.test(m.t)) {   // a guest's hopper on the road
+    if (!pl?.guest || game.where !== 'road') return;
+    const k = 'p' + slot;
+    if (m.t === 'rc') takeSunflower(m.r | 0, m.c | 0, true);
+    else onRoadNews(game.crew.find(h => h.key === k), m);
+    toGuests({ ...m, k }, slot);
+    return;
+  }
   if (m.t === 'leap') {
     const w = pl?.guest && game.where === 'farm' && walkerOf('p' + slot);
     const x = clamp(+m.x, YARD.x0, YARD.x1), z = clamp(+m.z, YARD.z0, YARD.z1), up = clamp(+m.up || 0, 0, 0.5);
@@ -4341,6 +4436,77 @@ function onPlayer(slot, m, direct = false) {
     floatNote(DRUM_COLORS[m.d | 0], pl.m?.group.position.x);
   }
 }
+// ---------- Co-Op Hop with friends on their own devices ----------
+// Each device sends what its own hoppers do: rh (a hop, or a bump), rd (knocked
+// out), rb (dropped back in), rp (sat out), rc (picked a sunflower). The host passes
+// a guest's news on to the other guests, and every 0.2 s tells them the road's
+// clock, the score, the daylight and how the round is going (rs).
+function roadSend(m) {
+  if (game.where !== 'road') return;
+  if (GUEST) guestNet.send(m);
+  else toGuests(m);
+}
+function onRoadNews(h, m) {   // a friend's hopper, as their device reports it
+  if (!h) return;
+  if (m.t === 'rh') {
+    if (game.state === 'title' && !GUEST) startGame();
+    if (!h.alive) return;
+    h.parked = false;
+    h.active = true;
+    h.model.group.visible = true;
+    const tl = laneAt(m.tr);
+    h.x = +m.fx; h.r = m.fr | 0; h.z = -h.r; h.log = null;
+    h.faceTarget = +m.face || 0;
+    h.hop = { fx: h.x, fz: h.z, fy: h.y, tx: +m.tx, tz: -(m.tr | 0), ty: tl ? LANE_Y[tl.type] : 0, t: 0, fromR: h.r, toR: m.tr | 0, h: m.bump ? 0.15 : 0.5, bump: !!m.bump };
+    if (!m.bump) { h.tailVel += 9; sfx.hop(h.hero); }
+  } else if (m.t === 'rd') {
+    h.x = +m.x; h.r = m.r | 0; h.z = -h.r; h.hop = null;
+    die(m.kind, null, laneAt(h.r) || { dir: m.dir, type: m.type }, h);
+  } else if (m.t === 'rb') {
+    if (game.state !== 'play' && game.state !== 'title') return;
+    const r = m.r | 0, lane = laneAt(r);
+    freshHopper(h, h.hero, +m.x, r);
+    h.active = true;
+    h.hop = { fx: h.x, fz: -r, fy: 2.4, tx: h.x, tz: -r, ty: lane ? LANE_Y[lane.type] : 0, t: 0, fromR: r, toR: r, h: 0 };
+    burst(h.x, 1.2, -r, [0xffd23f, 0xffffff, MARK_COLORS[h.slot] || 0xff8fc8], 14, 1.5, 3, 0.09, 0.7);
+  } else if (m.t === 'rp') {
+    h.parked = true;
+    h.model.group.visible = false;
+  }
+}
+function takeSunflower(r, c, count) {   // someone picked one: gone from every screen, counted once, by the host
+  const lane = laneAt(r), coin = lane?.coins.find(o => o.c === c);
+  if (coin) {
+    lane.group.remove(coin.m);
+    lane.coins.splice(lane.coins.indexOf(coin), 1);
+    burst(c, 0.6, -r, [0xffd23f, 0xffe680, 0xffffff], 10, 1.5, 4, 0.08, 0.5);
+  }
+  if (!count) return;
+  game.coins++;
+  game.today++;
+  store.set('bl-coins', game.coins);
+  hud();
+}
+let roadTold = 0;
+function tellRoad() {   // host: the shared clock and the round, a few times a second
+  if (!guests().length || game.time - roadTold < 0.2) return;
+  roadTold = game.time;
+  toGuests({ t: 'rs', T: game.roadT, day: game.day, score: game.score, state: game.state, coins: game.coins, today: game.today, death: game.lastDeath?.death, hero: game.lastDeath?.hero });
+}
+// Guest: follow the host's road clock, easing in small differences and jumping big ones.
+let roadClock = { T: 0, at: 0 };
+function guestRoadDt(dt) {
+  // at most half a second past the host's last word: if their screen pauses (hidden, asleep), so does ours
+  const target = roadClock.T + Math.min(0.5, (performance.now() - roadClock.at) / 1000);
+  const ahead = target - (game.roadT + dt);
+  if (ahead > 0.6) {   // fell well behind (a hidden tab): catch every lane up at once
+    for (const lane of lanes.values()) catchUp(lane, ahead);
+    game.roadT += ahead;
+    return dt;
+  }
+  return Math.max(0, dt + clamp(ahead * 0.3, -dt * 0.5, dt * 0.5));
+}
+
 // ---------- guests: friends playing the game on their own device ----------
 const guests = () => [...party.players.entries()].filter(([, p]) => p.guest);
 function toGuests(obj, except) { for (const [slot] of guests()) if (slot !== except) partySend(slot, obj); }
@@ -4791,6 +4957,24 @@ if (guestNet) {
   guestNet.on(m => {
     if (m.t === 'leap') { const w = walkerOf(m.k); if (w && m.k !== myKey()) landLeap(w, +m.x, +m.z, +m.up); }
     else if (m.t === 'crew') applyCrew(m.walkers || []);
+    else if (m.t === 'road') { if (game.where === 'farm') { guestNet.note.hide(); goRoadGuest(m); } }
+    else if (/^r[hdbp]$/.test(m.t)) { if (game.where === 'road' && m.k !== guestKey) onRoadNews(game.crew.find(h => h.key === m.k), m); }
+    else if (m.t === 'rc') { if (game.where === 'road') takeSunflower(m.r | 0, m.c | 0, false); }
+    else if (m.t === 'rs') {
+      if (game.where !== 'road') return;
+      roadClock = { T: m.T, at: performance.now() };
+      game.day = m.day;
+      game.score = Math.max(game.score, m.score | 0);
+      game.coins = m.coins | 0;
+      game.today = m.today | 0;
+      hud();
+      if (m.state === 'play' && game.state === 'title') startGame();
+      if (m.state === 'dead' && game.state === 'play') game.state = 'dead';
+      if (m.state === 'over' && game.state !== 'over') {
+        game.lastDeath = { death: m.death || 'other', hero: m.hero || heroId };
+        gameOver();
+      }
+    }
     else if (m.t === 'walk') {
       const w = walkerOf(m.k);
       if (w && !w.leap) { if (Math.hypot(w.x - m.x, w.z - m.z) > 0.6) { w.x = m.x; w.z = m.z; } w.tx = m.tx; w.tz = m.tz; }
@@ -4805,8 +4989,11 @@ if (guestNet) {
       if (m.hero !== heroId) { heroId = guestKeys['bl-hero'] = m.hero; markHero(); }
       keepHero();
     } else if (m.t === 'view') {
-      if (m.v === 'farm') guestNet.note.hide();
-      else guestNet.note.show(t('guest.away'));
+      if (m.v === 'farm') {
+        guestNet.note.hide();
+        if (game.where === 'road' && game.state !== 'dusk') { game.state = 'dusk'; transition('dusk', 450, enterFarm); }
+      } else if (m.v === 'jam') guestNet.note.show(t('guest.away'));
+      else if (game.where === 'farm' && game.state === 'farm') guestNet.note.show(t('guest.nextDay'));   // they're already out: next time
     }
   });
   applyCrew(guestNet.farm.walkers || []);
