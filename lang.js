@@ -11,6 +11,16 @@ export const STRINGS = {
   en: {
     best: 'Best {n}',
     hostHoppers: 'Host Hoppers',
+    tips: {
+      hop: 'Tap the grass to hop around!', start: 'Tap the big green button to start the day!',
+      pond: 'Spend sunflowers at the Fish Pond!', bunk: 'Save up {n} sunflowers to build the Bunkhouse!',
+      stage: 'Build the Jam Stage and play some music!', decor: 'Tap the hammer to decorate the farm!',
+      hopper: 'Tap the hopper button to switch hoppers!', friends: 'Invite friends to hop with you!',
+      guest: 'Welcome to the farm, friend!',
+      hopPad: 'Use the D-pad to hop around!', startPad: 'Press A to start the day!', pondPad: 'Press X for the Fish Pond!',
+      bunkPad: 'Press B to build the Bunkhouse!', stagePad: 'Press LB for the Jam Stage!', decorPad: 'Press RB to decorate the farm!',
+      hopperPad: 'Press Y to switch hoppers!',
+    },
     hintGuest: "Your friend's farm", hintGuestSub: 'Tap the grass to hop around',
     hintGuestPad: "Your friend's farm", hintGuestPadSub: 'D-pad: hop around · Y: hopper',
     guest: {
@@ -73,6 +83,16 @@ export const STRINGS = {
   es: {
     best: 'Récord {n}',
     hostHoppers: 'Saltarines del anfitrión',
+    tips: {
+      hop: '¡Toca la hierba para saltar!', start: '¡Toca el gran botón verde para empezar el día!',
+      pond: '¡Gasta girasoles en el estanque!', bunk: '¡Junta {n} girasoles para construir la cabaña!',
+      stage: '¡Construye el escenario y toca música!', decor: '¡Toca el martillo para decorar la granja!',
+      hopper: '¡Toca el botón del saltarín para cambiar de saltarín!', friends: '¡Invita a tus amigos a saltar contigo!',
+      guest: '¡Bienvenido a la granja, amigo!',
+      hopPad: '¡Usa la cruceta para saltar!', startPad: '¡Pulsa A para empezar el día!', pondPad: '¡Pulsa X para el estanque!',
+      bunkPad: '¡Pulsa B para construir la cabaña!', stagePad: '¡Pulsa LB para el escenario!', decorPad: '¡Pulsa RB para decorar la granja!',
+      hopperPad: '¡Pulsa Y para cambiar de saltarín!',
+    },
     hintGuest: 'La granja de tu amigo', hintGuestSub: 'Toca la hierba para saltar',
     hintGuestPad: 'La granja de tu amigo', hintGuestPadSub: 'Cruceta: saltar · Y: saltarín',
     guest: {
@@ -135,6 +155,16 @@ export const STRINGS = {
   zh: {
     best: '最佳 {n}',
     hostHoppers: '主人的角色',
+    tips: {
+      hop: '点草地跳来跳去吧！', start: '点那个绿色大按钮开始新的一天！',
+      pond: '用向日葵升级鱼塘吧！', bunk: '攒够 {n} 朵向日葵就能盖小木屋！',
+      stage: '盖个舞台，一起来演奏音乐吧！', decor: '点锤子来装饰农场吧！',
+      hopper: '点角色按钮换个伙伴吧！', friends: '邀请朋友一起来跳吧！',
+      guest: '欢迎来农场玩，朋友！',
+      hopPad: '用十字键跳来跳去吧！', startPad: '按 A 开始新的一天！', pondPad: '按 X 打开鱼塘！',
+      bunkPad: '按 B 盖小木屋！', stagePad: '按 LB 打开舞台！', decorPad: '按 RB 装饰农场！',
+      hopperPad: '按 Y 换个伙伴！',
+    },
     hintGuest: '朋友的农场', hintGuestSub: '点草地跳来跳去',
     hintGuestPad: '朋友的农场', hintGuestPadSub: '方向键：跳来跳去 · Y：选角色',
     guest: {

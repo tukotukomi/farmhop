@@ -265,6 +265,24 @@ body.farm.show-logo #title { display: flex; }
 body.farm #hint, body.ready #hint { display: block; }
 body.ready #hint { top: calc(env(safe-area-inset-top) + 92px); }   /* the road has no corner buttons, just the score */
 body.show-logo #hint { display: none; }   /* the logo greets you first; the tip comes once you touch the screen */
+body.farm:not(.decor) #hint { display: none; }   /* on the farm, Betty Lou gives the tips instead */
+/* Betty Lou's tips on the farm: a speech bubble over her head, now and then */
+#tip {
+  position: fixed; left: 0; top: 0; z-index: 4;
+  max-width: min(260px, calc(100vw - 32px)); width: max-content;
+  padding: 8px 16px 10px; border-radius: 20px;
+  background: #fff4e0; border: 3px solid #3a2442; color: #3a2442;
+  font-size: 17px; font-weight: 700; line-height: 1.25; text-align: center;
+  pointer-events: none; opacity: 0; scale: 0.6;
+  transform-origin: var(--tail, 50%) 100%;
+  transition: opacity .2s, scale .25s cubic-bezier(.3, 1.6, .5, 1);
+}
+#tip::after {   /* the tail, pointing down at her */
+  content: ''; position: absolute; top: 100%; left: var(--tail, 50%);
+  width: 14px; height: 14px; translate: -50% -50%; rotate: 45deg;
+  background: #fff4e0; border: solid #3a2442; border-width: 0 3px 3px 0;
+}
+#tip.show { opacity: 1; scale: 1; }
 @keyframes pulse { 0%, 100% { transform: scale(1) } 50% { transform: scale(1.06) } }
 
 /* ---------- game over: a little farm-stand sign ---------- */

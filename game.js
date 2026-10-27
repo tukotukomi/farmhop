@@ -3186,6 +3186,51 @@ function setHint() {
   small.textContent = t(key + 'Sub');
   hint.append(small);
 }
+// ---------- Betty Lou's tips ----------
+// On the farm Betty Lou pipes up with a tip in a speech bubble: the first a few
+// seconds in, then one a minute, taking turns. Tips for things already done are skipped.
+const TIP_EVERY = 60, TIP_SHOW = 6;
+const tip = { wait: 3, show: 0, n: 0, w: null };
+function tipList() {
+  if (GUEST) return ['guest', 'hop', 'hopper'];
+  return ['hop', 'start', 'pond', !farm.bunkBuilt && 'bunk', !farm.stageBuilt && 'stage', 'decor', 'hopper', 'friends'].filter(Boolean);
+}
+function tipText(key) {
+  const pad = document.body.classList.contains('pad');
+  const k = pad && t('tips.' + key + 'Pad') !== 'tips.' + key + 'Pad' ? key + 'Pad' : key;
+  return t('tips.' + k, { n: BUNK_COST });
+}
+// Over Betty Lou if she's about the farm, otherwise over your own hopper.
+const tipWalker = () => farm.walkers?.find(w => w.id === 'betty' && !w.hidden) || walkerOf(myKey());
+function updateTip(dt) {
+  const el = $('tip');
+  const quiet = game.state !== 'farm' || decor.on || game.picking || document.body.classList.contains('show-logo');
+  if (quiet) {
+    if (tip.show > 0) { tip.show = 0; el.classList.remove('show'); }
+    tip.wait = Math.max(tip.wait, 3);   // a moment's breath before she speaks again
+    return;
+  }
+  if (tip.show > 0) {
+    tip.show -= dt;
+    if (tip.show <= 0) { el.classList.remove('show'); tip.wait = TIP_EVERY - TIP_SHOW; }
+  } else if ((tip.wait -= dt) <= 0) {
+    const list = tipList();
+    el.textContent = tipText(list[tip.n++ % list.length]);
+    tip.w = tipWalker();
+    tip.show = TIP_SHOW;
+    el.classList.add('show');
+  }
+  if (tip.show <= 0 || !tip.w) return;
+  // follow her around: just above her head (and her sunflower, if she has one)
+  tip.w.m.group.getWorldPosition(_tipAt);
+  _tipAt.y += tip.w.top + 0.75;
+  _tipAt.project(camera);
+  const x = (_tipAt.x + 1) / 2 * innerWidth, y = (1 - _tipAt.y) / 2 * innerHeight;
+  const half = el.offsetWidth / 2, left = Math.min(Math.max(x, half + 8), innerWidth - half - 8);
+  el.style.transform = `translate(${left - half}px, ${y - el.offsetHeight - 12}px)`;
+  el.style.setProperty('--tail', `${Math.min(Math.max(x - left + half, 22), el.offsetWidth - 22)}px`);
+}
+const _tipAt = new THREE.Vector3();
 // Full-screen wipe; `swap` runs while the screen is covered.
 function transition(kind, swapAt, swap) {
   const el = $('wipe');
@@ -3536,6 +3581,7 @@ function step(dt) {
     updatePlayer(dt);
   } else updateFarm(dt);
   updateCamera(dt);
+  updateTip(dt);
   if (game.where === 'road') ensureLanes();
   updateParts(dt);
   if (game.state === 'play' && game.crew.some(h => h.alive && !h.parked)) {   // the day wears on
