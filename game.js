@@ -2284,7 +2284,7 @@ const _t = new THREE.Vector3(), _look = new THREE.Vector3(), _off = new THREE.Ve
 // Settings > Co-Op screen > Split gives two players a half each (side by side on a
 // wide screen, one above the other on a tall one), each camera following its own
 // hopper. With three or more, or if one hopper sits the round out, the team shares one view.
-let splitPref = store.get('bl-split', false);
+let splitPref = store.get('bl-split', true);   // two players on one screen: each their own half, unless Settings says Shared
 const splitActive = () => splitPref && game.where === 'road' && localCrew().length === 2 && localCrew().every(h => !h.parked && h.model);
 const _sz = new THREE.Vector2();
 function splitRects() {   // drawing-buffer pixels: the first hopper (the TV's) on the left or top
