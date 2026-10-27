@@ -197,9 +197,12 @@ export function createMusic(ctx, out) {
   }
 
   // ---- scheduler: queues notes a little ahead of the audio clock ----
-  let step = 0, next = 0, timer = null, playing = false;
+  // Step k of the song starts at t0 + at(k) (swing shifts the odd sixteenths, pairs stay even).
+  const LOOP = 512 * STEP;   // 32 bars of sixteenths
+  const at = k => Math.floor(k / 2) * 2 * STEP + (k % 2 ? STEP * (1 + SWING) : 0);
+  let step = 0, next = 0, timer = null, playing = false, t0 = 0;
   function tick() {
-    if (next < ctx.currentTime - 0.1) next = ctx.currentTime + 0.05;   // fell behind (tab was hidden): skip ahead
+    if (next < ctx.currentTime - 0.1) { next = ctx.currentTime + 0.05; t0 = next - at(step); }   // fell behind (tab was hidden): skip ahead
     while (next < ctx.currentTime + 0.25) {
       play(step, next);
       next += STEP * (1 + (step % 2 ? -SWING : SWING));
@@ -212,6 +215,7 @@ export function createMusic(ctx, out) {
       playing = true;
       step = 0;
       next = ctx.currentTime + 0.1;
+      t0 = next;
       bus.gain.setTargetAtTime(1.2, ctx.currentTime, 1.2);   // gentle fade-in
       timer = setInterval(tick, 40);
       tick();
@@ -228,6 +232,17 @@ export function createMusic(ctx, out) {
     },
     // Duck under menus (e.g. 0.45 on the game-over sign), back to 1 in play.
     setLevel(v) { level.gain.setTargetAtTime(v, ctx.currentTime, 0.4); },
+    // Seconds into the 32-bar loop right now, and jumping to a place in it: so friends
+    // jamming on different devices hear the same bar of the tune.
+    position() { return (((ctx.currentTime - t0) % LOOP) + LOOP) % LOOP; },
+    seek(pos) {
+      if (!playing) return;
+      t0 = ctx.currentTime - pos;
+      const from = ctx.currentTime + 0.05 - t0;
+      step = Math.floor(from / (2 * STEP)) * 2;
+      while (at(step) < from) step++;
+      next = t0 + at(step);
+    },
     // Queue `secs` of music up front, without the timer: for offline previews and tests.
     prime(secs) {
       step = 0;

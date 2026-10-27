@@ -3923,7 +3923,10 @@ $('shop').addEventListener('click', e => { if (e.target.id === 'shop') closeShop
 // Each pad shows how to play it with what you last used: keys Q-Y / A-H / Z-N, or a
 // controller's LB X A Y B RB on the row the d-pad picked; nothing for touch.
 const stageOpen = () => $('stage').classList.contains('show');
-function stageAct() { if (GUEST) return; if (farm.stageBuilt) openJam(); else openStage(); }
+function stageAct() {
+  if (GUEST) { openJam(); return; }   // a guest can step back on stage while the host is jamming
+  if (farm.stageBuilt) openJam(); else openStage();
+}
 function refreshStage() {
   $('stageCost').textContent = STAGE_COST;
   $('stageBuy').disabled = game.coins < STAGE_COST;
@@ -3964,7 +3967,12 @@ const JAM_ROWS = 3;   // top row an octave up, bottom row an octave down
 const JAM_KEYS = ['KeyQ KeyW KeyE KeyR KeyT KeyY', 'KeyA KeyS KeyD KeyF KeyG KeyH', 'KeyZ KeyX KeyC KeyV KeyB KeyN'].map(r => r.split(' '));
 const PAD_BTNS = [4, 2, 0, 3, 1, 5], PAD_LABELS = ['LB', 'X', 'A', 'Y', 'B', 'RB'];   // controller button for each column
 const jam = { open: false, drums: false, oct: 0, row: 1, input: null, t: 0, kick: 0, r: null, scene: null, cam: null, model: null, spread: 0,
-  sustain: store.get('bl-sustain', 0.35), held: new Map() };   // held: finger / key / button -> release()
+  sustain: store.get('bl-sustain', 0.35), held: new Map(),   // held: finger / key / button -> release()
+  band: new Map(), byRC: new Map(), hostOpen: false };   // band: a guest's bandmates, by key; byRC: a guest's held pads
+// Everyone else on stage. On the host: the phones and guests (party.players, by slot);
+// on a guest's device: the rest of the band as the host lists it (n = their slot, the host 0).
+const bandOf = () => GUEST ? [...jam.band.entries()] : [...party.players.entries()];
+const bandN = ([k, pl]) => pl.n ?? k;
 const jamPads = $('jamPads');
 for (let row = 0; row < JAM_ROWS; row++) SCALE.forEach((_, col) => {
   const pad = document.createElement('button');
@@ -4009,6 +4017,8 @@ DRUM_GRID.forEach(d => {
 function playDrum(d) {
   sfx.ensure();
   sfx.drum(d);
+  if (GUEST) guestNet.send({ t: 'drum', d });
+  else toGuests({ t: 'jd', k: 'h', d });
   const pad = drumPads.querySelector(`[data-drum="${d}"]`);
   pad.classList.remove('hit'); void pad.offsetWidth; pad.classList.add('hit');
   jam.kick = 1;
@@ -4029,6 +4039,8 @@ function setDrums(on) {
   if (jam.banjo) jam.banjo.visible = !jam.drums;   // the banjo goes down while you drum
   $('instBtn').setAttribute('aria-label', jam.drums ? t('aria.instHopper', { name: heroName(heroId) }) : t('aria.instDrums'));
   $('instFace').src = jam.drums ? shots.cards[HEROES.indexOf(hero())] : shots.decor[DECOR.indexOf('drums')];
+  if (GUEST) guestNet.send({ t: 'mode', drums: jam.drums });
+  else tellBand();
 }
 $('instBtn').addEventListener('click', () => { sfx.ensure(); setDrums(!jam.drums); });
 const padAt = (row, col) => jamPads.querySelector(`.pad[data-row="${row}"][data-col="${col}"]`);
@@ -4043,6 +4055,10 @@ function playPad(row, col, by) {
     const release = sfx.hold(h.id, padFreq(row, col), jam.sustain);
     if (release) jam.held.set(by, release);
   }
+  // The band hears it too: a guest tells the host (who plays it in the guest's own octave);
+  // the host tells its guests.
+  if (GUEST) { guestNet.send({ t: 'note', r: row, c: col, on: true }); if (by) jam.byRC.set(by, [row, col]); }
+  else toGuests({ t: 'jn', k: 'h', by: by || 'x', hero: h.id, f: padFreq(row, col), sus: jam.sustain, on: true, hold: !!by });
   const pad = padAt(row, col);
   pad.classList.remove('hit'); void pad.offsetWidth; pad.classList.add('hit');
   jam.kick = 1;   // the hopper bounces to every note
@@ -4057,16 +4073,22 @@ function playPad(row, col, by) {
 function letGo(by) {
   jam.held.get(by)?.();
   jam.held.delete(by);
+  if (!/^[pkb]/.test(by)) return;   // only this screen's own fingers, keys and buttons
+  const rc = jam.byRC.get(by);
+  if (GUEST) { if (rc) { jam.byRC.delete(by); guestNet.send({ t: 'note', r: rc[0], c: rc[1], on: false }); } }
+  else toGuests({ t: 'jn', k: 'h', by, on: false });
 }
 function letGoAll() { for (const by of [...jam.held.keys()]) letGo(by); }
 function setSustain(v) {
   jam.sustain = clamp(Math.round(v * 20) / 20, 0, 1);
   store.set('bl-sustain', jam.sustain);
+  if (GUEST) guestNet.send({ t: 'sus', v: jam.sustain });
   setVolSlider('sustain', jam.sustain);
 }
 $('sustain').addEventListener('input', e => setSustain(e.target.value / 100));
 function setOctave(d) {
   jam.oct = clamp(jam.oct + d, -1, 1);
+  if (GUEST) guestNet.send({ t: 'oct', v: jam.oct });
   $('octN').textContent = (jam.oct > 0 ? '+' : '') + jam.oct;
   $('octUp').disabled = jam.oct >= 1;
   $('octDown').disabled = jam.oct <= -1;
@@ -4135,7 +4157,7 @@ function jamResize() {
   jam.cam.updateProjectionMatrix();
 }
 function openJam() {
-  if (game.state !== 'farm' || !farm.stageBuilt) return;
+  if (game.state !== 'farm' || !farm.stageBuilt || (GUEST && !jam.hostOpen)) return;
   closeHeroes(); closePond(); closeBunk(); closeStage();
   jamSetup();
   if (jam.model) { jam.scene.remove(jam.model.group); disposeHero(jam.model); }
@@ -4166,6 +4188,7 @@ function openJam() {
   tellView();
   jam.input = null;   // start with hints for the last thing used, or what this device has
   setJamInput(document.body.classList.contains('pad') ? 'pad' : document.body.classList.contains('keys') || matchMedia('(hover: hover) and (pointer: fine)').matches ? 'keys' : 'touch');
+  if (!GUEST) { tellBand(); tellBeat(); }
 }
 function closeJam() {
   if (!jam.open) return;
@@ -4189,10 +4212,11 @@ function jamFrame(dt) {
   m.group.rotation.y = Math.PI - 0.3 + Math.sin(t * 1.1) * 0.18;
   const sway = Math.sin(t * 4.4) * 0.2 + k * 0.3;
   for (const tl of m.tails) tl.rotation[tl.userData.axis || 'z'] = tl.userData.side * sway;
-  for (const [slot, pl] of party.players) {   // friends on phones bob along, each a little out of step
+  for (const e of bandOf()) {   // friends bob along, each a little out of step
+    const pl = e[1];
     if (!pl.m) continue;
     pl.kick = Math.max(0, pl.kick - dt * 4);
-    const q = t + slot * 0.37, pk = pl.kick;
+    const q = t + bandN(e) * 0.37, pk = pl.kick;
     pl.m.inner.position.y = Math.abs(Math.sin(q * 4.4)) * 0.05 + Math.sin(pk * Math.PI) * 0.12;
     pl.m.inner.scale.set(1 + pk * 0.06, 1 - pk * 0.08, 1 + pk * 0.06);
     pl.m.inner.rotation.z = Math.sin(q * 2.2) * 0.06;
@@ -4201,6 +4225,7 @@ function jamFrame(dt) {
     for (const tl of pl.m.tails) tl.rotation[tl.userData.axis || 'z'] = tl.userData.side * sw;
   }
   jam.r.render(jam.scene, jam.cam);
+  if (!GUEST && jam.t - (jam.beatAt || 0) > 3) tellBeat();   // keep the guests' tune in step
 }
 $('octUp').addEventListener('click', () => setOctave(1));
 $('octDown').addEventListener('click', () => setOctave(-1));
@@ -4446,13 +4471,15 @@ function onPlayer(slot, m, direct = false) {
     move(dx, dr, pl.road);
     return;
   }
+  // A guest has already heard their own note: everyone else gets it from here.
+  const others = pl.guest ? slot : undefined, k = 'p' + slot;
   if (m.t === 'oct') pl.oct = clamp(+m.v || 0, -1, 1);
   else if (m.t === 'sus') pl.sus = clamp(+m.v || 0, 0, 1);
-  else if (m.t === 'mode') { pl.drums = !!m.drums && ownedDecor.has('drums'); if (pl.banjo) pl.banjo.visible = !pl.drums; }
+  else if (m.t === 'mode') { pl.drums = !!m.drums && ownedDecor.has('drums'); if (pl.banjo) pl.banjo.visible = !pl.drums; tellBand(); }
   else if (!jam.open) return;   // notes only sound while the Jam Stage is open
   else if (m.t === 'note') {
     const r = clamp(m.r | 0, 0, JAM_ROWS - 1), c = clamp(m.c | 0, 0, SCALE.length - 1), key = 'r' + slot + '-' + r + '-' + c;
-    if (!m.on) { letGo(key); return; }
+    if (!m.on) { letGo(key); toGuests({ t: 'jn', k, by: key, on: false }, others); return; }
     sfx.ensure();
     const f = noteFreq(pl.oct, r, c);
     sfx.voice(pl.hero, f, true);
@@ -4461,12 +4488,15 @@ function onPlayer(slot, m, direct = false) {
     if (release) jam.held.set(key, release);
     pl.kick = 1;
     floatNote(HEROES.find(h => h.id === pl.hero).pad, pl.m?.group.position.x);
+    toGuests({ t: 'jn', k, by: key, hero: pl.hero, f, sus: pl.sus, on: true, hold: true }, others);
   } else if (m.t === 'drum') {
+    const d = clamp(m.d | 0, 0, 7);
     sfx.ensure();
-    sfx.drum(clamp(m.d | 0, 0, 7));
+    sfx.drum(d);
     pl.kick = 1;
     jam.boom = 1;
-    floatNote(DRUM_COLORS[m.d | 0], pl.m?.group.position.x);
+    floatNote(DRUM_COLORS[d], pl.m?.group.position.x);
+    toGuests({ t: 'jd', k, d }, others);
   }
 }
 // ---------- Co-Op Hop with friends on their own devices ----------
@@ -4540,6 +4570,67 @@ function guestRoadDt(dt) {
   return Math.max(0, dt + clamp(ahead * 0.3, -dt * 0.5, dt * 0.5));
 }
 
+// ---------- the Jam Stage with friends on their own devices ----------
+// The host lists the band for its guests (tellBand), and every few seconds says
+// where the tune is (tellBeat) so their soundtrack plays the same bar. Notes and
+// drum hits go to everyone: jn (a note, with its pitch, held until a matching
+// note-off) and jd (a drum).
+function tellBand() {
+  if (GUEST) return;
+  const list = [{ k: 'h', n: 0, hero: heroId, drums: jam.drums },
+    ...[...party.players].filter(([, p]) => p.hero).map(([slot, p]) => ({ k: 'p' + slot, n: slot, hero: p.hero, drums: !!p.drums }))];
+  for (const [slot] of guests()) partySend(slot, { t: 'band', list: list.filter(b => b.k !== 'p' + slot) });
+}
+function tellBeat() {
+  jam.beatAt = jam.t;
+  if (music && guests().length) toGuests({ t: 'beat', pos: music.position() });
+}
+function applyBand(list) {   // guest: the rest of the band, as the host lists it
+  const keys = new Set(list.map(b => b.k));
+  for (const [k, pl] of [...jam.band]) {
+    const b = list.find(o => o.k === k);
+    if (keys.has(k) && b.hero === pl.hero) continue;
+    if (pl.m) { jam.scene?.remove(pl.m.group); disposeHero(pl.m); }
+    jam.band.delete(k);
+  }
+  for (const b of list) {
+    const pl = jam.band.get(b.k) || { hero: b.hero, n: b.n, kick: 0, m: null, banjo: null };
+    pl.drums = !!b.drums;
+    if (pl.banjo) pl.banjo.visible = !pl.drums;
+    jam.band.set(b.k, pl);
+  }
+  layoutStage();
+}
+function bandNote(m) {   // guest: someone else's note
+  const id = 'n' + m.k + ':' + m.by;
+  letGo(id);
+  if (!m.on || !jam.open) return;
+  sfx.ensure();
+  const f = +m.f;
+  sfx.voice(m.hero, f, true);
+  if (m.hold) { const release = sfx.hold(m.hero, f, clamp(+m.sus || 0, 0, 1)); if (release) jam.held.set(id, release); }
+  const pl = jam.band.get(m.k);
+  if (pl) pl.kick = 1;
+  floatNote(HEROES.find(h => h.id === m.hero)?.pad || '#fff', pl?.m?.group.position.x);
+}
+function bandDrum(m) {
+  if (!jam.open) return;
+  const d = clamp(m.d | 0, 0, 7), pl = jam.band.get(m.k);
+  sfx.ensure();
+  sfx.drum(d);
+  jam.boom = 1;
+  if (pl) pl.kick = 1;
+  floatNote(DRUM_COLORS[d], pl?.m?.group.position.x);
+}
+const LOOP_S = 512 * 60 / 84 / 4;   // the tune's 32-bar loop, in seconds (music.js)
+function followBeat(pos) {   // guest: line our tune up with the host's, if it's drifted
+  if (!music) return;
+  const want = (+pos + 0.04) % LOOP_S;   // a little for the trip
+  let off = Math.abs(music.position() - want);
+  off = Math.min(off, LOOP_S - off);
+  if (off > 0.08) music.seek(want);
+}
+
 // ---------- guests: friends playing the game on their own device ----------
 const guests = () => [...party.players.entries()].filter(([, p]) => p.guest);
 function toGuests(obj, except) { for (const [slot] of guests()) if (slot !== except) partySend(slot, obj); }
@@ -4560,7 +4651,7 @@ function assign(slot, hero) {
   if (old?.m) { jam.scene?.remove(old.m.group); disposeHero(old.m); }
   const pl = { hero, oct: 0, sus: 0.35, drums: false, kick: 0, m: null, banjo: null, guest: !!old?.guest };
   party.players.set(slot, pl);
-  if (jam.scene && !pl.guest) addPlayerModel(pl);
+  if (jam.scene) addPlayerModel(pl);
   if (old?.road) dropFromRoad(old);
   partySend(slot, { t: 'joined', hero, pad: HEROES.find(h => h.id === hero).pad, drums: ownedDecor.has('drums'), mark: MARK_CSS[slot] });
   partySend(slot, { t: 'view', v: currentView(), score: game.score });
@@ -4569,6 +4660,7 @@ function assign(slot, hero) {
   layoutStage();
   renderParty();
   syncPlayerWalkers();
+  tellBand();
 }
 function addPlayerModel(pl) {
   pl.m = HEROES.find(h => h.id === pl.hero).build();
@@ -4589,12 +4681,13 @@ function dropPlayer(slot) {
   layoutStage();
   renderParty();
   syncPlayerWalkers();
+  tellBand();
 }
 // Everyone in a row across the stage, yours in the middle; the drum kit moves to the back.
 function layoutStage() {
   if (!jam.scene || !jam.model) return;
-  for (const pl of party.players.values()) if (pl.hero && !pl.m) addPlayerModel(pl);
-  const cast = [jam.model, ...[...party.players.entries()].sort((a, b) => a[0] - b[0]).map(e => e[1].m).filter(Boolean)];
+  for (const [, pl] of bandOf()) if (pl.hero && !pl.m) addPlayerModel(pl);
+  const cast = [jam.model, ...bandOf().sort((a, b) => bandN(a) - bandN(b)).map(e => e[1].m).filter(Boolean)];
   const order = cast.map((_, i) => i === 0 ? 0 : (i % 2 ? -1 : 1) * Math.ceil(i / 2));   // middle, left, right, further left...
   cast.forEach((m, i) => { m.group.position.x = order[i] * 1.05; });
   jam.spread = Math.max(0, ...order.map(o => Math.abs(o) * 1.05));
@@ -4990,6 +5083,10 @@ if (guestNet) {
   guestNet.on(m => {
     if (m.t === 'leap') { const w = walkerOf(m.k); if (w && m.k !== myKey()) landLeap(w, +m.x, +m.z, +m.up); }
     else if (m.t === 'crew') applyCrew(m.walkers || []);
+    else if (m.t === 'band') applyBand(m.list || []);
+    else if (m.t === 'jn') bandNote(m);
+    else if (m.t === 'jd') bandDrum(m);
+    else if (m.t === 'beat') followBeat(m.pos);
     else if (m.t === 'road') { if (game.where === 'farm') { guestNet.note.hide(); goRoadGuest(m); } }
     else if (/^r[hdbp]$/.test(m.t)) { if (game.where === 'road' && m.k !== guestKey) onRoadNews(game.crew.find(h => h.key === m.k), m); }
     else if (m.t === 'rc') { if (game.where === 'road') takeSunflower(m.r | 0, m.c | 0, false); }
@@ -5022,10 +5119,12 @@ if (guestNet) {
       if (m.hero !== heroId) { heroId = guestKeys['bl-hero'] = m.hero; markHero(); }
       keepHero();
     } else if (m.t === 'view') {
+      jam.hostOpen = m.v === 'jam';
       if (m.v === 'farm') {
         guestNet.note.hide();
+        closeJam();
         if (game.where === 'road' && game.state !== 'dusk') { game.state = 'dusk'; transition('dusk', 450, enterFarm); }
-      } else if (m.v === 'jam') guestNet.note.show(t('guest.away'));
+      } else if (m.v === 'jam') { guestNet.note.hide(); if (!jam.open) openJam(); }
       else if (m.v === 'over' && game.where === 'farm' && game.state === 'farm') guestNet.note.show(t('guest.nextDay'));   // their day is ending: next time
     }
   });
