@@ -4360,20 +4360,24 @@ function castTrack() {
   }
   return cast.track;
 }
+// Data saver (Settings): a smaller, slower picture for friends on phone data.
+// About 0.4 GB an hour instead of up to 1.1 GB.
+let saver = store.get('bl-saver', false);
+const CAST = () => saver ? { width: 854, bitrate: 900000, fps: 24 } : { width: 1280, bitrate: 2500000, fps: 30 };
 const castCount = () => { cast.viewers = [...peers.values()].filter(p => p.watching).length; };
 function capVideo(p) {   // keep each stream to a sensible size for home internet
   for (const s of p.pc.getSenders()) {
     if (s.track?.kind !== 'video') continue;
     const prm = s.getParameters();
     if (!prm.encodings?.length) prm.encodings = [{}];
-    prm.encodings[0].maxBitrate = 2500000;
-    prm.encodings[0].maxFramerate = 30;
+    prm.encodings[0].maxBitrate = CAST().bitrate;
+    prm.encodings[0].maxFramerate = CAST().fps;
     s.setParameters(prm).catch(() => {});
   }
 }
 function castFrame() {
   if (!cast.viewers || !cast.g) return;
-  const W = window.innerWidth, H = window.innerHeight, k = Math.min(1, 1280 / Math.max(W, H));
+  const W = window.innerWidth, H = window.innerHeight, k = Math.min(1, CAST().width / Math.max(W, H));
   const w = Math.round(W * k) & ~1, h = Math.round(H * k) & ~1, g = cast.g;
   if (cast.canvas.width !== w || cast.canvas.height !== h) { cast.canvas.width = w; cast.canvas.height = h; }
   if (jam.open) {   // the stage: its backdrop and floor are page styling, so paint them in
@@ -4407,7 +4411,7 @@ function castFrame() {
 // Language, music and effects volume, the road's view angle, and the art style.
 // With a controller or arrow keys: up/down picks a row, left/right changes it.
 const settingsOpen = () => $('settings').classList.contains('show');
-const SET_ROWS = ['lang', 'music', 'fx', 'view', 'coop', 'art', 'gfx'];
+const SET_ROWS = ['lang', 'music', 'fx', 'view', 'coop', 'saver', 'art', 'gfx'];
 const GFX_CHOICES = ['auto', ...Q_LEVELS];
 let setFocus = 0;
 // Little diagrams for the views: an eye above the ground, looking down at the hopper.
@@ -4440,6 +4444,8 @@ function renderSettings() {
   segment($('segArt'), t('arts'), lookName === 'bold' ? 1 : 0, i => setLook(i ? 'bold' : 'cel'));
   segment($('segCoop'), t('coopScreens'), splitPref ? 1 : 0, i => setSplit(!!i));
   $('coopNote').textContent = t('coopNote');
+  segment($('segSaver'), t('savers'), saver ? 1 : 0, i => setSaver(!!i));
+  $('saverNote').textContent = t('saverNote');
   const gi = GFX_CHOICES.indexOf(gfx);
   segment($('segGfx'), t('gfxs'), gi, i => setGfx(GFX_CHOICES[i]));
   $('gfxNote').textContent = t('gfxNotes.' + gi, { level: t('gfxs')[GFX_CHOICES.indexOf(autoQ.level)] });
@@ -4470,6 +4476,12 @@ function setGfx(name) {
 function setSplit(on) {
   splitPref = on;
   store.set('bl-split', on);
+  renderSettings();
+}
+function setSaver(on) {
+  saver = on;
+  store.set('bl-saver', on);
+  for (const p of peers.values()) capVideo(p);   // friends already watching switch straight away
   renderSettings();
 }
 function setLook(name) {
@@ -4520,6 +4532,7 @@ function settingsNav(dir) {
     renderSettings();
   } else if (row === 'view') setView((viewIdx + d + VIEWS.length) % VIEWS.length);
   else if (row === 'coop') setSplit(!splitPref);
+  else if (row === 'saver') setSaver(!saver);
   else if (row === 'gfx') setGfx(GFX_CHOICES[(GFX_CHOICES.indexOf(gfx) + d + GFX_CHOICES.length) % GFX_CHOICES.length]);
   else setLook(lookName === 'bold' ? 'cel' : 'bold');
 }
