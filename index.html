@@ -20,6 +20,7 @@
 </head>
 <body>
 <canvas id="game"></canvas>
+<div id="splitLine" aria-hidden="true"></div>
 
 <div id="hud">
   <div class="left">
@@ -197,6 +198,11 @@
       <div class="setLabel" id="viewLabel" data-i18n="view">View</div>
       <div class="seg segView" id="segView" role="radiogroup" aria-labelledby="viewLabel"></div>
       <p class="setNote" id="viewNote"></p>
+    </div>
+    <div class="setRow" data-row="coop">
+      <div class="setLabel" id="coopLabel" data-i18n="coopScreen">Co-Op screen</div>
+      <div class="seg" id="segCoop" role="radiogroup" aria-labelledby="coopLabel"></div>
+      <p class="setNote" id="coopNote"></p>
     </div>
     <div class="setRow" data-row="art">
       <div class="setLabel" id="artLabel" data-i18n="art">Art style</div>

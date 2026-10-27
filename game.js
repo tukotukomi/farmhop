@@ -29,11 +29,11 @@ const CAM_OFF = new THREE.Vector3(2.4, 5.6, 7.2); // behind-right, a low 36° lo
 const _feet = new THREE.Vector3();
 // Is a spot on the ground (x, z) below the bottom edge of the screen? Hoppers can't back off-screen.
 const _view = new THREE.Vector3();
-const belowScreen = (x, z) => {
+const belowScreen = (x, z, cam = camera) => {
   _feet.set(x, 0, z);
   // The Behind camera follows the hopper back, so there only stepping under or behind it is ruled out.
-  if (camera.isPerspectiveCamera) return _view.copy(_feet).applyMatrix4(camera.matrixWorldInverse).z > -1.5;
-  return _feet.project(camera).y < -0.92;
+  if (cam.isPerspectiveCamera) return _view.copy(_feet).applyMatrix4(cam.matrixWorldInverse).z > -1.5;
+  return _feet.project(cam).y < -0.92;
 };
 const RAINBOW = [0xff4b4b, 0xff9a2e, 0xffd93b, 0x5fd35f, 0x46a6ff, 0x9b6bff];
 const GREENS = [0x5cb83a, 0x4faa38, 0x68c444, 0x55b03f];
@@ -235,21 +235,35 @@ const postQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postMat);
 renderer.shadowMap.autoUpdate = false;
 
 const GLOW_LAYER = 1;
+// Split screen draws each half with its own camera into its own part of the same
+// targets; the outline pass then runs once over the whole picture (and inks the seam).
 function renderCel() {
-  renderer.shadowMap.needsUpdate = true;
-  renderer.setRenderTarget(rtColor);
-  camera.layers.enable(GLOW_LAYER);    // glowing bits (fireflies) are drawn but get no ink outline
-  camera.layers.enable(XRAY_LAYER);
-  renderer.render(scene, camera);
-  camera.layers.disable(GLOW_LAYER);
-  camera.layers.disable(XRAY_LAYER);
+  const views = splitViews() || [null];
   const bg = scene.background;
-  scene.overrideMaterial = normalMat;
-  scene.background = null;
-  renderer.setRenderTarget(rtNormal);
-  renderer.render(scene, camera);
-  scene.overrideMaterial = null;
-  scene.background = bg;
+  for (const rt of [rtColor, rtNormal]) {
+    for (const v of views) {
+      const cam = v ? v.cam : camera;
+      if (v) { rt.viewport.set(...v.rect); rt.scissor.set(...v.rect); rt.scissorTest = true; }
+      renderer.setRenderTarget(rt);
+      if (rt === rtColor) {
+        if (v) aimSun(v.x, v.z);
+        renderer.shadowMap.needsUpdate = true;
+        cam.layers.enable(GLOW_LAYER);    // glowing bits (fireflies) are drawn but get no ink outline
+        cam.layers.enable(XRAY_LAYER);
+        renderer.render(scene, cam);
+        cam.layers.disable(GLOW_LAYER);
+        cam.layers.disable(XRAY_LAYER);
+      } else {
+        scene.overrideMaterial = normalMat;
+        scene.background = null;
+        renderer.render(scene, cam);
+        scene.overrideMaterial = null;
+        scene.background = bg;
+      }
+    }
+    rt.viewport.set(0, 0, rt.width, rt.height);
+    rt.scissorTest = false;
+  }
   renderer.setRenderTarget(null);
   renderer.render(postQuad, postCam);
 }
@@ -1842,7 +1856,8 @@ function laneAt(r) { return lanes.get(r); }
 // Co-Op Hop keeps the team together: nobody gets more than LEASH rows ahead of the
 // hindmost teammate still hopping (the camera follows that one).
 const LEASH = 7;
-const tooFarAhead = (h, r) => coop() && game.crew.some(o => o !== h && o.alive && !o.parked && o.active && r - o.r > LEASH);
+const tooFarAhead = (h, r) => coop() && game.crew.some(o => o !== h && o.alive && !o.parked && o.active && r - o.r > (splitActive() ? 30 : LEASH));
+const camOf = h => (splitActive() && h.cam?.c) || camera;   // in split screen each hopper has its own
 
 function move(dx, dr, h = P) {
   if (game.state === 'title') startGame();
@@ -1859,7 +1874,7 @@ function move(dx, dr, h = P) {
   let tx = h.x + dx;
   if (land) tx = Math.round(tx);
   const blocked = Math.abs(tx) > COLS + (land ? 0 : 0.49) || ((lane.type === 'grass' || lane.type === 'forest') && lane.blocked.has(tx))
-    || (dr < 0 && belowScreen(tx, -tr))               // can't back off the bottom of the screen
+    || (dr < 0 && belowScreen(tx, -tr, camOf(h)))     // can't back off the bottom of the screen
     || (dr > 0 && tooFarAhead(h, tr));                // ...or, with friends, run too far ahead
   if (blocked) {
     h.hop = { fx: h.x, fz: h.z, fy: h.y, tx: h.x, tz: h.z, ty: h.y, t: 0, fromR: h.r, toR: h.r, h: 0.15, bump: true };
@@ -1995,7 +2010,7 @@ function respawn(h) {
   const cols = Array.from({ length: COLS * 2 + 1 }, (_, i) => i - COLS).sort((a, b) => Math.abs(a - anchor.x) - Math.abs(b - anchor.x));
   for (let r = anchor.r; r >= anchor.r - 8; r--) {
     const lane = laneAt(r);
-    if (!lane || belowScreen(anchor.x, -r)) break;
+    if (!lane || belowScreen(anchor.x, -r, camOf(anchor))) break;
     if (lane.type !== 'grass' && lane.type !== 'forest') continue;
     const x = cols.find(c => !lane.blocked.has(c) && !game.crew.some(o => o !== h && o.alive && o.r === r && Math.round(o.x) === c));
     if (x == null) continue;
@@ -2033,7 +2048,7 @@ function updateHopper(h, dt) {
       if (Math.abs(h.x) > COLS + 1.1) die('swept', null, lane, h);
     }
     // In Co-Op Hop a hopper nobody has moved yet sits the round out once the team leaves it behind.
-    if (coop() && !h.active && !h.hop && game.state === 'play' && belowScreen(h.x, h.z)) {
+    if (coop() && !h.active && !h.hop && game.state === 'play' && belowScreen(h.x, h.z, camOf(h))) {
       h.parked = true;
       group.visible = false;
       return;
@@ -2150,13 +2165,17 @@ function useCamera(c) {
   scene.fog = persp ? fog : null;
   scene.background = persp ? skyCol : GROUND_BG;
 }
+function orthoHalf(a) {   // how much of the world an orthographic view of aspect a shows
+  let halfW, halfH;
+  if (a < 1) { halfW = 4.3; halfH = halfW / a; }
+  else { halfH = 6.2; halfW = Math.min(halfH * a, 11); halfH = halfW / a; }
+  return [halfW, halfH];
+}
 function resize() {
   const w = window.innerWidth, h = window.innerHeight, a = w / h;
   renderer.setSize(w, h, false);
   resizeCel();
-  let halfW, halfH;
-  if (a < 1) { halfW = 4.3; halfH = halfW / a; }
-  else { halfH = 6.2; halfW = Math.min(halfH * a, 11); halfH = halfW / a; }
+  const [halfW, halfH] = orthoHalf(a);
   Object.assign(orthoCam, { left: -halfW, right: halfW, top: halfH, bottom: -halfH });
   orthoCam.updateProjectionMatrix();
   perspCam.aspect = a;
@@ -2166,8 +2185,88 @@ function resize() {
 window.addEventListener('resize', resize);
 
 const _t = new THREE.Vector3(), _look = new THREE.Vector3(), _off = new THREE.Vector3();
+// ---------- split screen (Co-Op Hop, two players) ----------
+// Settings > Co-Op screen > Split gives two players a half each (side by side on a
+// wide screen, one above the other on a tall one), each camera following its own
+// hopper. With three or more, or if one hopper sits the round out, the team shares one view.
+let splitPref = store.get('bl-split', false);
+const splitActive = () => splitPref && game.where === 'road' && game.crew.length === 2 && game.crew.every(h => !h.parked && h.model);
+const _sz = new THREE.Vector2();
+function splitRects() {   // drawing-buffer pixels: the first hopper (the TV's) on the left or top
+  const { x: W, y: H } = renderer.getDrawingBufferSize(_sz);
+  return W >= H ? [[0, 0, W >> 1, H], [W >> 1, 0, W - (W >> 1), H]] : [[0, H >> 1, W, H - (H >> 1)], [0, 0, W, H >> 1]];
+}
+function splitViews() {
+  if (!splitActive() || !game.crew.every(h => h.cam)) return null;
+  const rects = splitRects();
+  return game.crew.map((h, i) => ({ cam: h.cam.c, rect: rects[i], x: h.cam.x, z: h.cam.z }));
+}
+function aimSun(x, z) {   // shadows are drawn around whichever half is being drawn
+  sun.position.set(x, 0, z).add(SUN_OFF);
+  sun.target.position.set(x, 0, z);
+  sun.updateMatrixWorld();
+  sun.target.updateMatrixWorld();
+}
+function splitCam(h, V) {
+  const c = h.cam ||= {};
+  if (!c.c || !!c.c.isOrthographicCamera !== !!V.ortho) {
+    c.c = (V.ortho ? orthoCam : perspCam).clone();
+    c.x = h.x;
+    c.z = h.z - V.lead;
+    c.size = '';
+  }
+  const wide = window.innerWidth >= window.innerHeight;
+  const w = window.innerWidth / (wide ? 2 : 1), ht = window.innerHeight / (wide ? 1 : 2), key = w + 'x' + ht;
+  if (c.size !== key) {   // a lens for half the screen
+    c.size = key;
+    const a = w / ht;
+    if (c.c.isPerspectiveCamera) { c.c.aspect = a; c.c.fov = a < 1 ? 78 : 52; }
+    else { const [hw, hh] = orthoHalf(a); Object.assign(c.c, { left: -hw, right: hw, top: hh, bottom: -hh }); }
+    c.c.updateProjectionMatrix();
+  }
+  return c;
+}
+function updateSplit(dt, V) {
+  for (const h of game.crew) {
+    const c = splitCam(h, V), going = h.alive && !h.parked;
+    const desired = h.z - V.lead;
+    if (going && (desired < c.z || !V.ortho)) c.z += (desired - c.z) * Math.min(1, dt * 5);
+    const follow = V.ortho ? clamp(h.x, -2.5, 2.5) * 0.6 : h.x;
+    if (going) c.x += (follow - c.x) * Math.min(1, dt * (V.ortho ? 3 : 6));
+    _t.set(c.x, 0, c.z);
+    c.c.position.copy(_t).add(V.off);
+    _look.copy(_t);
+    _look.y = V.lookY || 0;
+    c.c.lookAt(_look);
+    if (game.shake > 0.002) {
+      c.c.position.x += (Math.random() - 0.5) * game.shake * 0.18;
+      c.c.position.y += (Math.random() - 0.5) * game.shake * 0.18;
+    }
+    c.c.updateMatrixWorld();
+  }
+  if (game.shake > 0.002) game.shake *= Math.exp(-dt * 5);
+  useCamera(game.crew[0].cam.c);
+  game.camX = game.crew[0].cam.x;
+  game.camZ = Math.max(...game.crew.map(h => h.cam.z));   // the hindmost half, for anything that reads one camera
+  const sc = sun.shadow.camera;
+  if (sc.right !== V.shadow) {
+    Object.assign(sc, { left: -V.shadow, right: V.shadow, top: V.shadow, bottom: -V.shadow });
+    sc.updateProjectionMatrix();
+  }
+}
+let splitShown = '';
+function markSplit() {   // the ink line between the halves
+  const on = splitActive(), tall = window.innerWidth < window.innerHeight, key = on ? (tall ? 'v' : 'h') : '';
+  if (key === splitShown) return;
+  splitShown = key;
+  document.body.classList.toggle('split', on);
+  document.body.classList.toggle('splitV', on && tall);
+}
+
 function updateCamera(dt) {
   const V = activeView();
+  markSplit();
+  if (splitActive()) return updateSplit(dt, V);
   useCamera(V.ortho ? orthoCam : perspCam);
   const zoom = game.where === 'farm' ? farmCam.zoom : 1;
   if (orthoCam.zoom !== zoom) { orthoCam.zoom = zoom; orthoCam.updateProjectionMatrix(); }
@@ -2204,9 +2303,10 @@ function updateCamera(dt) {
 }
 
 function ensureLanes() {
-  const V = activeView(), camRow = Math.round(-game.camZ);
-  while (genRow <= camRow + V.ahead) addLane(genRow++);
-  for (const lane of [...lanes.values()]) if (lane.r < camRow - V.behind) removeLane(lane);
+  const V = activeView();
+  const rows = splitActive() && game.crew.every(h => h.cam) ? game.crew.map(h => Math.round(-h.cam.z)) : [Math.round(-game.camZ)];
+  while (genRow <= Math.max(...rows) + V.ahead) addLane(genRow++);
+  for (const lane of [...lanes.values()]) if (lane.r < Math.min(...rows) - V.behind) removeLane(lane);
 }
 
 // ---------- Betty Lou's farm: the hub between rounds ----------
@@ -2809,6 +2909,7 @@ function newWorld() {
   game.record = false;
   game.camX = 0;
   game.crew = [P];
+  P.cam = null;
   setupCrew();
   game.camZ = -roadView().lead;
   resetPlayer();
@@ -4128,7 +4229,7 @@ if (RELAY) try { if (sessionStorage.getItem('bl-party-room')) partyStart(); } ca
 // Language, music and effects volume, the road's view angle, and the art style.
 // With a controller or arrow keys: up/down picks a row, left/right changes it.
 const settingsOpen = () => $('settings').classList.contains('show');
-const SET_ROWS = ['lang', 'music', 'fx', 'view', 'art', 'gfx'];
+const SET_ROWS = ['lang', 'music', 'fx', 'view', 'coop', 'art', 'gfx'];
 const GFX_CHOICES = ['auto', ...Q_LEVELS];
 let setFocus = 0;
 // Little diagrams for the views: an eye above the ground, looking down at the hopper.
@@ -4159,6 +4260,8 @@ function renderSettings() {
   segment($('segLang'), LANGS.map(l => l.label), LANGS.findIndex(l => l.id === lang), i => setLang(LANGS[i].id));
   segment($('segView'), t('views'), viewIdx, setView, VIEW_ICONS);
   segment($('segArt'), t('arts'), lookName === 'bold' ? 1 : 0, i => setLook(i ? 'bold' : 'cel'));
+  segment($('segCoop'), t('coopScreens'), splitPref ? 1 : 0, i => setSplit(!!i));
+  $('coopNote').textContent = t('coopNote');
   const gi = GFX_CHOICES.indexOf(gfx);
   segment($('segGfx'), t('gfxs'), gi, i => setGfx(GFX_CHOICES[i]));
   $('gfxNote').textContent = t('gfxNotes.' + gi, { level: t('gfxs')[GFX_CHOICES.indexOf(autoQ.level)] });
@@ -4184,6 +4287,11 @@ function setGfx(name) {
   store.set('bl-gfx', name);
   Object.assign(autoQ, { dts: [], calm: 0, tried: false, noUp: false });
   applyQuality();
+  renderSettings();
+}
+function setSplit(on) {
+  splitPref = on;
+  store.set('bl-split', on);
   renderSettings();
 }
 function setLook(name) {
@@ -4233,6 +4341,7 @@ function settingsNav(dir) {
     if (row === 'fx') sfx.hop(heroId);
     renderSettings();
   } else if (row === 'view') setView((viewIdx + d + VIEWS.length) % VIEWS.length);
+  else if (row === 'coop') setSplit(!splitPref);
   else if (row === 'gfx') setGfx(GFX_CHOICES[(GFX_CHOICES.indexOf(gfx) + d + GFX_CHOICES.length) % GFX_CHOICES.length]);
   else setLook(lookName === 'bold' ? 'cel' : 'bold');
 }
