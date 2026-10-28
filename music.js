@@ -300,6 +300,15 @@ export function createMusic(ctx, out) {
     // Seconds into the 32-bar loop right now, and jumping to a place in it: so friends
     // jamming on different devices hear the same bar of the tune.
     position() { return (((ctx.currentTime - t0) % LOOP) + LOOP) % LOOP; },
+    // What the speakers are playing: the song position, and when (performance.now(),
+    // in seconds) it's heard. Audio leaves the speakers a little after it's scheduled
+    // (20-60 ms on a PC, far more over Bluetooth); the browser says how much.
+    heard() {
+      const ts = ctx.getOutputTimestamp?.(), now = performance.now() / 1000;
+      let ct = ctx.currentTime, pt = now + (ctx.outputLatency || ctx.baseLatency || 0);
+      if (ts && ts.contextTime > 0 && Math.abs(ts.performanceTime / 1000 - now) < 1) { ct = ts.contextTime; pt = ts.performanceTime / 1000; }
+      return { pos: (((ct - t0) % LOOP) + LOOP) % LOOP, at: pt, swing: style === 'dnb' ? 0 : SWING };
+    },
     seek(pos) {
       if (!playing) return;
       t0 = ctx.currentTime - pos;

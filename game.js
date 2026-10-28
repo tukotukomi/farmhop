@@ -3705,7 +3705,7 @@ window.addEventListener('pointerdown', e => {
   const meF = fishers.get(myKey());
   if (meF) {   // fishing: the whole screen is the reel
     fishPtr = e.pointerId;
-    if (meF.st === 'bite' || meF.st === 'reel') { fishDrag = null; fishPress(meF, true, 'tap'); }   // timing counts: straight away
+    if (meF.st === 'bite' || meF.st === 'reel') { fishDrag = null; fishPress(meF, true, 'tap', e.timeStamp / 1000); }   // timing counts: straight away
     else fishDrag = { x: e.clientX, yaw: fishCam.yaw, moved: false };                            // a tap, or a drag to look around
     return;
   }
@@ -3895,12 +3895,12 @@ window.addEventListener('keydown', e => {
     if (meF && turn) { fishCam.spin = turn; e.preventDefault(); return; }
     if (meF && ['Space', 'Enter', 'Escape', 'KeyF'].includes(e.code)) {
       if (e.code === 'Escape' || e.code === 'KeyF') stopFish(myKey());
-      else if (!e.repeat) fishPress(meF, true, 'keys');
+      else if (!e.repeat) fishPress(meF, true, 'keys', e.timeStamp / 1000);
       e.preventDefault();
       return;
     }
     if (kp && e.code === 'ShiftRight') { toggleFish('p' + kp, 'arrows'); e.preventDefault(); return; }   // the keyboard friend
-    if (kf && e.code.startsWith('Arrow')) { if (!e.repeat) fishPress(kf, true); e.preventDefault(); return; }
+    if (kf && e.code.startsWith('Arrow')) { if (!e.repeat) fishPress(kf, true, undefined, e.timeStamp / 1000); e.preventDefault(); return; }
     if (e.code === 'KeyF') { goFish(myKey(), 'keys'); return; }
   }
   if (game.state === 'farm') {          // Enter starts the day, P opens the pond, B the buildings, C picks a hopper
@@ -4184,9 +4184,11 @@ function stopAllFishing() {
   for (const [key, s] of seen) { dropRig(s.rig); s.w.fishing = false; s.w.y = 0; seen.delete(key); }
 }
 const toggleFish = (key, via) => fishers.has(key) ? stopFish(key) : goFish(key, via);
-function fishPress(f, down, via) {
+// at: when it happened (an input event's timeStamp, in seconds): the reel judges the
+// moment of the tap, not the frame that gets round to it.
+function fishPress(f, down, via, at = performance.now() / 1000) {
   if (via) f.via = via;
-  if (down && !f.hold) f.tapped = true;
+  if (down && !f.hold) { f.tapped = true; f.tapAt = at; }
   f.hold = down;
 }
 
@@ -4361,10 +4363,11 @@ function breakRhythm(lvl, from) {
   return out;
 }
 function startReel(f) {
-  const lvl = Math.min(f.sp.lvl, 9), now = songNow(), pos = music ? music.position() : 0;
-  const start = now + (BEAT - pos % BEAT) + 2 * BEAT;   // on the beat, a couple of beats from now
+  const lvl = Math.min(f.sp.lvl, 9);
+  const h = music ? music.heard() : { pos: 0, at: songNow(), swing: 0 };   // the beat as it comes out of the speakers
+  const start = h.at + (BEAT - h.pos % BEAT) + 2 * BEAT;   // on the beat, a couple of beats from now
   const dnb = music?.style === 'dnb';
-  const steps = dnb ? breakRhythm(lvl, music.stepAt(pos + start - now)) : fishRhythm(lvl), notes = [];
+  const steps = dnb ? breakRhythm(lvl, music.stepAt(h.pos + start - h.at)) : fishRhythm(lvl), notes = [];
   const lane = f.ui.querySelector('.lane');
   lane.classList.toggle('dnb', dnb);
   lane.querySelectorAll('.note').forEach(e => e.remove());
@@ -4372,7 +4375,7 @@ function startReel(f) {
     const el = document.createElement('i');
     el.className = 'note' + (s % 4 === 0 ? '' : s % 2 ? ' sixteenth' : ' eighth');   // coloured by where in the beat it falls
     lane.append(el);
-    notes.push({ at: start + s * SIXTEENTH, el, done: 0 });   // done: 1 caught, -1 missed
+    notes.push({ at: start + s * SIXTEENTH + (s % 2 ? h.swing * SIXTEENTH : 0), el, done: 0 });   // the tune swings its off-sixteenths; done: 1 caught, -1 missed
   }
   const fast = steps.some(s => s % 2) ? 2 : steps.some(s => s % 4) ? 3 : 4;   // closer notes: the lane shows fewer beats, so they spread out
   const k = (lvl - 1) / 8;
@@ -4380,7 +4383,7 @@ function startReel(f) {
     notes, ahead: fast * BEAT,
     win: Math.min(0.2 - k * 0.11, SIXTEENTH * 0.48),            // 0.2 s either side down to under half a sixteenth
     need: Math.ceil(notes.length * (0.5 + k * 0.35)),           // half the notes, up to 85%
-    hits: 0, miss: 0, sung: 0,
+    hits: 0, miss: 0, sung: 0, offs: [],
   };
   setSt(f, 'reel');
 }
@@ -4393,16 +4396,29 @@ function judge(f, nt, ok, perfect) {
   say(f, ok ? (perfect ? 'perfect' : 'good') : 'miss');
   f.msgT = 0.5;
 }
+// Whatever lag is left (a slow screen, Bluetooth headphones, how someone hears the
+// beat) the game learns: each reel, it looks at how early or late the taps landed and
+// moves this device's offset half way there. It stays on the device.
+let beatLag = clamp(store.get('bl-beat-lag', 0.02), -0.1, 0.35);
+function learnLag(g) {
+  if (g.offs.length < 4) return;
+  const o = g.offs.sort((a, b) => a - b), mid = o[o.length >> 1];
+  beatLag = clamp(beatLag + (mid - beatLag) * 0.5, -0.1, 0.35);
+  store.set('bl-beat-lag', Math.round(beatLag * 1000) / 1000);
+}
 function reelGame(f, tap) {
-  const g = f.g, now = songNow();
+  const g = f.g, now = songNow() - beatLag;
   if (tap) {
-    const nt = g.notes.find(n => !n.done && Math.abs(n.at - now) <= g.win);
-    if (nt) judge(f, nt, true, Math.abs(nt.at - now) <= g.win * 0.45);
-    else { const next = g.notes.find(n => !n.done && n.at - now < 0.5); if (next) judge(f, next, false); else sfx.bump(); }
+    const at = (f.tapAt ?? songNow()) - beatLag;
+    const near = g.notes.filter(n => !n.done).sort((a, b) => Math.abs(a.at - at) - Math.abs(b.at - at))[0];
+    if (near && Math.abs(near.at - at) < 0.25) g.offs.push(beatLag - (near.at - at));   // how late the tap really was (before the offset)
+    const nt = g.notes.find(n => !n.done && Math.abs(n.at - at) <= g.win);
+    if (nt) judge(f, nt, true, Math.abs(nt.at - at) <= g.win * 0.45);
+    else { const next = g.notes.find(n => !n.done && n.at - at < 0.5); if (next) judge(f, next, false); else sfx.bump(); }
   }
   for (const nt of g.notes) if (!nt.done && now - nt.at > g.win) judge(f, nt, false);
-  if (g.notes.length - g.miss < g.need) { say(f, 'away'); sfx.lost(); setSt(f, 'ready'); }   // can't be caught now
-  else if (g.notes.every(n => n.done)) landFish(f);
+  if (g.notes.length - g.miss < g.need) { learnLag(g); say(f, 'away'); sfx.lost(); setSt(f, 'ready'); }   // can't be caught now
+  else if (g.notes.every(n => n.done)) { learnLag(g); landFish(f); }
 }
 function logFish(id, cm) {   // into this device's Fish Book: is it a new kind, or the biggest yet?
   const was = fishBook[id];
@@ -6017,7 +6033,7 @@ if (RELAY && !GUEST) try { if (sessionStorage.getItem('bl-party-room')) partySta
 // Book, Hop Supporter, settings) is copied to the player's Google account, and comes
 // down again on another device. See account/tuko-account.js; the farm saves on the
 // device first, as always.
-const DEVICE_ONLY = ['bl-gfx-auto'];   // measured on this device: not worth carrying over
+const DEVICE_ONLY = ['bl-gfx-auto', 'bl-beat-lag'];   // measured on this device: not worth carrying over
 const savedKeys = () => Object.keys(localStorage).filter(k => k.startsWith('bl-') && !DEVICE_ONLY.includes(k));
 const account = window.TUKO_FIREBASE && !GUEST ? createAccount({
   app: 'farmhop',
