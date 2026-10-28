@@ -246,6 +246,7 @@ const postMat = new THREE.ShaderMaterial({
     // (centre and radii, in uv) where the night tint gives way to warm light.
     lamps: { value: Array.from({ length: 24 }, () => new THREE.Vector4()) },
     lampS: { value: new Array(24).fill(0) },
+    lampW: { value: new Array(24).fill(1) },   // 1: warm torchlight; 0: white, so a glowing thing keeps its own colour
     lampN: { value: 0 },
     lampK: { value: 0 },   // how dark it is: 0 in the day, 1 at night
     lampCol: { value: new THREE.Color(1, 0.8, 0.5) },
@@ -261,6 +262,7 @@ const postMat = new THREE.ShaderMaterial({
     uniform vec3 grade;
     uniform vec4 lamps[24];
     uniform float lampS[24];
+    uniform float lampW[24];
     uniform int lampN;
     uniform float lampK;
     uniform vec3 lampCol;
@@ -275,15 +277,18 @@ const postMat = new THREE.ShaderMaterial({
     vec3 N(vec2 uv) { return texture2D(tNormal, uv).xyz; }
     void main() {
       vec3 col = texture2D(tColor, vUv).rgb;
-      float lit = 0.;
+      float lit = 0., warm = 0., halo = 0.;
       for (int i = 0; i < 24; i++) {
         if (i >= lampN) break;
         vec2 q = (vUv - lamps[i].xy) / lamps[i].zw;
         float f = max(0., 1. - dot(q, q));
         lit += f * f * lampS[i];
+        warm += f * f * lampS[i] * lampW[i];
+        halo += f * lampS[i] * (1. - lampW[i]);   // things that glow themselves (the players' sunflowers): a soft halo
       }
+      vec3 tint = mix(vec3(1.), lampCol, warm / max(lit, 1e-4));
       lit = min(lit, 1.) * lampK;
-      col = max(mix(vec3(dot(col, vec3(0.2126, 0.7152, 0.0722))), col, sat), 0.) * mix(grade, max(grade, lampCol), lit) + lampCol * lit * 0.05;
+      col = max(mix(vec3(dot(col, vec3(0.2126, 0.7152, 0.0722))), col, sat), 0.) * mix(grade, max(grade, tint), lit) + tint * lit * 0.05 + vec3(1., .96, .82) * min(halo, 1.) * lampK * 0.28;
       vec2 dx = vec2(texel.x, 0.), dy = vec2(0., texel.y);
       float dc = D(vUv);
       // second difference: flat (even sloped) ground cancels out, steps don't
@@ -2596,6 +2601,7 @@ function placeLamps(views) {
   const list = lamps.slice();
   const close = camera.isPerspectiveCamera;   // the fishing camera, right beside them: light their whole body
   for (const w of playerMarks().map(([w]) => w)) if (w && !w.hidden) list.push({ o: w.m.group, r: close ? 0.9 : 1.5, s: close ? 0.95 : 0.75, y: close ? 0.6 + (w.y || 0) : 0.35 });
+  for (const m of farm.markers || []) if (m.visible) list.push({ o: m, r: 0.42, s: 1.3, w: 0, flame: true });   // the players' sunflowers glow, in their own colours
   for (const f of flies.slice(0, 4)) list.push({ o: f.m, r: 0.7, s: 0.5 * Math.min(1, f.m.scale.x * 12), y: 0, fly: true });
   const W = rtColor.width, H = rtColor.height;
   let n = 0;
@@ -2617,6 +2623,7 @@ function placeLamps(views) {
       if (L.fly && ex > 0.06) continue;                      // a firefly right by the camera: not a big blob of light
       U.lamps.value[n].set(cx, cy, ex + 0.001, L.flame ? ex * W / H + 0.001 : ey * 1.35 + 0.01);   // a little taller: it lights the hoppers standing in it
       U.lampS.value[n] = L.s * (L.torch ? 0.9 + 0.1 * Math.sin(game.time * 9 + L.ph) : 1);
+      U.lampW.value[n] = L.w ?? 1;
       n++;
     }
   }
@@ -3235,6 +3242,8 @@ function markerGeo([a, b]) {                       // a little sunflower that fl
 // player in their colour (petals in two shades of it).
 const MARKER_GEO = markerGeo([0xffcc1a, 0xffb000]);
 const PLAYER_MARKERS = [[0xff4b4b, 0xe0383a], [0x46a6ff, 0x2f86e0], [0xffd93b, 0xf2b800], [0x6bd864, 0x3fb84a], [0xbd96ff, 0x9b6bff]].map(markerGeo);
+// Unlit, so they stay bright in shade and at dusk; after dark they glow (see placeLamps).
+const MARKER_MAT = new THREE.MeshBasicMaterial({ vertexColors: true });
 // at = [x, z] to start somewhere particular (a new friend steps out of the Bunkhouse door).
 // key: the hopper's id for the farm's own hoppers, 'p' + slot for a friend playing.
 function addWalker(h, at, key = h.id) {
@@ -3388,7 +3397,7 @@ function updateWalkers(dt, t) {
   }
   const marks = playerMarks();
   while (farm.markers.length < marks.length) {
-    const m = new THREE.Mesh(MARKER_GEO, VMAT);
+    const m = new THREE.Mesh(MARKER_GEO, MARKER_MAT);
     m.castShadow = true;
     farm.group.add(m);
     farm.markers.push(m);
