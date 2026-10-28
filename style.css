@@ -671,7 +671,7 @@ body.guest #phonesBtn, body.guest #partyBtn, body.guest #play { display: none !i
 .octave { display: flex; flex-direction: column; align-items: center; gap: 8px; }
 /* drums: two rows of four bigger pads; the octave and sustain controls step aside */
 #drumPads { display: grid; grid-template-columns: repeat(4, calc(var(--pad, 48px) * 1.45)); gap: 8px; --pad: min(60px, calc((100vw - 132px) / 6)); }
-#jam:not(.drums) #drumPads, #jam.drums #jamPads, #jam.drums .sustainRow, #jam.drums #octUp, #jam.drums #octDown, #jam.drums .octBox { display: none; }
+#jam:not(.drums) #drumPads, #jam.drums #jamPads, #jam.drums #sustainRow, #jam.drums #octUp, #jam.drums #octDown, #jam.drums .octBox { display: none; }
 .drumPad { width: 100%; height: calc(var(--pad) * 1.6); align-content: center; gap: 2px; }
 .drumPad .dn { font-size: 11px; font-weight: 700; line-height: 1.1; color: var(--ink); padding: 0 3px; text-align: center; }
 .instBtn { --c1: var(--berry); --c2: var(--berry-d); width: 50px; height: 50px; overflow: hidden; }

@@ -5136,7 +5136,8 @@ const JAM_ROWS = 3;   // top row an octave up, bottom row an octave down
 const JAM_KEYS = ['KeyQ KeyW KeyE KeyR KeyT KeyY', 'KeyA KeyS KeyD KeyF KeyG KeyH', 'KeyZ KeyX KeyC KeyV KeyB KeyN'].map(r => r.split(' '));
 const PAD_BTNS = [4, 2, 0, 3, 1, 5], PAD_LABELS = ['LB', 'X', 'A', 'Y', 'B', 'RB'];   // controller button for each column
 const jam = { open: false, drums: false, oct: 0, row: 1, input: null, t: 0, kick: 0, r: null, scene: null, cam: null, model: null, spread: 0,
-  sustain: store.get('bl-sustain', 0.35), held: new Map(),   // held: finger / key / button -> release()
+  sustain: store.get('bl-sustain', 0.35), held: new Map(),
+  song: store.get('bl-jam-song', 1),   // the farm tune's volume on the stage, on this device: 0 leaves just the instruments   // held: finger / key / button -> release()
   band: new Map(), byRC: new Map(), hostOpen: false };   // band: a guest's bandmates, by key; byRC: a guest's held pads
 // Everyone else on stage. On the host: the phones and guests (party.players, by slot);
 // on a guest's device: the rest of the band as the host lists it (n = their slot, the host 0).
@@ -5255,6 +5256,13 @@ function setSustain(v) {
   setVolSlider('sustain', jam.sustain);
 }
 $('sustain').addEventListener('input', e => setSustain(e.target.value / 100));
+function setJamSong(v) {
+  jam.song = clamp(Math.round(v * 20) / 20, 0, 1);
+  store.set('bl-jam-song', jam.song);
+  if (jam.open) music?.setLevel(jam.song);
+  setVolSlider('jamSong', jam.song);
+}
+$('jamSong').addEventListener('input', e => { sfx.ensure(); setJamSong(e.target.value / 100); });
 function setOctave(d) {
   jam.oct = clamp(jam.oct + d, -1, 1);
   if (GUEST) guestNet.send({ t: 'oct', v: jam.oct });
@@ -5354,6 +5362,7 @@ function openJam() {
   game.picking = true;
   setOctave(0);
   setSustain(jam.sustain);
+  setJamSong(jam.song);   // after jam.open, so the tune turns down (or up) to this player's level
   jamResize();
   tellView();
   jam.input = null;   // start with hints for the last thing used, or what this device has
@@ -5363,6 +5372,7 @@ function openJam() {
 function closeJam() {
   if (!jam.open) return;
   jam.open = false;
+  music?.setLevel(1);   // the farm tune back to full
   $('jam').classList.remove('show');
   game.picking = anyPanel();
   letGoAll();
