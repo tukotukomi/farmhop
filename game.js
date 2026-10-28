@@ -1327,9 +1327,10 @@ const sfx = (() => {
           sweep('sine', n * 2, n * 2, t, 0.06, 0.16);
           sweep('triangle', n * 4, n * 4, t, 0.03, 0.04);
           sweep('triangle', n * 2, n * 3, t + 0.05, 0.05, 0.04);
-        } else if (id === 'ribbit') {
-          sweep('square', n, n, t, 0.07, 0.035);
-          sweep('triangle', n * 2, n * 2, t, 0.14, 0.07);
+        } else if (id === 'ribbit') {                            // the croak's click, on a round, in-tune note
+          sweep('square', n * 2, n * 2, t, 0.025, 0.012);
+          sweep('triangle', n, n, t, 0.16, 0.16);
+          sweep('sine', n * 2, n * 2, t, 0.12, 0.04);
         } else if (id === 'moonbun') {
           sweep('sine', n * 2, n * 2, t, 0.5, 0.1);
           sweep('sine', n * 3, n * 3, t, 0.35, 0.03);
@@ -1356,10 +1357,13 @@ const sfx = (() => {
         sweep('triangle', n * 4, n * 4, t, 0.03, 0.04);
         sweep('triangle', n * 2, n * 3, t + 0.06, 0.06, 0.045);
         sweep('sine', n * 3, n * 3, t + 0.11, 0.08, 0.04);
-      } else if (id === 'ribbit') {                             // a two-part ribbit, in key
-        sweep('square', n * 0.75, n, t, 0.05, 0.035);
-        sweep('square', n, n * 1.5, t + 0.08, 0.07, 0.035);
-        sweep('triangle', n * 2, n * 2, t + 0.08, 0.1, 0.05);
+      } else if (id === 'ribbit') {                             // "rib-bit": the note, then a fifth up, each with a croaky click
+        // Only a tiny scoop into each (3%), so what you hear is the note itself, in key.
+        sweep('square', n * 2, n * 2, t, 0.02, 0.01);
+        sweep('triangle', n * 0.97, n, t, 0.07, 0.15);
+        sweep('square', n * 3, n * 3, t + 0.085, 0.02, 0.01);
+        sweep('triangle', n * 1.5 * 0.97, n * 1.5, t + 0.085, 0.09, 0.13);
+        sweep('sine', n * 3, n * 3, t + 0.085, 0.08, 0.03);
       } else if (id === 'moonbun') {                            // a soft thump and a little moon bell
         sweep('sine', n, n * 0.5, t, 0.08, 0.12);
         sweep('sine', n * 2, n * 2, t + 0.04, 0.5, 0.08);
@@ -1375,7 +1379,7 @@ const sfx = (() => {
     hold(id, n, amt) {
       if (!ctx || muted || amt <= 0) return null;
       const t = ctx.currentTime, o = ctx.createOscillator(), f1 = ctx.createBiquadFilter(), g = ctx.createGain();
-      const V = { betty: ['pulse', 1, 0], axolotl: ['sine', 1, 5], catstar: ['triangle', 1, 6.5], leafwish: ['triangle', 2, 0], tuko: ['sawtooth', 2, 0], ribbit: ['square', 1, 0], moonbun: ['sine', 2, 4] }[id] || ['triangle', 1, 0];
+      const V = { betty: ['pulse', 1, 0], axolotl: ['sine', 1, 5], catstar: ['triangle', 1, 6.5], leafwish: ['triangle', 2, 0], tuko: ['sawtooth', 2, 0], ribbit: ['triangle', 1, 3], moonbun: ['sine', 2, 4] }[id] || ['triangle', 1, 0];
       const [wave, oct, wob] = V;
       if (wave === 'pulse') o.setPeriodicWave(pulseWave()); else o.type = wave;
       o.frequency.value = n * oct;   // octaves of the pad's note, so it stays in key
