@@ -3526,7 +3526,7 @@ function tapFarm(x, y) {
   if (groundAt(x, y, _a)) hopToward(myKey(), _a.x - farm.group.position.x, _a.z - farm.group.position.z);
 }
 // Stop the page itself from scrolling or bouncing, but let panels (pickers, settings) scroll.
-document.addEventListener('touchmove', e => { if (!e.target.closest('.sheet, input[type=range]')) e.preventDefault(); }, { passive: false });
+document.addEventListener('touchmove', e => { if (!e.target.closest('.sheet, .partyPanel, input[type=range]')) e.preventDefault(); }, { passive: false });
 document.addEventListener('gesturestart', e => e.preventDefault());
 // Browsers only let sound start from a tap, click or key press. Any of them, anywhere
 // (panels and drags included), starts or wakes the music; iOS counts the touch ending,
