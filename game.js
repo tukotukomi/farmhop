@@ -239,6 +239,13 @@ const postMat = new THREE.ShaderMaterial({
     inkMix: { value: 0.9 },
     grade: { value: new THREE.Color(1, 1, 1) },   // time-of-day tint over the whole picture
     sat: { value: 1 },
+    // Night lights (torches, fireflies, the players' hoppers): ellipses on the screen
+    // (centre and radii, in uv) where the night tint gives way to warm light.
+    lamps: { value: Array.from({ length: 24 }, () => new THREE.Vector4()) },
+    lampS: { value: new Array(24).fill(0) },
+    lampN: { value: 0 },
+    lampK: { value: 0 },   // how dark it is: 0 in the day, 1 at night
+    lampCol: { value: new THREE.Color(1, 0.8, 0.5) },
   },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0., 1.); }',
   fragmentShader: `
@@ -249,6 +256,11 @@ const postMat = new THREE.ShaderMaterial({
     uniform vec3 ink;
     uniform float inkMix, sat;
     uniform vec3 grade;
+    uniform vec4 lamps[24];
+    uniform float lampS[24];
+    uniform int lampN;
+    uniform float lampK;
+    uniform vec3 lampCol;
     varying vec2 vUv;
     // Orthographic depth is linear, so a flat (even sloped) surface has zero second
     // difference. With perspective the raw depth buffer is linear in 1/distance, which
@@ -260,7 +272,15 @@ const postMat = new THREE.ShaderMaterial({
     vec3 N(vec2 uv) { return texture2D(tNormal, uv).xyz; }
     void main() {
       vec3 col = texture2D(tColor, vUv).rgb;
-      col = max(mix(vec3(dot(col, vec3(0.2126, 0.7152, 0.0722))), col, sat), 0.) * grade;
+      float lit = 0.;
+      for (int i = 0; i < 24; i++) {
+        if (i >= lampN) break;
+        vec2 q = (vUv - lamps[i].xy) / lamps[i].zw;
+        float f = max(0., 1. - dot(q, q));
+        lit += f * f * lampS[i];
+      }
+      lit = min(lit, 1.) * lampK;
+      col = max(mix(vec3(dot(col, vec3(0.2126, 0.7152, 0.0722))), col, sat), 0.) * mix(grade, max(grade, lampCol), lit) + lampCol * lit * 0.05;
       vec2 dx = vec2(texel.x, 0.), dy = vec2(0., texel.y);
       float dc = D(vUv);
       // second difference: flat (even sloped) ground cancels out, steps don't
@@ -316,6 +336,7 @@ function renderCel() {
     rt.scissorTest = false;
   }
   renderer.setRenderTarget(null);
+  placeLamps(views);
   renderer.render(postQuad, postCam);
 }
 let lineScale = 1;
@@ -372,6 +393,8 @@ function updateDay() {
   hemi.intensity = look.hemi * lerp(A[5], B[5], t);
   mixHex(A[6], B[6], t, postMat.uniforms.grade.value);
   SUN_OFF.y = lerp(A[7], B[7], t);
+  if (game.where === 'farm') SUN_OFF.x = farmSunX();   // the sun crosses the farm by day, the moon by night
+  else SUN_OFF.x = -5;
   mixHex(A[8], B[8], t, skyCol);   // the sky behind the Behind view, and its fog
   fog.color.copy(skyCol);
 }
@@ -387,6 +410,18 @@ function updateFlies(dt) {
     m.position.set(f.x + rand(-5, 5), rand(0.3, 1.4), f.z + rand(-9, 3));
     scene.add(m);
     flies.push({ m, t: 0, life: rand(2, 4), ph: rand(0, 6) });
+  }
+  // On the farm after dark: drifting over the pond, and here and there in the yard.
+  if (game.where === 'farm' && game.state === 'farm' && farm.pond && flies.length < 36 * nightK() && Math.random() < dt * 10) {
+    const m = new THREE.Mesh(PGEO, FLY_MAT);
+    m.layers.set(GLOW_LAYER);
+    const base = farm.group.position;
+    if (Math.random() < 0.65) {
+      const [rx, rz] = farm.pondR, a = rand(0, Math.PI * 2), r = rand(0.5, 1.5);
+      farm.pond.localToWorld(m.position.set(Math.cos(a) * rx * r, rand(0.25, 1.1), Math.sin(a) * rz * r));
+    } else m.position.set(base.x + rand(YARD.x0, YARD.x1), rand(0.3, 1.3), base.z + rand(YARD.z0, YARD.z1));
+    scene.add(m);
+    flies.push({ m, t: 0, life: rand(3, 6), ph: rand(0, 6) });
   }
   for (let i = flies.length - 1; i >= 0; i--) {
     const f = flies[i];
@@ -2498,7 +2533,102 @@ function ensureLanes() {
 // Built far behind the road (z = FARM_Z) in the same scene, so the same camera,
 // lights and ink outlines draw it. While you're at the farm the road is paused.
 const FARM_Z = 160;
-const FARM_LIGHT = 0.8;   // the farm sits in soft morning light
+// The farm has its own day, ten minutes long: sunrise, a long bright day, a golden
+// sunset, a lavender dusk and about three minutes of moonlit night. It runs off the
+// clock, so friends on the same farm see the same sky. Torches around the pond and
+// along the house path light up from dusk, fireflies come out, and a soft glow
+// stays around the players' hoppers so nobody gets lost in the dark.
+const FARM_DAY = 600;
+let farmTimeAt = null;   // tests: hold the farm at one time of day (0..1)
+const farmClock = () => farmTimeAt ?? ((Date.now() / 1000) % FARM_DAY) / FARM_DAY;
+// [time of day, daylight] keyframes; 0 is just before sunrise.
+const FARM_SKY = [[0, 0.12], [0.05, 0.7], [0.14, 0.95], [0.3, 1], [0.48, 0.85], [0.56, 0.42], [0.62, 0.16], [0.67, 0], [0.94, 0], [1, 0.12]];
+function farmLight(k = farmClock()) {
+  let i = 0;
+  while (i < FARM_SKY.length - 2 && k > FARM_SKY[i + 1][0]) i++;
+  const [ka, la] = FARM_SKY[i], [kb, lb] = FARM_SKY[i + 1], t = clamp((k - ka) / (kb - ka), 0, 1);
+  return lerp(la, lb, t * t * (3 - 2 * t));
+}
+function farmSunX(k = farmClock()) {   // east to west through the day (0 to 0.73 after dawn), back again by moon
+  const d = (k + 0.06) % 1;
+  return d < 0.73 ? lerp(-9, 9, d / 0.73) : lerp(9, -9, (d - 0.73) / 0.27);
+}
+
+// ---------- night lights ----------
+// Anything that lights up the dark: a torch's flame, a firefly, a player's hopper.
+// Each frame the brightest few are placed on the screen for the outline pass.
+const lamps = [];   // { o: Object3D, r: radius of light on the ground, s: strength, torch }
+const FLAME_GEO = new THREE.ConeGeometry(0.11, 0.34, 8);
+const FLAME_MAT = new THREE.MeshBasicMaterial({ color: 0xffd25a });
+const EMBER_MAT = new THREE.MeshBasicMaterial({ color: 0xff6a2a });
+// A bamboo garden torch with a little flame, in a piece's own space.
+function torch(g, x, z, h = 0.85) {
+  const v = new VB(0.6);
+  v.cyl(0.03, 0.04, h, x, h / 2, z, 0xc79a52);                    // bamboo
+  for (const y of [0.3, 0.62]) v.cyl(0.042, 0.042, 0.025, x, y * h, z, 0x8a6236);
+  v.cyl(0.08, 0.045, 0.13, x, h + 0.04, z, 0x5a3a24);             // the cup
+  g.add(v.mesh());
+  const f = new THREE.Group();
+  f.position.set(x, h + 0.24, z);
+  const outer = new THREE.Mesh(FLAME_GEO, FLAME_MAT), inner = new THREE.Mesh(FLAME_GEO, EMBER_MAT);
+  inner.scale.setScalar(0.55);
+  inner.position.y = -0.04;
+  for (const m of [outer, inner]) { m.layers.set(GLOW_LAYER); f.add(m); }
+  f.userData.flame = true;
+  g.add(f);
+  lamps.push({ o: f, r: 2.4, s: 1, torch: true, ph: Math.random() * 6 });
+  lamps.push({ o: f, r: 0.32, s: 1.2, torch: true, flame: true, ph: Math.random() * 6 });   // and the flame's own glow
+}
+const TORCH_AT = [1.75, 3.55, 4.75, 5.95];   // around the pond (radians), clear of the dock and the reeds
+function inScene(o) { while (o) { if (o === scene) return true; o = o.parent; } return false; }
+const nightK = () => clamp((0.4 - game.light) / 0.32, 0, 1);
+const _lp = new THREE.Vector3(), _lq = new THREE.Vector3();
+function placeLamps(views) {
+  const U = postMat.uniforms, k = game.where === 'farm' && game.state === 'farm' ? nightK() : 0;
+  U.lampK.value = k;
+  U.lampN.value = 0;
+  for (let i = lamps.length - 1; i >= 0; i--) if (!inScene(lamps[i].o)) lamps.splice(i, 1);   // its piece was rebuilt or moved
+  if (!k) return;
+  // the players' own hoppers glow a little, and so do a few fireflies
+  const list = lamps.slice();
+  const close = camera.isPerspectiveCamera;   // the fishing camera, right beside them: light their whole body
+  for (const w of playerMarks().map(([w]) => w)) if (w && !w.hidden) list.push({ o: w.m.group, r: close ? 0.9 : 1.5, s: close ? 0.95 : 0.75, y: close ? 0.6 + (w.y || 0) : 0.35 });
+  for (const f of flies.slice(0, 4)) list.push({ o: f.m, r: 0.7, s: 0.5 * Math.min(1, f.m.scale.x * 12), y: 0, fly: true });
+  const W = rtColor.width, H = rtColor.height;
+  let n = 0;
+  for (const v of views) {
+    const cam = v ? v.cam : camera, [rx0, ry0, rw, rh] = v ? v.rect : [0, 0, W, H];
+    const toUv = p => [(rx0 + (p.x * 0.5 + 0.5) * rw) / W, (ry0 + (p.y * 0.5 + 0.5) * rh) / H];
+    for (const L of list) {
+      if (n >= 24) break;
+      L.o.getWorldPosition(_lp);
+      if (!L.flame) _lp.y = L.y ?? 0.35;                    // light on the ground and on whoever stands there
+      _lq.copy(_lp).project(cam);
+      if (Math.abs(_lq.x) > 1.4 || Math.abs(_lq.y) > 1.4 || _lq.z > 1) continue;   // well off this view
+      const [cx, cy] = toUv(_lq);
+      let ex = 0, ey = 0;
+      for (const [dx, dz] of [[L.r, 0], [0, L.r]]) {          // the ground circle's size on the screen
+        const [ux, uy] = toUv(_lq.copy(_lp).add({ x: dx, y: 0, z: dz }).project(cam));
+        ex = Math.max(ex, Math.abs(ux - cx)); ey = Math.max(ey, Math.abs(uy - cy));
+      }
+      if (L.fly && ex > 0.06) continue;                      // a firefly right by the camera: not a big blob of light
+      U.lamps.value[n].set(cx, cy, ex + 0.001, L.flame ? ex * W / H + 0.001 : ey * 1.35 + 0.01);   // a little taller: it lights the hoppers standing in it
+      U.lampS.value[n] = L.s * (L.torch ? 0.9 + 0.1 * Math.sin(game.time * 9 + L.ph) : 1);
+      n++;
+    }
+  }
+  U.lampN.value = n;
+}
+// Flames flicker once it's dark enough to light them; by day the torches stand unlit.
+function updateTorches(t) {
+  const k = nightK();
+  for (const L of lamps) {
+    if (!L.torch || L.flame) continue;
+    L.o.visible = k > 0.02;
+    const s = Math.min(1, k * 3);
+    L.o.scale.set(s * (1 + Math.sin(t * 13 + L.ph) * 0.08), s * (1 + Math.sin(t * 9 + L.ph * 2) * 0.18), s);
+  }
+}
 // What each Fish Pond level adds. Level n costs n sunflowers (1, 2, 3, ...).
 const pondNext = lvl => t('pondSteps')[lvl] || t('pondMore');
 const pondCost = lvl => lvl + 1;
@@ -2636,6 +2766,7 @@ function buildHouse(g) {
   for (const s of [-1, 1]) vb.cyl(0.05, 0.05, 1.1, s * 1.1, 0.6, 1.85, 0xffffff);
   vb.rbox(2.5, 0.08, 0.9, 0, 1.18, 1.5, 0xd8473a, 0.03);                    // porch roof
   g.add(vb.mesh());
+  for (const s of [-1, 1]) torch(g, s * 0.75, 3.3, 0.75);                    // torches along the path
 }
 // red barn with white trim, a hayloft and hay bales
 function buildBarn(g) {
@@ -2961,7 +3092,7 @@ function fishModel(sp) {
 
 function buildPond() {
   const g = farm.pond, L = farm.level;
-  for (const c of [...g.children]) { g.remove(c); if (c.geometry !== PGEO) c.geometry?.dispose(); }   // PGEO is shared with particles
+  for (const c of [...g.children]) { g.remove(c); if (c.geometry !== PGEO) c.geometry?.dispose(); }   // PGEO is shared with particles (and a torch's flame is a group)
   farm.fish = []; farm.ducks = [];
   const s = L >= 6 ? 1.3 : 1, rx = 1.7 * s, rz = 1.15 * s;
   farm.pondR = [rx, rz];
@@ -2978,6 +3109,7 @@ function buildPond() {
     v.add(prim('pad', () => new THREE.CylinderGeometry(0.36, 0.36, 0.04, 16, 1, false, 0.5, Math.PI * 2 - 0.6)), 0x3fae49, Math.cos(a) * rx * r, 0.06, Math.sin(a) * rz * r, 0, a, 0, 0.6, 1, 0.6);
     v.ball(0.05, 0.04, 0.05, Math.cos(a) * rx * r + 0.05, 0.1, Math.sin(a) * rz * r, 0xff8fc8);
   }
+  for (const a of TORCH_AT) torch(g, Math.cos(a) * (rx + 0.5), Math.sin(a) * (rz + 0.45));
   if (L >= 3) {                                                             // dock
     v.rbox(0.5, 0.06, 1.1, rx * 0.55, 0.12, rz * 0.75, 0xb88a5a, 0.02);
     for (const sx of [-1, 1]) v.cyl(0.04, 0.04, 0.3, rx * 0.55 + sx * 0.2, 0.0, rz * 0.35, 0x7a4f2c);
@@ -3044,6 +3176,7 @@ function updateFarm(dt) {
     burst(_fw.x, 0.65, _fw.z, [0xbfe9ff, 0xffffff], 1, 0.35, 3.2, 0.07, 0.6, true);
   }
   for (const p of Object.values(farm.pieces)) p.update?.(t);
+  updateTorches(t);
   updateWalkers(dt, t);
 }
 
@@ -3820,7 +3953,7 @@ function step(dt) {
     if (game.day <= 0) { game.day = 0; for (const h of game.crew) if (h.alive && !h.parked) die('night', null, null, h); }
   }
   game.dawn = Math.min(1, game.dawn + dt * 0.4);   // after the sunrise, the road brightens to full day
-  game.light = game.where === 'farm' ? FARM_LIGHT : Math.min(game.day, game.dawn);
+  game.light = game.where === 'farm' ? farmLight() : Math.min(game.day, game.dawn);
   updateDay();
   if (music && Math.abs(game.light - (music.day ?? -1)) > 0.02) { music.day = game.light; music.setDay(game.light); }
   updateFlies(dt);
@@ -3999,6 +4132,7 @@ function fishSpot(w) {
   for (let i = 0; i < 24; i++) {
     const th = i / 24 * Math.PI * 2, lx = Math.cos(th) * (rx + 0.6), lz = Math.sin(th) * (rz + 0.6);
     if (farm.level >= 3 && Math.abs(lx - rx * 0.55) < 0.7 && lz > 0) continue;   // not across the dock
+    if (TORCH_AT.some(a => Math.abs(Math.atan2(Math.sin(th - a), Math.cos(th - a))) < 0.5)) continue;   // nor right by a torch
     const [x, z] = pieceToFarm(p, lx, lz);
     if (x < YARD.x0 || x > YARD.x1 || z < YARD.z0 || z > YARD.z1 || blockedAt(x, z)) continue;
     if (taken.some(s => Math.hypot(s.at[0] - x, s.at[1] - z) < 1)) continue;
@@ -6359,4 +6493,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, myKey, get music() { return music; } };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps };
