@@ -807,6 +807,122 @@ function buildTuko() {
   return finishHero(group, inner, [wobble(inner, t, 0, 0.24, 0.12, 1)]);
 }
 
+// A little heart, facing out from the front (for Spicy Spider's shirt).
+function heartOn(v, x, y, z, s, color) {
+  for (const side of [-1, 1]) v.ball(s * 0.55, s * 0.55, s * 0.3, x + side * s * 0.42, y + s * 0.22, z, color);
+  v.cone(s * 0.7, s * 1.0, x, y - s * 0.38, z, color, Math.PI, 0, 0);
+}
+
+function buildSpicySpider() {   // Spicy Spider: a spider queen in a shirt covered in blue hearts
+  const K = 0x3d2f52, K2 = 0x5a4774, SHIRT = 0xf6f2ff, HEART = 0x3f7fe0, GOLD = 0xffd23f, W = 0xffffff;
+  const group = new THREE.Group(), inner = new THREE.Group();
+  group.add(inner);
+  const b = new VB();
+  for (const s of [-1, 1]) {
+    b.ball(0.07, 0.045, 0.1, s * 0.09, 0.045, -0.03, K2);               // feet
+    b.cap(0.055, 0.08, s * 0.09, 0.16, 0, K);
+    b.cap(0.04, 0.12, s * 0.185, 0.41, -0.02, K, 0, 0, s * 0.25);       // arms
+    b.ball(0.065, 0.06, 0.065, s * 0.16, 0.48, -0.01, SHIRT);           // short sleeves
+    b.ball(0.045, 0.045, 0.045, s * 0.21, 0.31, -0.03, K2);             // hands
+    b.ball(0.052, 0.06, 0.025, s * 0.09, 0.74, -0.188, W);              // two big eyes...
+    b.ball(0.027, 0.034, 0.015, s * 0.09, 0.735, -0.208, 0x1a1020);
+    b.ball(0.01, 0.012, 0.006, s * 0.09 + 0.012, 0.75, -0.22, W);
+    b.ball(0.022, 0.024, 0.012, s * 0.055, 0.845, -0.168, 0xff5f9e);    // ...and four little ones above
+    b.ball(0.016, 0.018, 0.01, s * 0.14, 0.825, -0.16, 0xff5f9e);
+    b.ball(0.036, 0.018, 0.01, s * 0.16, 0.66, -0.172, 0xff9ec4);       // cheeks
+    b.cone(0.012, 0.045, s * 0.032, 0.615, -0.188, W, Math.PI, 0, 0);    // two tiny fangs
+  }
+  b.ball(0.17, 0.17, 0.14, 0, 0.36, 0, SHIRT);                         // the shirt
+  heartOn(b, 0, 0.42, -0.142, 0.05, HEART);                            // blue hearts all over it
+  heartOn(b, -0.075, 0.3, -0.128, 0.035, HEART);
+  heartOn(b, 0.08, 0.31, -0.128, 0.035, HEART);
+  heartOn(b, -0.12, 0.43, -0.09, 0.03, HEART);
+  heartOn(b, 0.125, 0.42, -0.09, 0.03, HEART);
+  b.hiBall(0.25, 0.21, 0.21, 0, 0.72, 0, K);                           // head
+  b.torus(0.035, 0.009, Math.PI, 0, 0.665, -0.198, 0xff7fb8, 0, 0, Math.PI);   // smile
+  b.cyl(0.095, 0.105, 0.06, 0, 0.955, 0, GOLD);                        // a queen's crown
+  for (let i = 0; i < 5; i++) {
+    const a = i / 5 * Math.PI * 2 - Math.PI / 2;
+    b.cone(0.024, 0.07, Math.cos(a) * 0.088, 1.02, Math.sin(a) * 0.088, GOLD);
+  }
+  b.ball(0.022, 0.022, 0.014, 0, 0.955, -0.104, 0xff5f9e);              // its jewel
+  inner.add(b.mesh());
+  const wob = [];
+  for (const s of [-1, 1]) {                                          // four more legs, waving
+    const L = new VB();
+    for (const [dy, dz] of [[0.05, -0.04], [-0.07, 0.05]]) {
+      L.cap(0.02, 0.15, s * 0.1, dy + 0.05, dz, K, 0, 0, -s * 1.05);
+      L.cap(0.018, 0.11, s * 0.2, dy - 0.02, dz, K, 0, 0, s * 0.45);
+      L.ball(0.025, 0.025, 0.025, s * 0.225, dy - 0.085, dz, K2);
+    }
+    wob.push(wobble(inner, L, s * 0.13, 0.38, 0.02, s));
+  }
+  return finishHero(group, inner, wob);
+}
+
+function buildLyla() {   // Lyla: a grey American bulldog in a green onesie
+  const FUR = 0xb3b3bf, FUR_D = 0x8b8b99, W = 0xf6f4f2, K = 0x2e2230, SUIT = 0x5fbf5a, SUIT_D = 0x46a043;
+  const group = new THREE.Group(), inner = new THREE.Group();
+  group.add(inner);
+  const b = new VB();
+  for (const s of [-1, 1]) {
+    b.ball(0.07, 0.045, 0.1, s * 0.09, 0.045, -0.03, SUIT_D);           // onesie feet
+    b.cap(0.055, 0.08, s * 0.09, 0.16, 0, SUIT);
+    b.cap(0.04, 0.12, s * 0.185, 0.41, -0.02, SUIT, 0, 0, s * 0.25);    // arms
+    b.ball(0.045, 0.045, 0.045, s * 0.21, 0.31, -0.03, FUR);            // paws
+    b.ball(0.078, 0.062, 0.062, s * 0.078, 0.62, -0.15, W);             // big jowls
+    b.ball(0.033, 0.042, 0.02, s * 0.1, 0.77, -0.192, 0x222222);        // eyes
+    b.ball(0.012, 0.014, 0.008, s * 0.1 + 0.01, 0.787, -0.21, 0xffffff);
+    b.ball(0.07, 0.04, 0.05, s * 0.245, 0.79, -0.03, FUR_D, 0, 0, s * 1.15);    // floppy folded ears, down at the sides
+    b.cone(0.012, 0.03, s * 0.042, 0.607, -0.215, W);                    // an underbite
+    b.ball(0.03, 0.016, 0.01, s * 0.17, 0.68, -0.17, 0xff9ec4);         // cheeks
+  }
+  b.ball(0.17, 0.17, 0.14, 0, 0.36, 0, SUIT);                          // the onesie
+  for (const y of [0.45, 0.37, 0.29]) b.ball(0.017, 0.017, 0.01, 0, y, -0.14, W);   // its buttons
+  b.ball(0.2, 0.15, 0.1, 0, 0.6, 0.12, SUIT_D);                        // the hood, down at the back
+  b.hiBall(0.27, 0.2, 0.22, 0, 0.71, 0, FUR);                          // a wide bulldog head
+  b.ball(0.045, 0.09, 0.02, 0, 0.8, -0.2, W);                          // white blaze
+  b.ball(0.11, 0.07, 0.08, 0, 0.64, -0.16, W);                         // muzzle
+  b.ball(0.042, 0.028, 0.025, 0, 0.675, -0.235, K);                    // nose
+  b.ball(0.026, 0.018, 0.012, 0, 0.598, -0.212, 0xff7fa0);             // tongue
+  inner.add(b.mesh());
+  const t = new VB();                                                 // a little stub of a tail
+  t.ball(0.04, 0.04, 0.045, 0, 0, 0.03, SUIT);
+  return finishHero(group, inner, [wobble(inner, t, 0, 0.26, 0.13, 1)]);
+}
+
+function buildCarla() {   // Carla: a capybara in a yellow princess dress
+  const FUR = 0xa8754a, FUR_D = 0x86593a, K = 0x2e2230, DRESS = 0xffd84a, DRESS_D = 0xf2b52a, GOLD = 0xffcf2a, GEM = 0xff7fb8;
+  const group = new THREE.Group(), inner = new THREE.Group();
+  group.add(inner);
+  const b = new VB();
+  for (const s of [-1, 1]) {
+    b.ball(0.06, 0.04, 0.09, s * 0.08, 0.04, -0.04, FUR_D);              // feet peeking out
+    b.cap(0.04, 0.12, s * 0.185, 0.41, -0.02, FUR, 0, 0, s * 0.25);     // arms
+    b.ball(0.07, 0.062, 0.068, s * 0.15, 0.48, 0, DRESS);               // puffy sleeves
+    b.ball(0.042, 0.042, 0.042, s * 0.21, 0.31, -0.03, FUR_D);          // paws
+    b.ball(0.034, 0.02, 0.015, s * 0.105, 0.85, -0.172, K);             // calm, half-closed eyes, up above the snout
+    b.ball(0.01, 0.008, 0.005, s * 0.105 + 0.012, 0.857, -0.185, 0xffffff);
+    b.ball(0.042, 0.036, 0.03, s * 0.15, 0.91, 0.04, FUR_D);            // little round ears
+    b.ball(0.012, 0.009, 0.006, s * 0.032, 0.745, -0.262, K);            // nostrils
+    b.ball(0.035, 0.018, 0.01, s * 0.15, 0.75, -0.17, 0xff9ec4);         // cheeks
+  }
+  b.cone(0.26, 0.33, 0, 0.2, 0, DRESS);                                // the princess skirt
+  b.torus(0.235, 0.028, Math.PI * 2, 0, 0.05, 0, DRESS_D, Math.PI / 2, 0, 0);   // its ruffled hem
+  b.ball(0.15, 0.15, 0.13, 0, 0.42, 0, DRESS);                         // bodice
+  b.ball(0.05, 0.03, 0.02, 0, 0.47, -0.128, GEM);                      // a pink bow
+  b.hiBall(0.22, 0.2, 0.22, 0, 0.77, 0, FUR);                          // head
+  b.ball(0.13, 0.1, 0.14, 0, 0.71, -0.12, FUR);                        // the big blunt capybara snout
+  b.ball(0.085, 0.045, 0.05, 0, 0.74, -0.215, 0x9a6a42);              // its darker nose pad
+  b.torus(0.028, 0.008, Math.PI, 0, 0.665, -0.24, 0xc2475f, 0, 0, Math.PI);  // a small smile
+  inner.add(b.mesh());
+  const tiara = new VB();                                             // a tiara, bobbing a little
+  tiara.torus(0.075, 0.014, Math.PI, 0, 0, 0, GOLD, -0.3, 0, 0);
+  for (const [x, h] of [[-0.05, 0.05], [0, 0.08], [0.05, 0.05]]) tiara.cone(0.018, h, x, 0.06 + h / 2 - 0.02, -0.02, GOLD);
+  tiara.ball(0.02, 0.02, 0.012, 0, 0.06, -0.035, GEM);
+  return finishHero(group, inner, [wobble(inner, tiara, 0, 0.95, 0.02, 1, 'x')]);
+}
+
 function buildRibbit() {   // DJ Ribbit: a frog in big headphones
   const FROG = 0x6fd24a, FROG_D = 0x4fae36, BELLY = 0xe9f7b0, W = 0xffffff, K = 0x2e2230, PHONE = 0x8a5cff, PHONE_D = 0x5a3cc0, PAD = 0xff7fb8;
   const group = new THREE.Group(), inner = new THREE.Group();
@@ -890,6 +1006,9 @@ const HEROES = [
   { id: 'catstar', name: 'Catstar', build: buildCatstar, bg: '#fff1b8', price: 20, pad: '#ffd24a' },
   { id: 'leafwish', name: 'LeafWish', build: buildLeafWish, bg: '#e6dcff', price: 20, pad: '#7ad653' },
   { id: 'tuko', name: 'Tuko', build: buildTuko, bg: '#ffe1c4', price: 20, pad: '#ff9a3c' },
+  { id: 'spider', name: 'Spicy Spider', build: buildSpicySpider, bg: '#e2e8ff', price: 20, pad: '#4f8fe6' },
+  { id: 'lyla', name: 'Lyla', build: buildLyla, bg: '#e2f5dc', price: 20, pad: '#5fbf5a' },
+  { id: 'carla', name: 'Carla', build: buildCarla, bg: '#fff3c4', price: 20, pad: '#ffb84a' },
   { id: 'ribbit', name: 'DJ Ribbit', build: buildRibbit, bg: '#dcf7c8', pad: '#6fd24a', supporter: true },
   { id: 'moonbun', name: 'Moonbun', build: buildMoonbun, bg: '#efe6ff', pad: '#cdb8ff', supporter: true },
 ];
@@ -1327,6 +1446,15 @@ const sfx = (() => {
           sweep('sine', n * 2, n * 2, t, 0.06, 0.16);
           sweep('triangle', n * 4, n * 4, t, 0.03, 0.04);
           sweep('triangle', n * 2, n * 3, t + 0.05, 0.05, 0.04);
+        } else if (id === 'spider') {                            // a plucked web string
+          sweep('triangle', n * 2, n * 2, t, 0.06, 0.13);
+          sweep('sine', n * 4, n * 4, t, 0.05, 0.04);
+        } else if (id === 'lyla') {                              // a soft woof, on the note
+          sweep('sine', n / 2, n / 2, t, 0.12, 0.16);
+          sweep('triangle', n, n, t, 0.1, 0.12);
+        } else if (id === 'carla') {                             // a gentle little whistle
+          sweep('sine', n * 2, n * 2, t, 0.22, 0.12);
+          sweep('triangle', n, n, t, 0.12, 0.05);
         } else if (id === 'ribbit') {                            // the croak's click, on a round, in-tune note
           sweep('square', n * 2, n * 2, t, 0.025, 0.012);
           sweep('triangle', n, n, t, 0.16, 0.16);
@@ -1357,6 +1485,18 @@ const sfx = (() => {
         sweep('triangle', n * 4, n * 4, t, 0.03, 0.04);
         sweep('triangle', n * 2, n * 3, t + 0.06, 0.06, 0.045);
         sweep('sine', n * 3, n * 3, t + 0.11, 0.08, 0.04);
+      } else if (id === 'spider') {                             // skittering up the web: octave, octave and a fifth, two octaves
+        sweep('triangle', n * 2, n * 2, t, 0.045, 0.12);
+        sweep('triangle', n * 3, n * 3, t + 0.05, 0.045, 0.1);
+        sweep('sine', n * 4, n * 4, t + 0.1, 0.06, 0.05);
+      } else if (id === 'lyla') {                               // "arf!": a deep thump and a short bark on the note, a fifth to finish
+        sweep('sine', n / 2, n / 2, t, 0.09, 0.16);
+        sweep('triangle', n * 0.97, n, t + 0.01, 0.08, 0.14);
+        sweep('triangle', n * 1.5, n * 1.5, t + 0.1, 0.06, 0.07);
+      } else if (id === 'carla') {                              // "kwee-kwee": two soft capybara chirps, an octave up
+        sweep('sine', n * 2 * 0.97, n * 2, t, 0.08, 0.11);
+        sweep('triangle', n, n, t, 0.08, 0.05);
+        sweep('sine', n * 2 * 0.97, n * 2, t + 0.12, 0.1, 0.09);
       } else if (id === 'ribbit') {                             // "rib-bit": the note, then a fifth up, each with a croaky click
         // Only a tiny scoop into each (3%), so what you hear is the note itself, in key.
         sweep('square', n * 2, n * 2, t, 0.02, 0.01);
@@ -1379,7 +1519,7 @@ const sfx = (() => {
     hold(id, n, amt) {
       if (!ctx || muted || amt <= 0) return null;
       const t = ctx.currentTime, o = ctx.createOscillator(), f1 = ctx.createBiquadFilter(), g = ctx.createGain();
-      const V = { betty: ['pulse', 1, 0], axolotl: ['sine', 1, 5], catstar: ['triangle', 1, 6.5], leafwish: ['triangle', 2, 0], tuko: ['sawtooth', 2, 0], ribbit: ['triangle', 1, 3], moonbun: ['sine', 2, 4] }[id] || ['triangle', 1, 0];
+      const V = { betty: ['pulse', 1, 0], axolotl: ['sine', 1, 5], catstar: ['triangle', 1, 6.5], leafwish: ['triangle', 2, 0], tuko: ['sawtooth', 2, 0], ribbit: ['triangle', 1, 3], moonbun: ['sine', 2, 4], spider: ['triangle', 2, 8], lyla: ['triangle', 0.5, 0], carla: ['sine', 2, 3] }[id] || ['triangle', 1, 0];
       const [wave, oct, wob] = V;
       if (wave === 'pulse') o.setPeriodicWave(pulseWave()); else o.type = wave;
       o.frequency.value = n * oct;   // octaves of the pad's note, so it stays in key
@@ -2123,6 +2263,9 @@ const PUFFS = {
   catstar: [[0xffd23f, 0xfff3a0, 0xffffff], false],         // little stars
   leafwish: [[0x6cc94a, 0x8fe070, 0x4fa83a], false],        // leaves
   tuko: [[0xff8a2a, 0xffb24a, 0xd2541a], false],            // autumn leaves
+  spider: [[0x3f7fe0, 0xffffff, 0x9fc4ff], false],          // blue-heart confetti
+  lyla: [[0x5fbf5a, 0xc9c9d2, 0xffffff], true],             // a puff of dust
+  carla: [[0xffd84a, 0xfff4b0, 0xff7fb8], false],           // princess sparkles
   ribbit: [[0x8a5cff, 0xff7fb8, 0x6fd24a], false],          // disco confetti
   moonbun: [[0xffd23f, 0xfff4b0, 0xcdb8ff], false],         // moon dust
 };
