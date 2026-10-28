@@ -15,6 +15,8 @@
 //     fresh: data => true/false,           // nothing worth keeping yet? (a new device)
 //   });
 //   acct.on(state => ...)   // { ready, user: { name, email, photo } | null, status, savedAt, conflict }
+//   acct.prepare()   // load Firebase ahead (e.g. when the sign-in button shows), so the
+//                    // click opens Google's pop-up at once: browsers block late pop-ups
 //   acct.signIn()  acct.signOut()  acct.changed()  acct.keep('device' | 'account')  acct.deleteAll()
 //
 // status: 'off' (signed out), 'syncing', 'saved', 'error', 'conflict' (this device and
@@ -115,8 +117,9 @@ export function createAccount({ app, config, read, write, fresh = () => false })
   const acct = {
     state,
     on(f) { fns.add(f); f(state); return () => fns.delete(f); },
+    prepare() { if (config) load().catch(err => console.warn('tuko-account', err)); },
     async signIn() {
-      await load();
+      if (!fb) await load();   // prepare() should have done this already
       const provider = new fb.U.GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
       // An iPhone Home Screen app goes to Google's page and back (a pop-up there opens

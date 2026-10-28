@@ -6042,6 +6042,7 @@ function renderAccount() {
   const s = account.state, u = s.user;
   $('acctRow').hidden = false;
   $('acctOut').hidden = !!u || !s.ready;
+  if (!u) account.prepare();   // the sign-in button is showing: get Firebase ready for the tap
   $('acctIn').hidden = !u;
   if (!u) return;
   $('acctPic').src = u.photo || 'icon-192.png';
