@@ -450,6 +450,7 @@ body.pad .heroCard.focus, body.keys .heroCard.focus, .heroCard:focus-visible { o
 /* ---------- Fishing ---------- */
 #fishBar { position: fixed; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom) + 36px); display: none; }
 body.farm.fishing #fishBar { display: flex; }
+body.farm.fishing.reeling #fishBar { display: none; }   /* nothing but the beat lane while reeling in */
 body.farm.fishing #farmBtns { display: none; }
 #bookBtn { --c1: var(--berry); --c2: var(--berry-d); width: 76px; height: 76px; }
 #bookBtn svg { width: 46px; height: 46px; }

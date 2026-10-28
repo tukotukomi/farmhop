@@ -4207,7 +4207,7 @@ function stopFish(key) {
   w.wait = STEER_IDLE;
   if (w.y) { w.y = 0; landLeap(w, ...f.spot.land, 0.4); }   // hop back off the dock
   if (f.st !== 'walk' && f.st !== 'settle') tellFish(f, false);
-  if (key === myKey()) { document.body.classList.remove('fishing'); fishPtr = null; fishTouch.clear(); }
+  if (key === myKey()) { document.body.classList.remove('fishing', 'reeling'); fishPtr = null; fishTouch.clear(); }
 }
 function stopAllFishing() {
   for (const key of [...fishers.keys()]) stopFish(key);
@@ -4294,6 +4294,7 @@ function setSt(f, st, time = 0) {
   f.st = st;
   f.t = time;
   f.ui.classList.toggle('reeling', st === 'reel');
+  if (f.key === myKey()) document.body.classList.toggle('reeling', st === 'reel');   // the Fish Book and Done buttons step aside
   tellFish(f);
 }
 function say(f, key) { f.msg = t('fish.' + key); f.msgT = 1.4; }
