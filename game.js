@@ -4648,9 +4648,9 @@ fishCamHook = dt => {
   const c = Math.cos(fishCam.shown), s = Math.sin(fishCam.shown);
   [sx, sz] = [sx * c - sz * s, sx * s + sz * c];
   const halfW = Math.atan(Math.tan(perspCam.fov * Math.PI / 360) * perspCam.aspect);
-  const dist = Math.max(4.4, (len + 2.4) / 2 / Math.tan(halfW));   // the hopper and where the bobber lands both fit, with room around
-  const ty = (w.y || 0) + (perspCam.aspect < 1 ? 0.3 : 0.05);   // the pond sits above the beat lane (on a tall screen there's room below)
-  _fcLook.set(base.x + w.x + dx * 0.28, ty, base.z + w.z + dz * 0.28);
+  const dist = Math.max(4.4, (len + 1.2) / Math.tan(halfW));   // with the hopper in the middle, the bobber still fits, with room around
+  const ty = (w.y || 0) + 0.92;   // the hopper's face (head height, at the hoppers' 1.3 scale) in the middle of the picture
+  _fcLook.set(base.x + w.x, ty, base.z + w.z);
   if (!fishCam.on) { fishCam.on = true; fishCam.swoop = 1; fishCam.look.copy(_fcLook); }
   fishCam.swoop *= Math.exp(-dt * 3);                // swoop in from further out and higher up
   fishCam.look.lerp(_fcLook, Math.min(1, dt * 3));
