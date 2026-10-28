@@ -860,57 +860,69 @@ function buildSpicySpider() {   // Spicy Spider: a spider queen in a shirt cover
   return finishHero(group, inner, wob);
 }
 
-function buildLyla() {   // Lyla: a grey American bulldog in a green onesie
-  const FUR = 0xb3b3bf, FUR_D = 0x8b8b99, W = 0xf6f4f2, K = 0x2e2230, SUIT = 0x5fbf5a, SUIT_D = 0x46a043;
+function buildLyla() {   // Lyla: a grey American bulldog in a green onesie and a green crown
+  const FUR = 0xa9a9b6, FUR_D = 0x80808f, W = 0xf6f4f2, K = 0x2e2230, SUIT = 0x5fbf5a, SUIT_D = 0x46a043, CROWN = 0x4cc35a, GEM = 0xffd23f;
   const group = new THREE.Group(), inner = new THREE.Group();
   group.add(inner);
   const b = new VB();
   for (const s of [-1, 1]) {
-    b.ball(0.07, 0.045, 0.1, s * 0.09, 0.045, -0.03, SUIT_D);           // onesie feet
-    b.cap(0.055, 0.08, s * 0.09, 0.16, 0, SUIT);
-    b.cap(0.04, 0.12, s * 0.185, 0.41, -0.02, SUIT, 0, 0, s * 0.25);    // arms
-    b.ball(0.045, 0.045, 0.045, s * 0.21, 0.31, -0.03, FUR);            // paws
-    b.ball(0.078, 0.062, 0.062, s * 0.078, 0.62, -0.15, W);             // big jowls
-    b.ball(0.033, 0.042, 0.02, s * 0.1, 0.77, -0.192, 0x222222);        // eyes
-    b.ball(0.012, 0.014, 0.008, s * 0.1 + 0.01, 0.787, -0.21, 0xffffff);
-    b.ball(0.07, 0.04, 0.05, s * 0.245, 0.79, -0.03, FUR_D, 0, 0, s * 1.15);    // floppy folded ears, down at the sides
-    b.cone(0.012, 0.03, s * 0.042, 0.607, -0.215, W);                    // an underbite
-    b.ball(0.03, 0.016, 0.01, s * 0.17, 0.68, -0.17, 0xff9ec4);         // cheeks
+    b.ball(0.075, 0.045, 0.1, s * 0.1, 0.045, -0.03, SUIT_D);           // onesie feet
+    b.cap(0.06, 0.08, s * 0.1, 0.16, 0, SUIT);                          // sturdy legs
+    b.cap(0.045, 0.12, s * 0.2, 0.41, -0.02, SUIT, 0, 0, s * 0.25);     // arms
+    b.ball(0.05, 0.048, 0.05, s * 0.225, 0.31, -0.03, FUR);             // paws
+    b.ball(0.075, 0.06, 0.05, s * 0.085, 0.585, -0.235, W);             // droopy jowls either side of the jaw
+    b.ball(0.034, 0.04, 0.02, s * 0.12, 0.77, -0.19, 0x222222);         // wide-set eyes
+    b.ball(0.012, 0.014, 0.008, s * 0.12 + 0.011, 0.785, -0.208, 0xffffff);
+    b.ball(0.06, 0.022, 0.04, s * 0.115, 0.815, -0.175, FUR_D, 0, 0, -s * 0.25);   // a frowny bulldog brow
+    b.ball(0.085, 0.07, 0.025, s * 0.2, 0.85, -0.09, FUR_D, -0.7, 0, s * 0.5);     // ears folding forward at the corners
+    b.cone(0.012, 0.03, s * 0.055, 0.59, -0.27, W);                      // an underbite
   }
-  b.ball(0.17, 0.17, 0.14, 0, 0.36, 0, SUIT);                          // the onesie
-  for (const y of [0.45, 0.37, 0.29]) b.ball(0.017, 0.017, 0.01, 0, y, -0.14, W);   // its buttons
-  b.ball(0.2, 0.15, 0.1, 0, 0.6, 0.12, SUIT_D);                        // the hood, down at the back
-  b.hiBall(0.27, 0.2, 0.22, 0, 0.71, 0, FUR);                          // a wide bulldog head
-  b.ball(0.045, 0.09, 0.02, 0, 0.8, -0.2, W);                          // white blaze
-  b.ball(0.11, 0.07, 0.08, 0, 0.64, -0.16, W);                         // muzzle
-  b.ball(0.042, 0.028, 0.025, 0, 0.675, -0.235, K);                    // nose
-  b.ball(0.026, 0.018, 0.012, 0, 0.598, -0.212, 0xff7fa0);             // tongue
+  b.ball(0.19, 0.17, 0.15, 0, 0.36, 0, SUIT);                          // a stocky chest, in the onesie
+  b.ball(0.09, 0.07, 0.04, 0, 0.47, -0.13, W);                         // white chest peeking out
+  for (const y of [0.4, 0.33, 0.26]) b.ball(0.017, 0.017, 0.01, 0, y, -0.15, W);   // the onesie's buttons
+  b.ball(0.2, 0.13, 0.1, 0, 0.6, 0.13, SUIT_D);                        // its hood, down at the back
+  b.rbox(0.46, 0.33, 0.38, 0, 0.72, 0, FUR, 0.13);                    // a broad, square bulldog head
+  b.rbox(0.07, 0.2, 0.03, 0, 0.78, -0.19, W, 0.03);                    // white blaze
+  b.rbox(0.26, 0.15, 0.14, 0, 0.635, -0.2, W, 0.06);                   // short, square muzzle
+  b.ball(0.06, 0.04, 0.035, 0, 0.7, -0.275, K);                        // big black nose
+  b.ball(0.028, 0.016, 0.012, 0, 0.575, -0.27, 0xff7fa0);              // tongue
+  b.cyl(0.11, 0.12, 0.06, 0, 0.92, 0.01, CROWN);                       // a green crown
+  for (let i = 0; i < 5; i++) {
+    const ang = i / 5 * Math.PI * 2 - Math.PI / 2;
+    b.cone(0.026, 0.07, Math.cos(ang) * 0.1, 0.985, 0.01 + Math.sin(ang) * 0.1, CROWN);
+  }
+  b.ball(0.024, 0.024, 0.014, 0, 0.92, -0.11, GEM);
   inner.add(b.mesh());
   const t = new VB();                                                 // a little stub of a tail
   t.ball(0.04, 0.04, 0.045, 0, 0, 0.03, SUIT);
-  return finishHero(group, inner, [wobble(inner, t, 0, 0.26, 0.13, 1)]);
+  return finishHero(group, inner, [wobble(inner, t, 0, 0.26, 0.14, 1)]);
 }
 
-function buildCarla() {   // Carla: a capybara in a yellow princess dress
-  const FUR = 0xa8754a, FUR_D = 0x86593a, K = 0x2e2230, DRESS = 0xffd84a, DRESS_D = 0xf2b52a, GOLD = 0xffcf2a, GEM = 0xff7fb8;
+function buildCarla() {   // Carla: a capybara in a yellow princess dress and yellow heels
+  const FUR = 0xa8754a, FUR_D = 0x86593a, K = 0x2e2230, DRESS = 0xffd84a, DRESS_D = 0xf2b52a, HEEL = 0xffc61a, GOLD = 0xffcf2a, GEM = 0xff7fb8;
   const group = new THREE.Group(), inner = new THREE.Group();
   group.add(inner);
   const b = new VB();
   for (const s of [-1, 1]) {
-    b.ball(0.06, 0.04, 0.09, s * 0.08, 0.04, -0.04, FUR_D);              // feet peeking out
-    b.cap(0.04, 0.12, s * 0.185, 0.41, -0.02, FUR, 0, 0, s * 0.25);     // arms
-    b.ball(0.07, 0.062, 0.068, s * 0.15, 0.48, 0, DRESS);               // puffy sleeves
-    b.ball(0.042, 0.042, 0.042, s * 0.21, 0.31, -0.03, FUR_D);          // paws
+    b.cap(0.042, 0.09, s * 0.08, 0.13, 0, FUR);                         // capybara legs below the skirt
+    b.ball(0.05, 0.03, 0.085, s * 0.08, 0.035, -0.03, HEEL);            // yellow heels...
+    b.cyl(0.012, 0.008, 0.06, s * 0.08, 0.03, 0.045, HEEL);             // ...with a little heel at the back
+    b.cap(0.042, 0.12, s * 0.2, 0.41, -0.02, FUR, 0, 0, s * 0.25);      // arms
+    b.ball(0.065, 0.055, 0.06, s * 0.155, 0.5, 0, DRESS);               // puffy sleeves
+    b.ball(0.042, 0.042, 0.042, s * 0.225, 0.31, -0.03, FUR_D);         // paws
     b.ball(0.034, 0.02, 0.015, s * 0.105, 0.85, -0.172, K);             // calm, half-closed eyes, up above the snout
     b.ball(0.01, 0.008, 0.005, s * 0.105 + 0.012, 0.857, -0.185, 0xffffff);
     b.ball(0.042, 0.036, 0.03, s * 0.15, 0.91, 0.04, FUR_D);            // little round ears
     b.ball(0.012, 0.009, 0.006, s * 0.032, 0.745, -0.262, K);            // nostrils
     b.ball(0.035, 0.018, 0.01, s * 0.15, 0.75, -0.17, 0xff9ec4);         // cheeks
   }
-  b.cone(0.26, 0.33, 0, 0.2, 0, DRESS);                                // the princess skirt
-  b.torus(0.235, 0.028, Math.PI * 2, 0, 0.05, 0, DRESS_D, Math.PI / 2, 0, 0);   // its ruffled hem
-  b.ball(0.15, 0.15, 0.13, 0, 0.42, 0, DRESS);                         // bodice
-  b.ball(0.05, 0.03, 0.02, 0, 0.47, -0.128, GEM);                      // a pink bow
+  b.ball(0.2, 0.18, 0.17, 0, 0.4, 0, FUR);                             // a round, barrel-shaped capybara body
+  b.ball(0.12, 0.1, 0.05, 0, 0.47, -0.135, 0xb98455);                  // its chest
+  b.cone(0.26, 0.24, 0, 0.265, 0, DRESS);                              // the princess skirt, legs showing below
+  b.torus(0.235, 0.026, Math.PI * 2, 0, 0.155, 0, DRESS_D, Math.PI / 2, 0, 0);   // its ruffled hem
+  b.ball(0.212, 0.13, 0.19, 0, 0.39, 0, DRESS);                        // the bodice, round her middle
+  b.torus(0.17, 0.02, Math.PI * 2, 0, 0.505, -0.005, DRESS_D, Math.PI / 2, 0, 0);   // its neckline trim
+  b.ball(0.055, 0.032, 0.02, 0, 0.43, -0.19, GEM);                     // a pink bow
   b.hiBall(0.22, 0.2, 0.22, 0, 0.77, 0, FUR);                          // head
   b.ball(0.13, 0.1, 0.14, 0, 0.71, -0.12, FUR);                        // the big blunt capybara snout
   b.ball(0.085, 0.045, 0.05, 0, 0.74, -0.215, 0x9a6a42);              // its darker nose pad
