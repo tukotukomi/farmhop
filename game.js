@@ -908,7 +908,7 @@ function buildCarla() {   // Carla: a capybara in a yellow princess dress and ye
     b.ball(0.05, 0.03, 0.085, s * 0.08, 0.035, -0.03, HEEL);            // yellow heels...
     b.cyl(0.012, 0.008, 0.06, s * 0.08, 0.03, 0.045, HEEL);             // ...with a little heel at the back
     b.cap(0.042, 0.12, s * 0.2, 0.41, -0.02, FUR, 0, 0, s * 0.25);      // arms
-    b.ball(0.065, 0.055, 0.06, s * 0.155, 0.5, 0, DRESS);               // puffy sleeves
+    b.ball(0.085, 0.072, 0.08, s * 0.2, 0.5, 0, DRESS);                 // puffy sleeves
     b.ball(0.042, 0.042, 0.042, s * 0.225, 0.31, -0.03, FUR_D);         // paws
     b.ball(0.034, 0.02, 0.015, s * 0.105, 0.85, -0.172, K);             // calm, half-closed eyes, up above the snout
     b.ball(0.01, 0.008, 0.005, s * 0.105 + 0.012, 0.857, -0.185, 0xffffff);
@@ -917,12 +917,12 @@ function buildCarla() {   // Carla: a capybara in a yellow princess dress and ye
     b.ball(0.035, 0.018, 0.01, s * 0.15, 0.75, -0.17, 0xff9ec4);         // cheeks
   }
   b.ball(0.2, 0.18, 0.17, 0, 0.4, 0, FUR);                             // a round, barrel-shaped capybara body
-  b.ball(0.12, 0.1, 0.05, 0, 0.47, -0.135, 0xb98455);                  // its chest
-  b.cone(0.26, 0.24, 0, 0.265, 0, DRESS);                              // the princess skirt, legs showing below
-  b.torus(0.235, 0.026, Math.PI * 2, 0, 0.155, 0, DRESS_D, Math.PI / 2, 0, 0);   // its ruffled hem
-  b.ball(0.212, 0.13, 0.19, 0, 0.39, 0, DRESS);                        // the bodice, round her middle
-  b.torus(0.17, 0.02, Math.PI * 2, 0, 0.505, -0.005, DRESS_D, Math.PI / 2, 0, 0);   // its neckline trim
-  b.ball(0.055, 0.032, 0.02, 0, 0.43, -0.19, GEM);                     // a pink bow
+  b.cyl(0.2, 0.27, 0.26, 0, 0.28, 0, DRESS);                           // the princess skirt, flaring from the waist, legs showing below
+  b.torus(0.27, 0.03, Math.PI * 2, 0, 0.16, 0, DRESS_D, Math.PI / 2, 0, 0);     // its ruffled hem
+  b.torus(0.205, 0.024, Math.PI * 2, 0, 0.36, 0, DRESS_D, Math.PI / 2, 0, 0);    // a sash at the waist
+  b.ball(0.214, 0.17, 0.195, 0, 0.41, 0, DRESS);                       // the bodice, up to a modest neckline
+  b.torus(0.15, 0.02, Math.PI * 2, 0, 0.555, -0.005, DRESS_D, Math.PI / 2, 0, 0);   // its neckline trim
+  b.ball(0.055, 0.032, 0.02, 0, 0.45, -0.2, GEM);                      // a pink bow
   b.hiBall(0.22, 0.2, 0.22, 0, 0.77, 0, FUR);                          // head
   b.ball(0.13, 0.1, 0.14, 0, 0.71, -0.12, FUR);                        // the big blunt capybara snout
   b.ball(0.085, 0.045, 0.05, 0, 0.74, -0.215, 0x9a6a42);              // its darker nose pad
