@@ -74,7 +74,7 @@ button { font: inherit; color: inherit; }
 .bubble:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
 
 .playBtn { --c1: var(--leaf); --c2: var(--leaf-d); width: 108px; height: 108px; }
-.playBtn svg { width: 60px; height: 60px; margin-left: 8px; }
+.playBtn svg { width: 60px; height: 60px; }   /* each icon is centred in its own drawing */
 .heroBtn { --c1: var(--berry); --c2: var(--berry-d); width: 84px; height: 84px; overflow: hidden; }
 .heroBtn img { width: 78px; height: 78px; margin-top: 6px; }
 
