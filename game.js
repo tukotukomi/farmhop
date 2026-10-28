@@ -2348,7 +2348,9 @@ function markSplit() {   // the ink line between the halves
   document.body.classList.toggle('splitV', on && tall);
 }
 
+let fishCamHook = null;   // fishing's own camera (set up with the fishing, further down)
 function updateCamera(dt) {
+  if (game.where === 'farm' && fishCamHook?.(dt)) return;
   const V = activeView();
   markSplit();
   if (splitActive()) return updateSplit(dt, V);
@@ -3946,11 +3948,13 @@ const BOB_GEO = (() => {
 })();
 const LINE_MAT = new THREE.LineBasicMaterial({ color: 0x3a2442 });
 const _tip = new THREE.Vector3();
+// Where each hopper holds the rod: in its right hand, or LeafWish's left (her wand's in the right).
+const GRIP = { leafwish: [-0.33, 0.5, -0.02] };
 function addRig(w) {
-  const rod = new THREE.Mesh(ROD_GEO, VMAT);
-  rod.position.set(0.2, w.top * 0.42, -0.05);
-  rod.rotation.x = -0.95;                            // tipped out in front
-  w.m.group.add(rod);
+  const rod = new THREE.Mesh(ROD_GEO, VMAT), [gx, gy, gz] = GRIP[w.id] || [0.21, 0.31, -0.03];
+  rod.position.set(gx, gy - 0.035, gz + 0.05);       // the handle runs through the hand
+  rod.rotation.set(-0.95, 0, gx > 0 ? 0.15 : -0.15); // tipped out in front, toward the middle
+  w.m.inner.add(rod);                                // so it hops and sways with them
   const bob = new THREE.Mesh(BOB_GEO, VMAT);
   bob.visible = false;
   farm.group.add(bob);
@@ -3962,7 +3966,7 @@ function addRig(w) {
   return { w, rod, bob, line, bx: 0, bz: 0, k: 1 };
 }
 function dropRig(rig) {
-  rig.w.m.group.remove(rig.rod);
+  rig.rod.removeFromParent();
   farm.group.remove(rig.bob, rig.line);
   rig.line.geometry.dispose();
 }
@@ -4217,6 +4221,10 @@ function placeFishUi(f, hide) {
   if (hide) return;
   const [x, y] = screenAt(f.w, 0.25);
   el.style.transform = `translate(${x}px, ${y}px)`;
+  const big = fishCam.on && f.key === myKey(), reel = el.querySelector('.reel');
+  el.classList.toggle('big', big);
+  if (big) Object.assign(reel.style, { left: `${innerWidth / 2 - x}px`, top: `${innerHeight - 196 - y}px`, bottom: 'auto' });
+  else reel.removeAttribute('style');
   const text = promptFor(f);
   if (text !== f.say) {
     f.say = text;
@@ -4253,6 +4261,42 @@ function updateFishing(dt) {
     c.el.classList.toggle('away', paused);
   }
 }
+// ---------- the fishing camera ----------
+// Once your hopper is at the water, the camera drops down beside them: side on and
+// close, the line, the bobber and the pond in view, with the beat lane underneath.
+const fishCam = { on: false, pos: new THREE.Vector3(), look: new THREE.Vector3() };
+const _fcPos = new THREE.Vector3(), _fcLook = new THREE.Vector3();
+const camFisher = () => { const f = fishers.get(myKey()); return f && f.st !== 'walk' && f.st !== 'settle' && !decor.on ? f : null; };
+fishCamHook = dt => {
+  const f = camFisher();
+  if (!f) { fishCam.on = false; return false; }
+  useCamera(perspCam);
+  const w = f.w, base = farm.group.position, [ax, az] = pieceToFarm(pondPiece(), ...f.spot.aim);
+  const dx = ax - w.x, dz = az - w.z, len = Math.hypot(dx, dz) || 1;
+  let sx = -dz / len, sz = dx / len;                 // square on to the line
+  if (sz < 0) { sx = -sx; sz = -sz; }                // from the front of the farm
+  const halfW = Math.atan(Math.tan(perspCam.fov * Math.PI / 360) * perspCam.aspect);
+  const dist = Math.max(4.4, (len + 2.4) / 2 / Math.tan(halfW));   // the hopper and where the bobber lands both fit, with room around
+  const tx = base.x + w.x + dx * 0.28, tz = base.z + w.z + dz * 0.28, ty = (w.y || 0) + (perspCam.aspect < 1 ? 0.25 : -0.25);   // the pond sits above the beat lane (on a tall screen there's room below)
+  _fcPos.set(tx + sx * dist, ty + 1 + dist * 0.08, tz + sz * dist);
+  _fcLook.set(tx, ty, tz);
+  if (!fishCam.on) {                                 // swoop in from a little further out and higher up
+    fishCam.on = true;
+    fishCam.pos.set(tx + sx * dist * 1.6, ty + 2.5, tz + sz * dist * 1.6);
+    fishCam.look.copy(_fcLook);
+  }
+  const k = Math.min(1, dt * 3);
+  fishCam.pos.lerp(_fcPos, k);
+  fishCam.look.lerp(_fcLook, k);
+  camera.position.copy(fishCam.pos);
+  camera.lookAt(fishCam.look);
+  sun.position.copy(fishCam.look).add(SUN_OFF);
+  sun.target.position.copy(fishCam.look);
+  sun.updateMatrixWorld();
+  sun.target.updateMatrixWorld();
+  camera.updateMatrixWorld();
+  return true;
+};
 // Did a tap on the pond land on the dock?
 function onDock(pt) {
   if (farm.level < 3) return false;
