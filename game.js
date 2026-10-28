@@ -2408,6 +2408,13 @@ farm.bunkBuilt = store.get('bl-bunk', false);
 const STAGE_COST = 1;
 farm.stageBuilt = store.get('bl-stage', false);
 scene.add(farm.group);
+// Everything in the Farm Buildings menu (the Fish Pond has its own button). Each is
+// built once; levels come later, so a finished one is level 1 for now.
+const BUILDINGS = [
+  { id: 'bunk', flag: 'bunkBuilt', name: 'bunkhouse', cost: BUNK_COST, draw: () => buildBunk(), open: () => openBunk() },
+  { id: 'stage', flag: 'stageBuilt', name: 'jamStage', cost: STAGE_COST, draw: () => buildStage(), open: () => farm.stageBuilt ? openJam() : openStage() },
+];
+const buildLevel = b => farm[b.flag] ? 1 : 0;
 
 // ---------- the farm layout ----------
 // The house, barn, pond, Bunkhouse, sunflower patch, mailbox and any decorations
@@ -3520,6 +3527,14 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
     return;
   }
+  if (game.picking && buildsOpen()) {   // Farm Buildings: arrows pick, Enter opens, Escape closes
+    const nav = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[e.code];
+    if (nav) { document.body.classList.add('keys'); buildsNav(nav); }
+    else if (e.code === 'Enter' || e.code === 'Space') buildAct();
+    else if (e.code === 'Escape') closeBuilds();
+    e.preventDefault();
+    return;
+  }
   if (game.picking && bunkOpen()) {   // Bunkhouse: arrows pick a hopper, Enter builds or invites
     const nav = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[e.code];
     if (nav) { document.body.classList.add('keys'); bunkNav(nav); }
@@ -3536,10 +3551,10 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
     return;
   }
-  if (game.state === 'farm') {          // Enter starts the day, P opens the pond, B the Bunkhouse, C picks a hopper
+  if (game.state === 'farm') {          // Enter starts the day, P opens the pond, B the buildings, C picks a hopper
     if (e.code === 'Enter' || e.code === 'Space') { goRoad(); e.preventDefault(); }
     else if (e.code === 'KeyP') openPond();
-    else if (e.code === 'KeyB') openBunk();
+    else if (e.code === 'KeyB') openBuilds();
     else if (e.code === 'KeyE') enterDecor();
     else if (e.code === 'KeyJ') stageAct();
     else if (e.code === 'KeyC') openHeroes();
@@ -3632,9 +3647,16 @@ function renderPortraits() {
   const head = shot(HEROES[0], 160, 1.08, 0.72, 0.74);
   const cards = HEROES.map(h => shot(h, 256, 0.8, 0.98));
   const decor = DECOR.map(id => shot({ build: () => { const group = new THREE.Group(); PIECES[id].build(group); return { group }; } }, 256, 0.9, 1.1, null, -0.45));
+  const builds = BUILDINGS.map(b => shot({ build: () => {   // each building as it looks once built, whether it is yet or not
+    const group = new THREE.Group(), was = [farm[b.id], farm[b.flag]];
+    farm[b.id] = group; farm[b.flag] = true;
+    b.draw();
+    [farm[b.id], farm[b.flag]] = was;
+    return { group };
+  } }, 256, 1.0, 1.75, null, -0.45));
   r.dispose();
   r.forceContextLoss();
-  return { head, cards, decor };
+  return { head, cards, decor, builds };
 }
 
 const shots = renderPortraits();
@@ -3820,10 +3842,70 @@ function bunkNav(dir) {
   refreshBunk();
 }
 const bunkAct = () => farm.bunkBuilt ? unlockHero(HEROES[bunkFocus].id) : buildBunkhouse();
-$('bunkBtn').addEventListener('click', () => { sfx.ensure(); openBunk(); });
 $('bunkBuy').addEventListener('click', buildBunkhouse);
 $('bunkClose').addEventListener('click', closeBunk);
 $('bunk').addEventListener('click', e => { if (e.target.id === 'bunk') closeBunk(); });
+
+// ---------- Farm Buildings menu ----------
+// A card for each building: its picture and level once it's built, a grey shape,
+// "???" and the price until then. A tap opens the building (or its plans). Under
+// them: arranging the farm, and the decorations shop.
+const buildsOpen = () => $('builds').classList.contains('show');
+const buildGrid = $('buildGrid');
+const BUILD_ACTS = [$('arrangeBtn'), $('decorShopBtn')];
+let buildFocus = 0;
+BUILDINGS.forEach((b, i) => {
+  const card = document.createElement('button');
+  card.className = 'heroCard';
+  card.innerHTML = `<img class="cutout" alt="" src="${shots.builds[i]}"><span class="heroName"></span><span class="lvl"></span><i class="tag"></i>`;
+  card.addEventListener('click', () => { buildFocus = i; buildAct(); });
+  buildGrid.append(card);
+});
+const buildItems = () => [...buildGrid.children, ...BUILD_ACTS];
+function refreshBuilds() {
+  const nav = document.body.classList.contains('pad') || document.body.classList.contains('keys');
+  [...buildGrid.children].forEach((c, i) => {
+    const b = BUILDINGS[i], lvl = buildLevel(b), name = t(b.name);
+    c.classList.toggle('unbuilt', !lvl);
+    c.querySelector('.heroName').textContent = lvl ? name : t('notBuilt');
+    c.querySelector('.lvl').textContent = lvl ? t('buildLevel', { n: lvl }) : '';
+    c.querySelector('.tag').innerHTML = lvl ? '' : FLOWER_SVG + `<span>${b.cost}</span>`;
+    c.setAttribute('aria-label', lvl ? t('aria.building', { name, n: lvl }) : t('aria.unbuilt', { n: b.cost }));
+  });
+  buildItems().forEach((c, i) => c.classList.toggle('focus', nav && i === buildFocus));
+}
+function openBuilds() {
+  if (GUEST || game.state !== 'farm') return;
+  closeHeroes(); closePond(); closeBunk(); closeStage();
+  buildFocus = 0;
+  refreshBuilds();
+  $('builds').classList.add('show');
+  game.picking = true;
+}
+function closeBuilds() {
+  $('builds').classList.remove('show');
+  game.picking = anyPanel();
+}
+function buildAct() {
+  const n = BUILDINGS.length;
+  closeBuilds();
+  if (buildFocus < n) BUILDINGS[buildFocus].open();
+  else if (buildFocus === n) enterDecor();
+  else { enterDecor(); openShop(); }
+}
+function buildsNav(dir) {
+  const n = BUILDINGS.length, cards = [...buildGrid.children];
+  if (buildFocus < n) {
+    const next = gridStep(cards, buildFocus, dir);
+    buildFocus = next === buildFocus && dir === 'down' ? n : next;   // off the bottom: onto the buttons
+  } else if (dir === 'up') buildFocus = 0;
+  else if (dir === 'left' || dir === 'right') buildFocus = dir === 'left' ? n : n + 1;
+  refreshBuilds();
+}
+$('buildBtn').addEventListener('click', () => { sfx.ensure(); openBuilds(); });
+BUILD_ACTS.forEach((btn, i) => btn.addEventListener('click', () => { sfx.ensure(); buildFocus = BUILDINGS.length + i; buildAct(); }));
+$('buildsClose').addEventListener('click', closeBuilds);
+$('builds').addEventListener('click', e => { if (e.target.id === 'builds') closeBuilds(); });
 
 // ---------- Decorate mode ----------
 // Drag things around the farm and turn them; buy decorations in the shop. Everything
@@ -3860,7 +3942,7 @@ function focusPiece(p) {   // bring it into view (controller users can't drag th
 function enterDecor() {
   if (GUEST) return;
   if (game.state !== 'farm' || decor.on) return;
-  closeHeroes(); closePond(); closeBunk(); closeSettings();
+  closeHeroes(); closePond(); closeBunk(); closeBuilds(); closeSettings();
   decor.on = true;
   document.body.classList.add('decor');
   selectPiece(null);
@@ -3942,7 +4024,6 @@ function nextPiece() {
   focusPiece(farm.pieces[id]);
   sfx.pick();
 }
-$('decorBtn').addEventListener('click', () => { sfx.ensure(); enterDecor(); });
 $('doneBtn').addEventListener('click', exitDecor);
 $('rotateBtn').addEventListener('click', rotatePiece);
 $('shopBtn').addEventListener('click', () => { sfx.ensure(); openShop(); });
@@ -5039,6 +5120,7 @@ function applyLang() {
   setHint();
   if (pondOpen()) refreshPond();
   if (bunkOpen()) refreshBunk();
+  if (buildsOpen()) refreshBuilds();
   if (shopOpen()) refreshShop();
   if (stageOpen()) refreshStage();
   if (settingsOpen()) renderSettings();
@@ -5182,6 +5264,12 @@ function pollPad() {
     if (pressed(0) || pressed(1) || pressed(9)) exitDecor();
     return;
   }
+  if (game.picking && buildsOpen()) {
+    if (dir) buildsNav(dir);
+    if (pressed(0) || pressed(9)) buildAct();
+    if (pressed(1) || pick) closeBuilds();
+    return;
+  }
   if (game.picking && bunkOpen()) {
     if (dir) bunkNav(dir);
     if (pressed(0) || pressed(9)) bunkAct();
@@ -5196,7 +5284,7 @@ function pollPad() {
   }
   if (game.state === 'farm') {          // A or Start: start the day; Y: hoppers; X: Fish Pond; B: Bunkhouse
     if (pressed(0) || pressed(9)) goRoad();
-    else if (pressed(1)) openBunk();
+    else if (pressed(1)) openBuilds();
     else if (pressed(5)) enterDecor();     // RB
     else if (pressed(4)) stageAct();       // LB
     else if (pressed(3)) openHeroes();

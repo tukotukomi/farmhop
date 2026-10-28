@@ -416,6 +416,31 @@ body.pad .heroCard.focus, body.keys .heroCard.focus, .heroCard:focus-visible { o
 :is(#bunkGrid, #shopGrid) .heroCard .tag.cost { background: var(--cream); padding: 0 9px 0 3px; font-size: 16px; font-weight: 700; }
 :is(#bunkGrid, #shopGrid) .heroCard .tag.cost .flower { width: 24px; height: 24px; }
 :is(#bunkGrid, #shopGrid) .heroCard.short .tag.cost { opacity: .7; }
+/* ---------- Farm Buildings menu ---------- */
+#buildGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 168px)); justify-content: center; gap: 12px; width: 100%; }
+#buildGrid .heroCard { background: #ffe9c7; }
+#buildGrid .lvl { font-size: 13px; font-weight: 700; opacity: .75; margin-top: 4px; background: none; border: 0; padding: 0; }
+#buildGrid .heroCard.unbuilt { background: #ddd6e2; }
+#buildGrid .heroCard.unbuilt img { filter: grayscale(1) brightness(.6) contrast(.5); opacity: .5; }   /* just a grey shape until it's built */
+#buildGrid .heroCard.unbuilt .heroName { background: #ece7f0; color: #8a7f92; }
+#buildGrid .heroCard .tag {
+  position: absolute; top: -12px; right: -10px;
+  display: inline-flex; align-items: center; gap: 2px; height: 34px; box-sizing: border-box;
+  background: var(--cream); padding: 0 9px 0 3px; font-size: 16px; font-weight: 700;
+  border: 2.5px solid var(--ink); border-radius: 999px; box-shadow: 0 3px 0 var(--ink-soft);
+}
+#buildGrid .heroCard .tag .flower { width: 24px; height: 24px; }
+#buildGrid .heroCard .tag:empty { display: none; }
+.buildActs { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 6px; }
+.actBtn {
+  border-radius: 999px !important; width: auto; height: auto;
+  padding: 8px 18px 10px 10px; display: inline-flex; align-items: center; gap: 8px;
+  font-size: 18px; font-weight: 700; color: #fff; text-shadow: 0 2px 0 rgba(58, 36, 66, .45);
+}
+.actBtn svg { width: 34px; height: 34px; }
+#arrangeBtn { --c1: var(--leaf); --c2: var(--leaf-d); }
+#decorShopBtn { --c1: var(--berry); --c2: var(--berry-d); }
+body.pad .actBtn.focus, body.keys .actBtn.focus { outline: 4px solid var(--sky); outline-offset: 3px; }
 #bunkGrid .heroCard.yay { animation: yay .5s cubic-bezier(.3, 1.8, .5, 1); }
 
 /* ---------- Jam Stage ----------
@@ -470,7 +495,7 @@ body.pad .heroCard.focus, body.keys .heroCard.focus, .heroCard:focus-visible { o
 .partyChip .path.direct { background: var(--sky); }
 .partyChip .path.relay { background: var(--cream-d); }
 /* a guest on a friend's farm: just hopping, no shops or building */
-body.guest #bunkBtn, body.guest #start, body.guest #pondBtn, body.guest #decorBtn,
+body.guest #buildBtn, body.guest #start, body.guest #pondBtn,
 body.guest #phonesBtn, body.guest #partyBtn, body.guest #play { display: none !important; }
 #guestWait {
   position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px;
