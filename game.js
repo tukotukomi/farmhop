@@ -3704,9 +3704,14 @@ window.addEventListener('pointerdown', e => {
   if (!exploring(e)) return;
   const meF = fishers.get(myKey());
   if (meF) {   // fishing: the whole screen is the reel
-    fishPtr = e.pointerId;
-    if (meF.st === 'bite' || meF.st === 'reel') { fishDrag = null; fishPress(meF, true, 'tap', e.timeStamp / 1000); }   // timing counts: straight away
-    else fishDrag = { x: e.clientX, yaw: fishCam.yaw, moved: false };                            // a tap, or a drag to look around
+    fishTouch.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (meF.st === 'bite' || meF.st === 'reel') {   // timing counts: straight away, from any finger (two thumbs drum faster)
+      fishPtr = e.pointerId;
+      fishDrag = null;
+      fishPress(meF, false);
+      fishPress(meF, true, 'tap', e.timeStamp / 1000);
+    } else if (fishTouch.size === 2) { fishDrag = null; fishPinch = 0; }                          // two fingers: zoom
+    else { fishPtr = e.pointerId; fishDrag = { x: e.clientX, y: e.clientY, yaw: fishCam.yaw, pitch: fishView.pitch, moved: false }; }   // a tap, or a drag to look around
     return;
   }
   if (decor.on && !touches.size && decorGrab(e)) return;   // picked up a piece: drag it instead of the view
@@ -3715,10 +3720,23 @@ window.addEventListener('pointerdown', e => {
   pinch = 0;
 });
 window.addEventListener('pointermove', e => {
+  const ft = fishTouch.get(e.pointerId);
+  if (ft) {
+    ft.x = e.clientX; ft.y = e.clientY;
+    if (fishTouch.size === 2) {   // pinch to zoom
+      const [m, n] = [...fishTouch.values()], d = Math.hypot(m.x - n.x, m.y - n.y);
+      if (fishPinch) setFishView(fishView.pitch, fishView.zoom * fishPinch / d);
+      fishPinch = d;
+      return;
+    }
+  }
   if (fishDrag && e.pointerId === fishPtr) {
-    const dx = e.clientX - fishDrag.x;
-    if (Math.abs(dx) > 8) fishDrag.moved = true;
-    if (fishDrag.moved) fishCam.yaw = fishDrag.yaw - dx * 0.012;
+    const dx = e.clientX - fishDrag.x, dy = e.clientY - fishDrag.y;
+    if (Math.hypot(dx, dy) > 8) fishDrag.moved = true;
+    if (fishDrag.moved) {
+      fishCam.yaw = fishDrag.yaw - dx * 0.012;
+      setFishView(fishDrag.pitch + dy * 0.006, fishView.zoom);   // drag down to look down from higher up
+    }
     return;
   }
   if (decor.drag && decor.drag.id === e.pointerId) { decorDrag(e); return; }
@@ -3740,6 +3758,10 @@ window.addEventListener('pointermove', e => {
   }
 });
 function farmPointerUp(e) {
+  if (fishTouch.delete(e.pointerId)) {
+    fishPinch = 0;
+    if (fishPtr !== e.pointerId) return;   // the other finger of a pinch, or a second thumb
+  }
   if (fishPtr != null && fishPtr === e.pointerId) {
     fishPtr = null;
     const f = fishers.get(myKey());
@@ -3760,6 +3782,7 @@ window.addEventListener('pointercancel', farmPointerUp);
 window.addEventListener('wheel', e => {
   if (game.state !== 'farm' || game.picking) return;
   e.preventDefault();
+  if (fishCam.on) { setFishView(fishView.pitch, fishView.zoom * Math.exp(e.deltaY * 0.0015)); return; }   // the fishing camera
   zoomFarm(Math.exp(-e.deltaY * 0.0015));
 }, { passive: false });
 // A tap on the pond or the Bunkhouse opens it; a tap on a hopper gets a happy hop.
@@ -3803,6 +3826,8 @@ window.addEventListener('keyup', e => {
   const meF = fishers.get(myKey()), kf = keysPlayer() && fishers.get('p' + keysPlayer());
   if (meF && (e.code === 'Space' || e.code === 'Enter')) fishPress(meF, false);
   if (['KeyA', 'KeyD', 'ArrowLeft', 'ArrowRight'].includes(e.code)) fishCam.spin = 0;
+  if (['KeyW', 'KeyS', 'ArrowUp', 'ArrowDown'].includes(e.code)) fishCam.tilt = 0;
+  if (['KeyQ', 'KeyE'].includes(e.code)) fishCam.zoomSpin = 0;
   if (kf && e.code.startsWith('Arrow')) fishPress(kf, false);
 });
 window.addEventListener('keydown', e => {
@@ -3893,6 +3918,9 @@ window.addEventListener('keydown', e => {
     const meF = fishers.get(myKey()), kp = keysPlayer(), kf = kp && fishers.get('p' + kp);
     const turn = { KeyA: 1, KeyD: -1, ...(kp ? {} : { ArrowLeft: 1, ArrowRight: -1 }) }[e.code];
     if (meF && turn) { fishCam.spin = turn; e.preventDefault(); return; }
+    const tilt = { KeyW: -1, KeyS: 1, ...(kp ? {} : { ArrowUp: -1, ArrowDown: 1 }) }[e.code], zoom = { KeyQ: -1, KeyE: 1 }[e.code];
+    if (meF && tilt) { fishCam.tilt = tilt; e.preventDefault(); return; }
+    if (meF && zoom) { fishCam.zoomSpin = zoom; e.preventDefault(); return; }
     if (meF && ['Space', 'Enter', 'Escape', 'KeyF'].includes(e.code)) {
       if (e.code === 'Escape' || e.code === 'KeyF') stopFish(myKey());
       else if (!e.repeat) fishPress(meF, true, 'keys', e.timeStamp / 1000);
@@ -4118,6 +4146,8 @@ const seen = new Map();                            // walker key -> someone fish
 const catches = [];                                // catch cards floating over hoppers
 const DOCK_Y = 0.15;
 let fishPtr = null;                                // the finger or mouse button reeling for you
+const fishTouch = new Map();                       // every finger down while fishing
+let fishPinch = 0;
 const pondPiece = () => farm.pieces.pond;
 const farmToPond = (x, z) => {                     // a farm point in the pond's own space
   const p = pondPiece(), a = p.r * Math.PI / 2, c = Math.cos(a), s = Math.sin(a), dx = x - p.x, dz = z - p.z;
@@ -4177,7 +4207,7 @@ function stopFish(key) {
   w.wait = STEER_IDLE;
   if (w.y) { w.y = 0; landLeap(w, ...f.spot.land, 0.4); }   // hop back off the dock
   if (f.st !== 'walk' && f.st !== 'settle') tellFish(f, false);
-  if (key === myKey()) { document.body.classList.remove('fishing'); fishPtr = null; }
+  if (key === myKey()) { document.body.classList.remove('fishing'); fishPtr = null; fishTouch.clear(); }
 }
 function stopAllFishing() {
   for (const key of [...fishers.keys()]) stopFish(key);
@@ -4544,7 +4574,7 @@ function placeFishUi(f, hide) {
   el.style.transform = `translate(${x}px, ${y}px)`;
   const big = fishCam.on && f.key === myKey(), reel = el.querySelector('.reel');
   el.classList.toggle('big', big);
-  if (big) Object.assign(reel.style, { left: `${innerWidth / 2 - x}px`, top: `${innerHeight - 196 - y}px`, bottom: 'auto' });
+  if (big) Object.assign(reel.style, { left: `${innerWidth / 2 - x}px`, top: `${innerHeight - clamp(innerHeight * 0.3, 110, 196) - y}px`, bottom: 'auto' });
   else reel.removeAttribute('style');
   const text = promptFor(f);
   if (text !== f.say) {
@@ -4587,13 +4617,24 @@ function updateFishing(dt) {
 // close, the line, the bobber and the pond in view, with the beat lane underneath.
 // It turns around them with a drag (while there's nothing on the line), A and D,
 // or a controller's right stick or shoulder buttons.
-const fishCam = { on: false, yaw: 0, shown: 0, spin: 0, swoop: 1, look: new THREE.Vector3() };
+// Drag up and down (or W / S, the right stick) to tilt it; zoom with the mouse wheel,
+// a pinch, Q / E or the triggers. Tilt and zoom are remembered on this device.
+const FISH_PITCH = [0.18, 1.25], FISH_ZOOM = [0.55, 1.8];
+const fishView = { pitch: 0.62, zoom: 1, ...store.get('bl-fishcam', {}) };
+const fishCam = { on: false, yaw: 0, shown: 0, spin: 0, tilt: 0, zoomSpin: 0, swoop: 1, pitch: fishView.pitch, look: new THREE.Vector3() };
+let fishViewTimer = null;
+function setFishView(pitch, zoom) {
+  fishView.pitch = clamp(pitch, ...FISH_PITCH);
+  fishView.zoom = clamp(zoom, ...FISH_ZOOM);
+  clearTimeout(fishViewTimer);
+  fishViewTimer = setTimeout(() => store.set('bl-fishcam', { pitch: +fishView.pitch.toFixed(3), zoom: +fishView.zoom.toFixed(3) }), 600);
+}
 let fishDrag = null;                                 // a drag that turns the camera, or a tap that casts
 const _fcLook = new THREE.Vector3();
 const camFisher = () => { const f = fishers.get(myKey()); return f && f.st !== 'walk' && f.st !== 'settle' && !decor.on ? f : null; };
 fishCamHook = dt => {
   const f = camFisher();
-  if (!f) { Object.assign(fishCam, { on: false, yaw: 0, shown: 0, spin: 0, swoop: 1 }); return false; }
+  if (!f) { Object.assign(fishCam, { on: false, yaw: 0, shown: 0, spin: 0, tilt: 0, zoomSpin: 0, swoop: 1, pitch: fishView.pitch }); return false; }
   useCamera(perspCam);
   const w = f.w, base = farm.group.position, [ax, az] = pieceToFarm(pondPiece(), ...f.spot.aim);
   const dx = ax - w.x, dz = az - w.z, len = Math.hypot(dx, dz) || 1;
@@ -4601,17 +4642,19 @@ fishCamHook = dt => {
   if (sz < 0) { sx = -sx; sz = -sz; }                // from the front of the farm, to begin with
   fishCam.yaw += fishCam.spin * dt * 1.8;
   fishCam.shown += (fishCam.yaw - fishCam.shown) * Math.min(1, dt * 8);
+  if (fishCam.tilt || fishCam.zoomSpin) setFishView(fishView.pitch + fishCam.tilt * dt * 0.9, fishView.zoom * Math.exp(fishCam.zoomSpin * dt * 1.2));
+  fishCam.pitch += (fishView.pitch - fishCam.pitch) * Math.min(1, dt * 8);
   const c = Math.cos(fishCam.shown), s = Math.sin(fishCam.shown);
   [sx, sz] = [sx * c - sz * s, sx * s + sz * c];
   const halfW = Math.atan(Math.tan(perspCam.fov * Math.PI / 360) * perspCam.aspect);
   const dist = Math.max(4.4, (len + 2.4) / 2 / Math.tan(halfW));   // the hopper and where the bobber lands both fit, with room around
-  const ty = (w.y || 0) + (perspCam.aspect < 1 ? 0.25 : -0.25);   // the pond sits above the beat lane (on a tall screen there's room below)
+  const ty = (w.y || 0) + (perspCam.aspect < 1 ? 0.3 : 0.05);   // the pond sits above the beat lane (on a tall screen there's room below)
   _fcLook.set(base.x + w.x + dx * 0.28, ty, base.z + w.z + dz * 0.28);
   if (!fishCam.on) { fishCam.on = true; fishCam.swoop = 1; fishCam.look.copy(_fcLook); }
   fishCam.swoop *= Math.exp(-dt * 3);                // swoop in from further out and higher up
   fishCam.look.lerp(_fcLook, Math.min(1, dt * 3));
-  const d = dist * (1 + fishCam.swoop * 0.6);
-  camera.position.set(fishCam.look.x + sx * d, ty + 1 + dist * 0.08 + fishCam.swoop * 2.2, fishCam.look.z + sz * d);
+  const d = dist * fishView.zoom * (1 + fishCam.swoop * 0.6), p = fishCam.pitch + fishCam.swoop * 0.25;
+  camera.position.set(fishCam.look.x + sx * d * Math.cos(p), ty + d * Math.sin(p), fishCam.look.z + sz * d * Math.cos(p));
   camera.lookAt(fishCam.look);
   sun.position.copy(fishCam.look).add(SUN_OFF);
   sun.target.position.copy(fishCam.look);
@@ -6033,7 +6076,7 @@ if (RELAY && !GUEST) try { if (sessionStorage.getItem('bl-party-room')) partySta
 // Book, Hop Supporter, settings) is copied to the player's Google account, and comes
 // down again on another device. See account/tuko-account.js; the farm saves on the
 // device first, as always.
-const DEVICE_ONLY = ['bl-gfx-auto', 'bl-beat-lag'];   // measured on this device: not worth carrying over
+const DEVICE_ONLY = ['bl-gfx-auto', 'bl-beat-lag', 'bl-fishcam'];   // measured on this device: not worth carrying over
 const savedKeys = () => Object.keys(localStorage).filter(k => k.startsWith('bl-') && !DEVICE_ONLY.includes(k));
 const account = window.TUKO_FIREBASE && !GUEST ? createAccount({
   app: 'farmhop',
@@ -6405,9 +6448,11 @@ function pollPad() {
     return;
   }
   const meF = game.state === 'farm' && !game.picking && fishers.get(myKey());
-  if (meF) {   // fishing: A casts and reels, B stops, the right stick or LB / RB turn the camera
-    const rx = gp.axes[2] || 0;
+  if (meF) {   // fishing: A casts and reels, B stops; the right stick turns and tilts the camera, LB / RB turn it, the triggers zoom
+    const rx = gp.axes[2] || 0, ry = gp.axes[3] || 0;
     fishCam.spin = Math.abs(rx) > 0.3 ? -rx : down[4] ? 1 : down[5] ? -1 : 0;
+    fishCam.tilt = Math.abs(ry) > 0.3 ? ry : 0;
+    fishCam.zoomSpin = (gp.buttons[7]?.value || 0) - (gp.buttons[6]?.value || 0);
     if (pressed(0)) fishPress(meF, true, 'pad');
     if (released(0)) fishPress(meF, false);
     if (pressed(1)) stopFish(myKey());
