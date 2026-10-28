@@ -1,0 +1,17 @@
+rules_version = '2';
+// Tuko account (see tuko-account.js): each signed-in person can read and write only
+// their own saves, one document per site. Nothing else in the database is reachable.
+// Paste into Firebase console > Firestore Database > Rules, and Publish.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid}/apps/{app} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && app in ['farmhop', 'fractalize', 'fantasyradio']
+        && request.resource.data.keys().hasOnly(['v', 'data', 'savedAt', 'device'])
+        && request.resource.data.data is map
+        && request.resource.data.savedAt == request.time
+        && request.resource.data.device is string && request.resource.data.device.size() <= 16;
+    }
+  }
+}

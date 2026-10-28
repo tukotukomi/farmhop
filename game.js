@@ -7,6 +7,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { createMusic, breakHit } from './music.js';
 import { STRINGS, LANGS } from './lang.js';
 import { joinFarm } from './guest.js';
+import { createAccount } from './account/tuko-account.js';
 
 // ---------- moving house ----------
 // Each website keeps its own saves, so the old address (tuckermills.com/farmhop)
@@ -54,6 +55,7 @@ let guestKeys = guestNet ? { ...guestNet.farm.keys, 'bl-owned-v2': true } : null
 let guestKey = guestNet?.farm.me || null;   // which hopper on the farm is ours: 'p' + our slot
 const farmKey = k => FARM_KEYS.includes(k) || k === 'bl-hero' || k === 'bl-owned-v2';
 let onFarmSave = null;   // the host tells its guests when the farm changes
+let onLocalSave = null;  // ...and the Google account gets a copy
 
 // ---------- tuning ----------
 const COLS = 4;                 // playable columns either side of centre
@@ -116,6 +118,7 @@ const store = {
     if (guestKeys && farmKey(k)) { guestKeys[k] = v; return; }
     try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode */ }
     if (FARM_KEYS.includes(k)) onFarmSave?.();
+    onLocalSave?.();   // signed in: copied to the account a few seconds later
   },
 };
 
@@ -3807,6 +3810,7 @@ window.addEventListener('keydown', e => {
   if (e.target.closest?.('input')) { if (e.code === 'Escape') { closeParty(); closeSupport(); } return; }   // typing a room code, or a supporter code
   if (partyOpen()) { if (e.code === 'Escape' || e.code === 'Enter') closeParty(); e.preventDefault(); return; }
   if (game.picking && supportOpen()) { if (e.code === 'Escape') closeSupport(); return; }
+  if (game.picking && pickOpen()) { if (e.code === 'Escape') closePick(); return; }
   if (game.picking && settingsOpen()) {   // Settings: arrows change things, Escape or Enter closes
     const nav = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[e.code];
     if (nav) { document.body.classList.add('keys'); settingsNav(nav); }
@@ -6008,11 +6012,87 @@ $('partyInvite').addEventListener('click', async () => {
 });
 if (RELAY && !GUEST) try { if (sessionStorage.getItem('bl-party-room')) partyStart(); } catch {}   // a reload mid-jam picks the phones back up
 
+// ---------- Google account: cloud saves ----------
+// Signed in, everything this device saves (the farm, sunflowers, hoppers, the Fish
+// Book, Hop Supporter, settings) is copied to the player's Google account, and comes
+// down again on another device. See account/tuko-account.js; the farm saves on the
+// device first, as always.
+const DEVICE_ONLY = ['bl-gfx-auto'];   // measured on this device: not worth carrying over
+const savedKeys = () => Object.keys(localStorage).filter(k => k.startsWith('bl-') && !DEVICE_ONLY.includes(k));
+const account = window.TUKO_FIREBASE && !GUEST ? createAccount({
+  app: 'farmhop',
+  config: window.TUKO_FIREBASE,
+  read: () => Object.fromEntries(savedKeys().map(k => [k, localStorage.getItem(k)])),
+  write: data => {   // the account's farm replaces this device's: start again on it
+    for (const k of savedKeys()) localStorage.removeItem(k);
+    for (const [k, v] of Object.entries(data)) if (k.startsWith('bl-') && typeof v === 'string') localStorage.setItem(k, v);
+    location.reload();
+  },
+  fresh: data => !['bl-coins', 'bl-top', 'bl-owned', 'bl-pond', 'bl-fish', 'bl-supporter', 'bl-bunk', 'bl-stage'].some(k => k in data),
+}) : null;
+if (account) onLocalSave = () => account.changed();
+function farmSummary(data) {   // "12 sunflowers · 3 hoppers · pond level 4 · best 57"
+  const v = (k, d) => { try { return JSON.parse(data[k]) ?? d; } catch { return d; } };
+  return t('acct.sum', { coins: v('bl-coins', 0), hoppers: 1 + v('bl-owned', []).length, pond: v('bl-pond', 0), top: v('bl-top', 0), fish: Object.keys(v('bl-fish', {})).length });
+}
+const pickOpen = () => $('acctPick').classList.contains('show');
+let pickShown = false;   // asked once per conflict; after that, from Settings
+function renderAccount() {
+  if (!account) { $('acctRow').hidden = true; return; }
+  const s = account.state, u = s.user;
+  $('acctRow').hidden = false;
+  $('acctOut').hidden = !!u || !s.ready;
+  $('acctIn').hidden = !u;
+  if (!u) return;
+  $('acctPic').src = u.photo || 'icon-192.png';
+  $('acctName').textContent = u.name;
+  $('acctEmail').textContent = u.email;
+  $('acctStatus').textContent = s.status === 'saved' ? t('acct.saved', { time: new Date(s.savedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) })
+    : t('acct.' + ({ syncing: 'saving', error: 'error', conflict: 'conflict' }[s.status] || 'saving'));
+  $('acctPickBtn').hidden = s.status !== 'conflict';
+}
+function openPick() {
+  const c = account.state.conflict;
+  if (!c) return;
+  $('pickDeviceSum').textContent = farmSummary(c.device);
+  $('pickAccountSum').textContent = farmSummary(c.account);
+  closeSettings();
+  $('acctPick').classList.add('show');
+  game.picking = true;
+}
+function closePick() {
+  $('acctPick').classList.remove('show');
+  game.picking = anyPanel();
+}
+function accountError(e) {
+  console.warn(e);
+  const s = $('acctStatus');
+  if (s) s.textContent = t('acct.error');
+}
+if (account) {
+  account.on(s => {
+    if ($('settings').classList.contains('show')) renderAccount();   // (Settings is set up further down)
+    if (s.status !== 'conflict') pickShown = false;
+    else if (!pickShown && game.where === 'farm' && !anyPanel()) { pickShown = true; openPick(); }   // ask straight away, once
+  });
+  $('acctSignIn').addEventListener('click', () => { sfx.ensure(); account.signIn().catch(accountError); });
+  $('acctOutBtn').addEventListener('click', () => account.signOut().then(renderAccount));
+  $('acctPickBtn').addEventListener('click', openPick);
+  $('acctDel').addEventListener('click', async () => {
+    if (!confirm(t('acct.deleteSure'))) return;
+    try { await account.deleteAll(); renderAccount(); } catch (e) { accountError(e); }
+  });
+  $('pickDevice').addEventListener('click', () => { closePick(); account.keep('device'); });
+  $('pickAccount').addEventListener('click', () => { closePick(); account.keep('account'); });
+  $('pickClose').addEventListener('click', closePick);
+  $('acctPick').addEventListener('click', e => { if (e.target.id === 'acctPick') closePick(); });
+}
+
 // ---------- settings (from the farm only) ----------
 // Language, music and effects volume, the road's view angle, and the art style.
 // With a controller or arrow keys: up/down picks a row, left/right changes it.
 const settingsOpen = () => $('settings').classList.contains('show');
-const SET_ROWS = [...(SUPPORT_URL ? ['sup'] : []), 'lang', 'music', 'fx', 'coop', 'gfx'];   // in the order they're shown
+const SET_ROWS = [...(account ? ['acct'] : []), ...(SUPPORT_URL ? ['sup'] : []), 'lang', 'music', 'fx', 'coop', 'gfx'];   // in the order they're shown
 const GFX_CHOICES = ['auto', ...Q_LEVELS];
 let setFocus = 0;
 function segment(el, labels, current, pick, icons) {
@@ -6043,6 +6123,7 @@ function renderSettings() {
   const v = sfx.volumes;
   setVolSlider('volMusic', v.music);
   setVolSlider('volFx', v.fx);
+  renderAccount();
   $('supRow').hidden = !SUPPORT_URL;
   $('supBtn').hidden = supporter;
   $('supHave').hidden = !supporter;
@@ -6112,6 +6193,7 @@ function settingsNav(dir) {
     renderSettings();
   } else if (row === 'coop') setSplit(!splitPref);
   else if (row === 'gfx') setGfx(GFX_CHOICES[(GFX_CHOICES.indexOf(gfx) + d + GFX_CHOICES.length) % GFX_CHOICES.length]);
+  else if (row === 'acct') { if (!account.state.user) account.signIn().catch(accountError); }
   else if (row === 'sup') { if (supporter && !GUEST) setSong(songStyle() !== 'dnb'); else if (!supporter) openSupport(); }
 }
 for (const [id, which] of [['volMusic', 'music'], ['volFx', 'fx']]) {
@@ -6292,6 +6374,7 @@ function pollPad() {
 
   if (partyOpen()) { if (pressed(0) || pressed(1) || pressed(9)) closeParty(); return; }
   if (game.picking && supportOpen()) { if (pressed(1) || pressed(9)) closeSupport(); return; }
+  if (game.picking && pickOpen()) { if (pressed(1)) closePick(); return; }
   if (game.picking && settingsOpen()) {
     if (dir) settingsNav(dir);
     if (pressed(1) || pressed(8) || pressed(9)) closeSettings();

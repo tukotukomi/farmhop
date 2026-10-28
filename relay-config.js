@@ -8,3 +8,8 @@ window.FARMHOP_RELAY_URL = "wss://farmhop-relay.fractalize-studio.workers.dev";
 // The $5 Stripe Payment Link (the main "Support $5" button). Empty: Ko-fi only.
 window.FARMHOP_STRIPE_LINK = "https://donate.stripe.com/cNi7sLfaUdic0Xj9D783C00";
 window.FARMHOP_SUPPORT_URL = "https://farmhop-support.fractalize-studio.workers.dev";
+
+// The Firebase web app's settings (Firebase console > Project settings > Your apps),
+// for "Sign in with Google" and cloud saves (see account/). These are not secrets:
+// Firestore's rules decide who can read what. Leave null to hide the Account row.
+window.TUKO_FIREBASE = null;
