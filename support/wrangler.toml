@@ -6,4 +6,4 @@ compatibility_date = "2025-01-01"
 # (the id below is filled in from what that prints)
 [[kv_namespaces]]
 binding = "SUPPORT"
-id = "REPLACE_WITH_KV_ID"
+id = "4df877fd1db14a1f8c06347da5c9c0bd"

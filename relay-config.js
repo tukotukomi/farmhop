@@ -5,4 +5,4 @@ window.FARMHOP_RELAY_URL = "wss://farmhop-relay.fractalize-studio.workers.dev";
 
 // Address of the Hop Supporters worker (see support/). Leave empty to hide
 // "Become a Hop Supporter" in Settings.
-window.FARMHOP_SUPPORT_URL = "";
+window.FARMHOP_SUPPORT_URL = "https://farmhop-support.fractalize-studio.workers.dev";
