@@ -53,6 +53,7 @@ export function createAccount({ app, config, read, write, fresh = () => false })
     auth = U.getAuth(fbApp);
     db = F.getFirestore(fbApp);
     fb = { U, F };
+    U.getRedirectResult(auth).catch(err => { console.warn('tuko-account', err); state.status = 'error'; emit(); });   // back from Google's page
     U.onAuthStateChanged(auth, u => {
       state.ready = true;
       state.user = u ? { uid: u.uid, name: u.displayName || '', email: u.email || '', photo: u.photoURL || '' } : null;
@@ -118,9 +119,12 @@ export function createAccount({ app, config, read, write, fresh = () => false })
       await load();
       const provider = new fb.U.GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
+      // An iPhone Home Screen app goes to Google's page and back (a pop-up there opens
+      // in Safari, away from the app); everywhere else a pop-up keeps the game in place.
+      if (navigator.standalone === true) { lsSet(SIGNED, true); return fb.U.signInWithRedirect(auth, provider); }
       try { await fb.U.signInWithPopup(auth, provider); }
       catch (e) {
-        if (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment') await fb.U.signInWithRedirect(auth, provider);
+        if (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment') { lsSet(SIGNED, true); await fb.U.signInWithRedirect(auth, provider); }
         else if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') throw e;
       }
     },

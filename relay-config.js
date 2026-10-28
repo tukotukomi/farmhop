@@ -12,4 +12,12 @@ window.FARMHOP_SUPPORT_URL = "https://farmhop-support.fractalize-studio.workers.
 // The Firebase web app's settings (Firebase console > Project settings > Your apps),
 // for "Sign in with Google" and cloud saves (see account/). These are not secrets:
 // Firestore's rules decide who can read what. Leave null to hide the Account row.
-window.TUKO_FIREBASE = null;
+window.TUKO_FIREBASE = {
+  apiKey: "AIzaSyDyj8JCrPoTyJ0aBVyftGmAp7RUD9-9UF8",
+  // farmhop.fun serves Firebase's sign-in helper itself (see __/), so sign-in stays on this site
+  authDomain: /(^|.)farmhop.fun$/.test(location.hostname) ? location.hostname : "fun-by-tuko.firebaseapp.com",
+  projectId: "fun-by-tuko",
+  storageBucket: "fun-by-tuko.firebasestorage.app",
+  messagingSenderId: "1017717662779",
+  appId: "1:1017717662779:web:e0ca54e2c124b5c5dea81e",
+};
