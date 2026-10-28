@@ -14,7 +14,7 @@ export const STRINGS = {
     tips: {
       hop: 'Tap the grass to hop around!', start: 'Tap the big green button to start the day!',
       pond: 'Spend sunflowers at the Fish Pond!', bunk: 'Save up {n} sunflowers to build the Bunkhouse!',
-      stage: 'Build the Jam Stage and play some music!', decor: 'Arrange the farm from the buildings menu!',
+      stage: 'Build the Jam Stage and play some music!', decor: 'Rearrange the farm from the buildings menu!',
       hopper: 'Tap the hopper button to switch hoppers!', friends: 'Invite friends to hop with you!',
       guest: 'Welcome to the farm, friend!',
       hopPad: 'Use the D-pad to hop around!', startPad: 'Press A to start the day!', pondPad: 'Press X for the Fish Pond!',
@@ -48,7 +48,7 @@ export const STRINGS = {
       goose: 'Chased off by geese!', harvest: 'Baled up by a combine!', dusted: 'Buzzed by a crop duster!', other: 'Oh no!',
     },
     heroes: { betty: 'Betty Lou', axolotl: 'Axolotl Princess', catstar: 'Catstar', leafwish: 'LeafWish', tuko: 'Tuko' },
-    buildings: 'Farm Buildings', buildLevel: 'Level {n}', notBuilt: '???', arrange: 'Arrange the farm', decorShop: 'Decor Shop',
+    buildings: 'Farm Buildings', buildLevel: 'Level {n}', notBuilt: '???', arrange: 'Rearrange', decorShop: 'Decor Shop',
     bunkhouse: 'Bunkhouse', bunkPlan: 'Build a cozy cabin so new hoppers can move in.', build: 'Build',
     bunkWho: 'Tap a hopper to invite them to the farm.', movedIn: '{name} moved in!',
     party: {
@@ -88,7 +88,7 @@ export const STRINGS = {
     tips: {
       hop: '¡Toca la hierba para saltar!', start: '¡Toca el gran botón verde para empezar el día!',
       pond: '¡Gasta girasoles en el estanque!', bunk: '¡Junta {n} girasoles para construir la cabaña!',
-      stage: '¡Construye el escenario y toca música!', decor: '¡Ordena la granja desde el menú de edificios!',
+      stage: '¡Construye el escenario y toca música!', decor: '¡Reorganiza la granja desde el menú de edificios!',
       hopper: '¡Toca el botón del saltarín para cambiar de saltarín!', friends: '¡Invita a tus amigos a saltar contigo!',
       guest: '¡Bienvenido a la granja, amigo!',
       hopPad: '¡Usa la cruceta para saltar!', startPad: '¡Pulsa A para empezar el día!', pondPad: '¡Pulsa X para el estanque!',
@@ -122,7 +122,7 @@ export const STRINGS = {
       goose: '¡Los gansos te echaron!', harvest: '¡Una cosechadora te hizo paca!', dusted: '¡Una avioneta fumigadora te pasó rozando!', other: '¡Ay, no!',
     },
     heroes: { betty: 'Betty Lou', axolotl: 'Princesa Ajolote', catstar: 'Catstar', leafwish: 'LeafWish', tuko: 'Tuko' },
-    buildings: 'Edificios de la granja', buildLevel: 'Nivel {n}', notBuilt: '???', arrange: 'Ordenar la granja', decorShop: 'Tienda de adornos',
+    buildings: 'Edificios de la granja', buildLevel: 'Nivel {n}', notBuilt: '???', arrange: 'Reorganizar', decorShop: 'Tienda de adornos',
     bunkhouse: 'La cabaña', bunkPlan: 'Construye una cabaña acogedora para que lleguen nuevos saltarines.', build: 'Construir',
     bunkWho: 'Toca un saltarín para invitarlo a la granja.', movedIn: '¡{name} se mudó a la granja!',
     party: {
@@ -162,7 +162,7 @@ export const STRINGS = {
     tips: {
       hop: '点草地跳来跳去吧！', start: '点那个绿色大按钮开始新的一天！',
       pond: '用向日葵升级鱼塘吧！', bunk: '攒够 {n} 朵向日葵就能盖小木屋！',
-      stage: '盖个舞台，一起来演奏音乐吧！', decor: '在建筑菜单里布置农场吧！',
+      stage: '盖个舞台，一起来演奏音乐吧！', decor: '在建筑菜单里重新布置农场吧！',
       hopper: '点角色按钮换个伙伴吧！', friends: '邀请朋友一起来跳吧！',
       guest: '欢迎来农场玩，朋友！',
       hopPad: '用十字键跳来跳去吧！', startPad: '按 A 开始新的一天！', pondPad: '按 X 打开鱼塘！',
@@ -196,7 +196,7 @@ export const STRINGS = {
       goose: '被大鹅赶跑了！', harvest: '被收割机打成了草捆！', dusted: '被喷药飞机扫到了！', other: '哎呀！',
     },
     heroes: { betty: '贝蒂·露', axolotl: '六角恐龙公主', catstar: '星星猫', leafwish: '许愿叶', tuko: '图科' },
-    buildings: '农场建筑', buildLevel: '等级 {n}', notBuilt: '???', arrange: '布置农场', decorShop: '装饰商店',
+    buildings: '农场建筑', buildLevel: '等级 {n}', notBuilt: '???', arrange: '重新布置', decorShop: '装饰商店',
     bunkhouse: '小木屋', bunkPlan: '盖一间温馨的小木屋，让新伙伴搬进来。', build: '建造',
     bunkWho: '点一个伙伴，邀请它来农场。', movedIn: '{name}搬进来了！',
     party: {
