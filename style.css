@@ -749,7 +749,7 @@ body.guest #phonesBtn, body.guest #partyBtn, body.guest #play { display: none !i
 }
 
 /* ---------- Hop Supporters ---------- */
-.heart { width: 1.15em; height: 1.15em; flex: none; vertical-align: -0.2em; }
+.heart { width: 1.35em; height: 1.35em; flex: none; vertical-align: -0.3em; }
 #bunkGrid .tag.sup { background: #ffe1ef; }
 .supBtn {
   --c1: #ff7fb8; --c2: #e0558f; justify-self: start;
