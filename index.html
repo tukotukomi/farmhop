@@ -269,12 +269,19 @@
       <li data-i18n="sup.perk3">A supporter heart by your name</li>
     </ul>
     <div id="supAsk" class="supAsk">
-      <p class="supStep"><b>1</b><span data-i18n="sup.step1">Copy your supporter code</span></p>
-      <button id="supCopy" class="supCode bubble"><span id="supCodeText"></span><small data-i18n="sup.copy">Copy</small><small class="done" data-i18n="sup.copied">Copied!</small></button>
-      <p class="supStep"><b>2</b><span data-i18n="sup.step2">Support $5 on Ko-fi and paste the code into your message</span></p>
-      <a id="supKofi" class="buyBtn bubble supKofi" target="_blank" rel="noopener"><svg class="heart" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-8-4.9-8-10.6C4 6.9 6.2 5 8.6 5c1.5 0 2.7.8 3.4 2 .7-1.2 1.9-2 3.4-2C17.8 5 20 6.9 20 9.9c0 5.7-8 10.6-8 10.6z" fill="#ff5f9e" stroke="#3a2442" stroke-width="1.8" stroke-linejoin="round"/></svg><span data-i18n="sup.kofi">Support on Ko-fi</span></a>
-      <p class="supStep"><b>3</b><span data-i18n="sup.step3">Come back here: it unlocks by itself</span></p>
+      <a id="supCard" class="buyBtn bubble supKofi" target="_blank" rel="noopener"><svg class="heart" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-8-4.9-8-10.6C4 6.9 6.2 5 8.6 5c1.5 0 2.7.8 3.4 2 .7-1.2 1.9-2 3.4-2C17.8 5 20 6.9 20 9.9c0 5.7-8 10.6-8 10.6z" fill="#ff5f9e" stroke="#3a2442" stroke-width="1.8" stroke-linejoin="round"/></svg><span data-i18n="sup.card">Support $5</span></a>
+      <p id="supCardNote" class="supNote" data-i18n="sup.cardNote">A secure Stripe checkout. Then come back here: it unlocks by itself.</p>
       <p id="supStatus" class="supNote"></p>
+      <details id="supKofiWay" class="supRestore">
+        <summary data-i18n="sup.kofiWay">Rather support on Ko-fi?</summary>
+        <div class="supAsk">
+          <p class="supStep"><b>1</b><span data-i18n="sup.step1">Copy your supporter code</span></p>
+          <button id="supCopy" class="supCode bubble"><span id="supCodeText"></span><small data-i18n="sup.copy">Copy</small><small class="done" data-i18n="sup.copied">Copied!</small></button>
+          <p class="supStep"><b>2</b><span data-i18n="sup.step2">Support $5 on Ko-fi and paste the code into your message</span></p>
+          <a id="supKofi" class="buyBtn bubble supKofi small" target="_blank" rel="noopener"><span data-i18n="sup.kofi">Support on Ko-fi</span></a>
+          <p class="supStep"><b>3</b><span data-i18n="sup.step3">Come back here: it unlocks by itself</span></p>
+        </div>
+      </details>
       <details class="supRestore">
         <summary data-i18n="sup.already">Already a supporter?</summary>
         <form id="supForm" class="joinRow">

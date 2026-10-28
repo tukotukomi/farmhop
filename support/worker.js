@@ -1,9 +1,13 @@
 // Farm Hop supporters (Cloudflare Worker + KV).
 //
-// "Become a Hop Supporter" in the game's Settings shows a code like HOP-7KQ3MX and
-// a link to Ko-fi. The player pastes the code into their Ko-fi message, Ko-fi tells
-// this worker about the payment, and the game (asking every few seconds) unlocks.
+// "Become a Hop Supporter" in the game's Settings gives the player a code like
+// HOP-7KQ3MX. The main way to pay is a Stripe Payment Link, which the game opens with
+// the code built in (?client_reference_id=HOP-7KQ3MX), so there's nothing to type.
+// Or on Ko-fi, where the player pastes the code into their message. Either way the
+// payment comes here, and the game (asking every few seconds) unlocks.
 //
+//   POST /stripe            Stripe's webhook (checkout.session.completed), signed
+//                           with the STRIPE_WEBHOOK_SECRET secret.
 //   POST /kofi              Ko-fi's webhook (form field "data", JSON). Checked
 //                           against the KOFI_TOKEN secret.
 //   GET  /check?code=...    {"paid": true|false}
@@ -15,7 +19,7 @@
 //   POST /admin/issue
 //   POST /admin/gift        A free code: for family, friends, and trying it out.
 //
-// KV keys: pay:<time>:<transaction> = what Ko-fi sent (no email, just its hash),
+// KV keys: pay:<time>:<transaction> = the payment (no email, just its hash),
 // code:<CODE> = { tx, at }, email:<sha-256 of the email> = { tx, code }.
 
 const ALLOWED_ORIGINS = [
@@ -55,6 +59,52 @@ function sameText(a, b) {   // compares secrets without stopping at the first di
   return d === 0;
 }
 
+// A payment, from Stripe or Ko-fi: mark its code paid and remember it.
+async function record(env, p) {
+  if (await env.SUPPORT.get("tx:" + p.tx)) return;                     // sent to us already
+  const enough = p.amount >= MIN_AMOUNT;
+  let code = CODE_PATTERN.test(p.code) ? p.code : null;
+  if (code && await env.SUPPORT.get("code:" + code)) code = null;      // already used by an earlier payment
+  const tx = p.tx, at = p.at;
+  const emailHash = p.email ? await sha256(p.email) : null, payKey = `pay:${at}:${tx}`;
+  if (enough && code) await env.SUPPORT.put("code:" + code, JSON.stringify({ tx, at }));
+  if (enough && emailHash) {
+    const old = JSON.parse(await env.SUPPORT.get("email:" + emailHash) || "null");
+    await env.SUPPORT.put("email:" + emailHash, JSON.stringify({ tx, payKey, code: code || old?.code || null }));
+  }
+  await env.SUPPORT.put("tx:" + tx, "1");
+  await env.SUPPORT.put(payKey, JSON.stringify({
+    tx, at, enough, code, emailHash, via: p.via,
+    name: String(p.name || "").slice(0, 80), amount: p.amount.toFixed(2), currency: String(p.currency || "").toUpperCase(),
+    type: String(p.type || ""), message: String(p.message || "").slice(0, 300),
+  }));
+}
+
+// Stripe: a Payment Link checkout finished. The signature is an HMAC of
+// "<timestamp>.<body>" with the endpoint's signing secret (Stripe-Signature header).
+async function stripe(request, env) {
+  const body = await request.text(), sig = request.headers.get("stripe-signature") || "";
+  const parts = Object.fromEntries(sig.split(",").map(kv => kv.split("=")).filter(kv => kv.length === 2 && kv[0] !== "v1"));
+  const sigs = sig.split(",").filter(kv => kv.startsWith("v1=")).map(kv => kv.slice(3));
+  const t = parseInt(parts.t, 10);
+  if (!env.STRIPE_WEBHOOK_SECRET || !t || !sigs.length || Math.abs(Date.now() / 1000 - t) > 300) return new Response("forbidden", { status: 403 });
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(env.STRIPE_WEBHOOK_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const mac = new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${t}.${body}`)));
+  const want = [...mac].map(b => b.toString(16).padStart(2, "0")).join("");
+  if (!sigs.some(s => sameText(s, want))) return new Response("forbidden", { status: 403 });
+  let event;
+  try { event = JSON.parse(body); } catch { return new Response("bad request", { status: 400 }); }
+  const s = event.data?.object;
+  const done = event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded";
+  if (!done || !s || s.payment_status !== "paid") return new Response("ok");   // not a finished payment: nothing to do
+  await record(env, {
+    via: "stripe", tx: String(s.id).slice(0, 80), at: new Date((s.created || t) * 1000).toISOString(),
+    amount: (s.amount_total || 0) / 100, currency: s.currency, code: String(s.client_reference_id || "").toUpperCase(),
+    email: s.customer_details?.email, name: s.customer_details?.name, type: "Card",
+  });
+  return new Response("ok");
+}
+
 // Ko-fi: a payment came in.
 async function kofi(request, env) {
   let data;
@@ -65,27 +115,12 @@ async function kofi(request, env) {
     return new Response("bad request", { status: 400 });
   }
   if (!env.KOFI_TOKEN || !sameText(data.verification_token, env.KOFI_TOKEN)) return new Response("forbidden", { status: 403 });
-  const tx = String(data.kofi_transaction_id || data.message_id || crypto.randomUUID()).slice(0, 80);
-  if (await env.SUPPORT.get("tx:" + tx)) return new Response("ok");   // Ko-fi sent this one already
-  const amount = parseFloat(data.amount) || 0;
-  const enough = amount >= MIN_AMOUNT;
   const found = String(data.message || "").match(CODE_IN_TEXT);
-  let code = found ? "HOP-" + found[1].toUpperCase() : null;
-  if (code && await env.SUPPORT.get("code:" + code)) code = null;      // already used by an earlier payment
-  const at = new Date(data.timestamp || Date.now()).toISOString();
-  const emailHash = data.email ? await sha256(data.email) : null, payKey = `pay:${at}:${tx}`;
-  if (enough && code) await env.SUPPORT.put("code:" + code, JSON.stringify({ tx, at }));
-  if (enough && emailHash) {
-    const old = JSON.parse(await env.SUPPORT.get("email:" + emailHash) || "null");
-    await env.SUPPORT.put("email:" + emailHash, JSON.stringify({ tx, payKey, code: code || old?.code || null }));
-  }
-  await env.SUPPORT.put("tx:" + tx, "1");
-  await env.SUPPORT.put(payKey, JSON.stringify({
-    tx, at, enough, code, emailHash,
-    name: String(data.from_name || "").slice(0, 80),
-    amount: String(data.amount || ""), currency: String(data.currency || ""),
-    type: String(data.type || ""), message: String(data.message || "").slice(0, 300),
-  }));
+  await record(env, {
+    via: "kofi", tx: String(data.kofi_transaction_id || data.message_id || crypto.randomUUID()).slice(0, 80),
+    at: new Date(data.timestamp || Date.now()).toISOString(), amount: parseFloat(data.amount) || 0, currency: data.currency,
+    code: found ? "HOP-" + found[1].toUpperCase() : null, email: data.email, name: data.from_name, type: data.type, message: data.message,
+  });
   return new Response("ok");
 }
 
@@ -175,7 +210,7 @@ async function load() {
   t.innerHTML = '<tr><th>When</th><th>Who</th><th>Amount</th><th>Code</th><th>Message</th></tr>';
   for (const p of rows) {
     const tr = t.insertRow();
-    for (const v of [p.at.slice(0, 16).replace('T', ' '), p.name, p.amount + ' ' + p.currency + (p.enough ? '' : ' (under $5)')]) tr.insertCell().textContent = v;
+    for (const v of [p.at.slice(0, 16).replace('T', ' '), p.name, p.amount + ' ' + p.currency + (p.via ? ' · ' + (p.via === 'stripe' ? 'card' : 'Ko-fi') : '') + (p.enough ? '' : ' (under $5)')]) tr.insertCell().textContent = v;
     const c = tr.insertCell();
     if (p.code) c.textContent = p.code + (p.enough ? '' : ' (not unlocked)');
     else { const b = document.createElement('button'); b.textContent = 'Give a code'; b.onclick = async () => { const r = await call('/admin/issue', { tx: p.tx }); if (r.ok) load(); }; c.append(b); }
@@ -192,6 +227,7 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers });
     try {
       if (url.pathname === "/kofi" && request.method === "POST") return await kofi(request, env);
+      if (url.pathname === "/stripe" && request.method === "POST") return await stripe(request, env);
       if (url.pathname === "/check" && request.method === "GET") return await check(url, env, headers);
       if (url.pathname === "/restore" && request.method === "POST") return await restore(request, env, headers);
       if (url.pathname === "/admin" && request.method === "GET") return new Response(ADMIN_PAGE, { headers: { "content-type": "text/html; charset=utf-8" } });

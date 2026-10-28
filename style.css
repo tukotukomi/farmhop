@@ -781,6 +781,9 @@ body.guest #phonesBtn, body.guest #partyBtn, body.guest #play { display: none !i
 .supCode.copied .done { display: inline; color: #2f9a3c; opacity: 1; }
 .supKofi { --c1: #ff7fb8; --c2: #e0558f; text-decoration: none; font-size: 20px; }
 .supKofi .heart { width: 26px; height: 26px; }
+.supKofi.small { font-size: 17px; padding: 8px 18px 10px; --c1: #29abe0; --c2: #1c86b3; }
+#supKofiWay > .supAsk { margin-top: 10px; }
+.supKofi[hidden], .supNote[hidden] { display: none; }
 .supNote { margin: 0; font-size: 14px; font-weight: 500; opacity: .8; min-height: 1em; }
 .supRestore { width: 100%; }
 .supRestore summary { cursor: pointer; font-weight: 700; padding: 4px; }

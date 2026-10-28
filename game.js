@@ -836,6 +836,7 @@ function buildMoonbun() {   // Moonbun: a lavender bunny with a crescent-moon cl
 // holds their code once it's paid; bl-sup-pending the one they're paying with.
 const SUPPORT_URL = (new URLSearchParams(location.search).get('support') || window.FARMHOP_SUPPORT_URL || '').replace(/\/$/, '');
 const KOFI_URL = 'https://ko-fi.com/funbytuko';
+const STRIPE_LINK = new URLSearchParams(location.search).get('stripe') || window.FARMHOP_STRIPE_LINK || '';   // a Stripe Payment Link: the code rides along as client_reference_id
 const SUP_CODE = /^HOP-[A-HJKMNP-Z2-9]{6}$/;
 const supCode = () => { const v = store.get('bl-supporter', null); return SUP_CODE.test(v) ? v : null; };
 let supporter = !!supCode();
@@ -6037,6 +6038,9 @@ function refreshSupport(note) {
   $('supCodeText').textContent = supporter ? supCode() : pendingCode();
   $('supMine').textContent = supCode() || '';
   $('supKofi').href = KOFI_URL;
+  $('supCard').hidden = $('supCardNote').hidden = !STRIPE_LINK;
+  if (STRIPE_LINK) $('supCard').href = STRIPE_LINK + (STRIPE_LINK.includes('?') ? '&' : '?') + 'client_reference_id=' + encodeURIComponent(pendingCode());
+  else $('supKofiWay').open = true;   // Ko-fi is the only way: show it
   if (note !== undefined) $('supStatus').textContent = note;
 }
 function openSupport() {

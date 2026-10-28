@@ -5,4 +5,6 @@ window.FARMHOP_RELAY_URL = "wss://farmhop-relay.fractalize-studio.workers.dev";
 
 // Address of the Hop Supporters worker (see support/). Leave empty to hide
 // "Become a Hop Supporter" in Settings.
+// The $5 Stripe Payment Link (the main "Support $5" button). Empty: Ko-fi only.
+window.FARMHOP_STRIPE_LINK = "";
 window.FARMHOP_SUPPORT_URL = "https://farmhop-support.fractalize-studio.workers.dev";

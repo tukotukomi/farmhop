@@ -1,8 +1,10 @@
 # Farm Hop supporters (Cloudflare Worker + KV)
 
-"Become a Hop Supporter" in the game's Settings. The player copies a code like
-`HOP-7KQ3MX`, supports $5 on Ko-fi (ko-fi.com/funbytuko) with the code in their
-message, and Ko-fi tells this worker. The game asks `/check` every few seconds and
+"Become a Hop Supporter" in the game's Settings. Each player gets a code like
+`HOP-7KQ3MX`. The main button opens a $5 Stripe Payment Link with the code built in
+(`?client_reference_id=HOP-7KQ3MX`), so there's nothing to paste. Or they support on
+Ko-fi (ko-fi.com/funbytuko) with the code in their message. Stripe or Ko-fi tells
+this worker. The game asks `/check` every few seconds and
 unlocks: DJ Ribbit and Moonbun, the supporter heart, and the drum and bass farm song.
 See `worker.js` for the endpoints. Emails are only kept as a SHA-256 hash, so a
 supporter can restore on a new device with the email they used on Ko-fi.
@@ -24,6 +26,8 @@ npx wrangler@3 secret put ADMIN_KEY
 ```
 
 - `KOFI_TOKEN`: Ko-fi > Settings > More > API > Webhooks > "Verification Token".
+- `STRIPE_WEBHOOK_SECRET`: the `whsec_...` signing secret of the Stripe webhook below
+  (`npx wrangler@3 secret put STRIPE_WEBHOOK_SECRET`).
 - `ADMIN_KEY`: any long password you choose, for the admin page.
 
 ```
@@ -32,6 +36,12 @@ npx wrangler@3 deploy
 
 It prints the address, like `https://farmhop-support.<you>.workers.dev`.
 
+1. Stripe: make a $5 Payment Link (Product "Hop Supporter"). Under "After payment",
+   keep the confirmation page with a message like "Thank you! Go back to Farm Hop: it
+   unlocks by itself." Put the link in `../relay-config.js` as `FARMHOP_STRIPE_LINK`.
+   Then Developers > Webhooks > Add endpoint:
+   `https://farmhop-support.<you>.workers.dev/stripe`, event `checkout.session.completed`.
+   Its signing secret is `STRIPE_WEBHOOK_SECRET`.
 1. In Ko-fi's webhook settings, set the URL to `https://farmhop-support.<you>.workers.dev/kofi`.
 2. In `../relay-config.js`, set `window.FARMHOP_SUPPORT_URL` to the address (no `/kofi`),
    then commit and push. The supporter row appears in Settings.
