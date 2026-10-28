@@ -55,6 +55,7 @@
 </div>
 
 <div id="tip" class="speech" aria-live="polite"></div>
+<div id="homeNote" class="pill" hidden><span></span><button id="homeNoteX" class="bubble" data-i18n-aria="aria.close" aria-label="Close">&#x2715;</button></div>
 <div id="hint" class="pill">Tap to hop<small>Swipe to turn &amp; go back</small></div>
 
 <div id="farmBtns" class="btnRow">
@@ -253,6 +254,7 @@
   <div class="panel">
     <h2 id="partyTitle" data-i18n="party.btn">Jam with phones</h2>
     <div id="partyQr" class="partyQr"></div>
+    <p class="partyCode"><span data-i18n="party.code">Room code</span> <b id="partyCode"></b></p>
     <p class="partyScan" data-i18n="party.scan">Scan with a phone camera to jam along.</p>
     <p id="partyStatus" class="partyScan"></p>
     <div id="partyList" class="partyList"></div>
@@ -262,6 +264,15 @@
       <div id="partyLocal" class="partyList"></div>
       <button id="partyKeys" class="chipBtn" data-i18n="party.addKeys">Add a keyboard player</button>
     </div>
+    <form id="joinForm" class="partyHere partyJoin">
+      <h3 data-i18n="party.joinTitle">Join a friend's farm</h3>
+      <p class="partyScan" data-i18n="party.joinHint">Type the room code your friend sent you.</p>
+      <div class="joinRow">
+        <input id="joinCode" maxlength="9" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="go" placeholder="ABC-DEF" data-i18n-aria="party.code" aria-label="Room code">
+        <button class="chipBtn go" data-i18n="party.join">Join</button>
+      </div>
+      <p id="joinNote" class="partyScan"></p>
+    </form>
     <div class="partyActions">
       <button id="partyInvite" class="chipBtn go" data-i18n="party.invite">Send invite</button>
       <button id="partyCopy" class="chipBtn" data-i18n="party.copy">Copy link</button>

@@ -60,6 +60,8 @@ export const STRINGS = {
     bunkhouse: 'Bunkhouse', bunkPlan: 'Build a cozy cabin so new hoppers can move in.', build: 'Build',
     bunkWho: 'Tap a hopper to invite them to the farm.', movedIn: '{name} moved in!',
     party: {
+      code: 'Room code', codeLine: 'Room code: {code}', joinTitle: "Join a friend's farm", joinHint: 'Type the room code your friend sent you.', join: 'Join',
+      badCode: "That code doesn't look right.", homeNote: 'Have Farm Hop on your Home Screen? Open it, tap Play together and enter {code}.',
       here: 'On this screen', screen: 'Here', leave: 'Leave', addKeys: 'Add a keyboard player (arrow keys)',
       padJoin: 'Another controller? Press Start on it to join. Y changes hopper, Back leaves. Tap a player here to change their hopper.',
       local: 'Local', direct: 'Direct', relay: 'Relay', invite: 'Send invite', inviteCopied: 'Invite link copied!',
@@ -142,6 +144,8 @@ export const STRINGS = {
     bunkhouse: 'La cabaña', bunkPlan: 'Construye una cabaña acogedora para que lleguen nuevos saltarines.', build: 'Construir',
     bunkWho: 'Toca un saltarín para invitarlo a la granja.', movedIn: '¡{name} se mudó a la granja!',
     party: {
+      code: 'Código de sala', codeLine: 'Código de sala: {code}', joinTitle: 'Unirte a la granja de un amigo', joinHint: 'Escribe el código de sala que te envió tu amigo.', join: 'Unirme',
+      badCode: 'Ese código no parece correcto.', homeNote: '¿Tienes Farm Hop en tu pantalla de inicio? Ábrelo, toca Jugar juntos y escribe {code}.',
       here: 'En esta pantalla', screen: 'Aquí', leave: 'Salir', addKeys: 'Añadir jugador de teclado (flechas)',
       padJoin: '¿Otro mando? Pulsa Start en él para unirte. Y cambia de saltarín, Back sale. Toca a un jugador aquí para cambiar su saltarín.',
       local: 'Local', direct: 'Directo', relay: 'Relevo', invite: 'Enviar invitación', inviteCopied: '¡Enlace copiado!',
@@ -224,6 +228,8 @@ export const STRINGS = {
     bunkhouse: '小木屋', bunkPlan: '盖一间温馨的小木屋，让新伙伴搬进来。', build: '建造',
     bunkWho: '点一个伙伴，邀请它来农场。', movedIn: '{name}搬进来了！',
     party: {
+      code: '房间码', codeLine: '房间码：{code}', joinTitle: '加入朋友的农场', joinHint: '输入朋友发给你的房间码。', join: '加入',
+      badCode: '这个房间码好像不对。', homeNote: '主屏幕上有 Farm Hop 吗？打开它，点“一起玩”，输入 {code}。',
       here: '在这块屏幕上', screen: '本机', leave: '离开', addKeys: '添加键盘玩家（方向键）',
       padJoin: '还有手柄？按它的 Start 加入。Y 换角色，Back 退出。点这里的玩家可以给他换角色。',
       local: '本地', direct: '直连', relay: '中继', invite: '发送邀请', inviteCopied: '邀请链接已复制！',

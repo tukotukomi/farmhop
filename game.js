@@ -3553,6 +3553,7 @@ window.addEventListener('keyup', e => {
 });
 window.addEventListener('keydown', e => {
   sfx.ensure();
+  if (e.target.closest?.('input')) { if (e.code === 'Escape') closeParty(); return; }   // typing a room code
   if (partyOpen()) { if (e.code === 'Escape' || e.code === 'Enter') closeParty(); e.preventDefault(); return; }
   if (game.picking && settingsOpen()) {   // Settings: arrows change things, Escape or Enter closes
     const nav = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[e.code];
@@ -4960,16 +4961,28 @@ const DEBUG = new URLSearchParams(location.search).has('debug');
 const RELAY = (DEBUG && new URLSearchParams(location.search).get('relay')) || window.FARMHOP_RELAY_URL || '';
 const party = { on: false, ws: null, room: null, retry: 0, ping: null, timer: null, players: new Map() };   // slot -> player
 const partyOpen = () => !$('party').hidden;
+// A room is named after a six-letter code, so a friend can also type it in: on an
+// iPhone, invite links open in Safari, not in Farm Hop saved to the Home Screen.
+// No I, L, O, 0 or 1, which are easy to mix up.
+const CODE_ABC = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const codeRoom = code => 'farmhop-code-' + code + '-room';
+const roomCode = room => /^farmhop-code-([A-Z2-9]{6})-room$/.exec(room || '')?.[1] || null;
+const showCode = code => code.slice(0, 3) + '-' + code.slice(3);
 function partyRoom() {   // kept for the browser session, so a reload keeps the same QR and phones reconnect
   let r = null;
   try { r = sessionStorage.getItem('bl-party-room'); } catch {}
-  if (!r) {
-    const b = new Uint8Array(24);
+  if (!roomCode(r)) {   // (rooms from before the codes get a code too)
+    const b = new Uint8Array(6);
     crypto.getRandomValues(b);
-    r = btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    r = codeRoom([...b].map(n => CODE_ABC[n % CODE_ABC.length]).join(''));
     try { sessionStorage.setItem('bl-party-room', r); } catch {}
   }
   return r;
+}
+// What a friend typed, as a code, or null if it can't be one.
+function readCode(text) {
+  const code = text.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return code.length === 6 && [...code].every(c => CODE_ABC.includes(c)) ? code : null;
 }
 const partyLink = () => new URL('remote/', location.href).href.split('#')[0].replace(/\?.*$/, '') + '#r=' + party.room + (DEBUG && RELAY !== window.FARMHOP_RELAY_URL ? '&relay=' + encodeURIComponent(RELAY) : '');
 function relaySend(to, msg) { if (party.ws && party.ws.readyState === 1) party.ws.send(to + '|' + msg); }
@@ -5554,6 +5567,7 @@ function renderParty() {
     }).catch(() => { $('partyQr').textContent = link; });
   }
   $('partyStatus').textContent = party.ws?.readyState === 1 ? '' : t('remote.connecting');
+  $('partyCode').textContent = roomCode(party.room) ? showCode(roomCode(party.room)) : '';
 }
 function openParty() {
   if (GUEST) return;
@@ -5576,6 +5590,26 @@ $('partyLocal').addEventListener('click', e => {
   else if (b) nextLocalHero(+b.dataset.slot);
 });
 $('partyStop').addEventListener('click', () => { partyStop(); closeParty(); });
+// Join a friend's farm by its code: this game reopens as their guest.
+$('joinForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const code = readCode($('joinCode').value);
+  if (!code) { $('joinNote').textContent = t('party.badCode'); sfx.bump(); return; }
+  if (codeRoom(code) === party.room) { $('joinNote').textContent = t('party.badCode'); sfx.bump(); return; }   // that's this farm
+  partyStop();
+  location.hash = 'join=' + codeRoom(code);
+  location.reload();
+});
+$('joinCode').addEventListener('input', () => { $('joinNote').textContent = ''; });
+// A friend who opened the invite in Safari on an iPhone or iPad, where links don't
+// open the Home Screen app: tell them the code, in case they'd rather play there.
+if (GUEST && roomCode(GUEST) && /iPhone|iPad|iPod/.test(navigator.userAgent) && !navigator.standalone) {
+  const note = $('homeNote'), code = showCode(roomCode(GUEST));
+  const [before, after] = t('party.homeNote').split('{code}');
+  note.querySelector('span').replaceChildren(before, Object.assign(document.createElement('b'), { textContent: code }), after ?? '');
+  note.hidden = false;
+  $('homeNoteX').addEventListener('click', () => { note.hidden = true; });
+}
 $('partyCopy').addEventListener('click', () => {
   navigator.clipboard?.writeText(inviteLink()).then(() => { $('partyCopy').textContent = t('party.copied'); setTimeout(() => { $('partyCopy').textContent = t('party.copy'); }, 1500); }).catch(() => {});
 });
@@ -5586,7 +5620,8 @@ $('partyInvite').addEventListener('click', async () => {
   sfx.ensure();
   const url = inviteLink();
   if (navigator.share) {
-    try { await navigator.share({ title: "Betty Lou's Farm Hop", text: t('party.inviteText'), url }); return; }
+    const code = roomCode(party.room), text = t('party.inviteText') + (code ? ' ' + t('party.codeLine', { code: showCode(code) }) : '');
+    try { await navigator.share({ title: "Betty Lou's Farm Hop", text, url }); return; }
     catch (e) { if (e.name === 'AbortError') return; }
   }
   navigator.clipboard?.writeText(url).then(() => {
