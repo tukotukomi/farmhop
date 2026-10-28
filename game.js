@@ -4013,7 +4013,8 @@ function drawRig(rig, st, t) {
   pos.needsUpdate = true;
 }
 
-// What's biting: any kind the pond is big enough for, the common ones more often.
+// What's biting: any kind whose level the pond has reached (a level 3 pond has
+// level 1, 2 and 3 fish), the common ones more often.
 function rollFish() {
   const can = FISH.filter(sp => sp.lvl <= farm.level);
   let r = Math.random() * can.reduce((n, sp) => n + sp.w, 0);
@@ -4079,25 +4080,61 @@ function stepFisher(f, dt) {
 }
 // Reeling in, to the music: notes slide along a lane toward the ring on the
 // song's own beat, and a tap as one reaches the ring catches it, sung in the
-// hopper's voice up the scale. Little fish give a few slow notes and plenty of
-// leeway; big ones more notes, some on the off-beat, a tighter window, and fewer
-// misses allowed. A tap with no note at the ring costs the next one.
-const BEAT = 60 / 84, LANE_AHEAD = 4 * BEAT;   // the song's beat; notes come into sight four beats early
+// hopper's voice up the scale. A fish's level sets the rhythm it fights with:
+// level 1 is plain quarter notes; then eighths, off-beats, dotted rhythms, and at
+// the top, runs of sixteenths. Harder fish also have a tighter window and allow
+// fewer misses. A tap with no note at the ring costs the next one.
+const BEAT = 60 / 84, SIXTEENTH = BEAT / 4;   // the song's beat (84 BPM)
 const songNow = () => performance.now() / 1000;
+// One beat's worth of rhythm each: which sixteenths of the beat have a note (0 is
+// on the beat, 2 the "and", 1 and 3 the sixteenths between), and the fish level
+// that first uses it.
+const RHYTHMS = [
+  { at: [0], lvl: 1 },             // quarter
+  { at: [], lvl: 2 },              // a rest
+  { at: [0, 2], lvl: 2 },          // two eighths
+  { at: [2], lvl: 3 },             // off the beat
+  { at: [0, 3], lvl: 4 },          // dotted eighth, sixteenth
+  { at: [0, 1], lvl: 5 },          // sixteenth, dotted eighth
+  { at: [0, 2, 3], lvl: 6 },       // eighth, two sixteenths
+  { at: [0, 1, 2], lvl: 6 },       // two sixteenths, eighth
+  { at: [1, 2, 3], lvl: 7 },       // a sixteenth rest, then three
+  { at: [0, 1, 2, 3], lvl: 8 },    // four sixteenths
+];
+function fishRhythm(lvl) {   // [sixteenths from the start, ...]: a phrase a few beats long
+  const can = RHYTHMS.filter(r => r.lvl <= lvl);
+  const pick = () => {   // the newest rhythms this fish knows come up most
+    let r = Math.random() * can.reduce((n, c) => n + 1 + c.lvl, 0);
+    for (const c of can) if ((r -= 1 + c.lvl) <= 0) return c;
+    return can[0];
+  };
+  const beats = Math.min(4 + lvl, 12), out = [];
+  for (let b = 0; b < beats; b++) {
+    const c = b === 0 || b === beats - 1 ? RHYTHMS[0] : pick();   // starts and ends on a plain beat, to find your feet
+    for (const s of c.at) out.push(b * 4 + s);
+  }
+  return out;
+}
 function startReel(f) {
-  const hard = f.sp.wiggle, now = songNow(), pos = music ? music.position() : 0;
-  let at = now + (BEAT - pos % BEAT) + 2 * BEAT;   // on the beat, a couple of beats from now
-  const count = Math.round(3 + hard * 3), notes = [];
+  const lvl = Math.min(f.sp.lvl, 9), now = songNow(), pos = music ? music.position() : 0;
+  const start = now + (BEAT - pos % BEAT) + 2 * BEAT;   // on the beat, a couple of beats from now
+  const steps = fishRhythm(lvl), notes = [];
   const lane = f.ui.querySelector('.lane');
   lane.querySelectorAll('.note').forEach(e => e.remove());
-  for (let i = 0; i < count; i++) {
+  for (const s of steps) {
     const el = document.createElement('i');
-    el.className = 'note';
+    el.className = 'note' + (s % 4 === 0 ? '' : s % 2 ? ' sixteenth' : ' eighth');   // coloured by where in the beat it falls
     lane.append(el);
-    notes.push({ at, el, done: 0 });                // done: 1 caught, -1 missed
-    at += Math.random() < (hard - 1) * 0.35 ? BEAT / 2 : BEAT;
+    notes.push({ at: start + s * SIXTEENTH, el, done: 0 });   // done: 1 caught, -1 missed
   }
-  f.g = { notes, win: Math.max(0.09, 0.2 - hard * 0.04), need: Math.ceil(count * clamp(0.5 + hard * 0.12, 0.5, 0.85)), hits: 0, miss: 0, sung: 0 };
+  const fast = steps.some(s => s % 2) ? 2 : steps.some(s => s % 4) ? 3 : 4;   // closer notes: the lane shows fewer beats, so they spread out
+  const k = (lvl - 1) / 8;
+  f.g = {
+    notes, ahead: fast * BEAT,
+    win: Math.min(0.2 - k * 0.11, SIXTEENTH * 0.48),            // 0.2 s either side down to under half a sixteenth
+    need: Math.ceil(notes.length * (0.5 + k * 0.35)),           // half the notes, up to 85%
+    hits: 0, miss: 0, sung: 0,
+  };
   setSt(f, 'reel');
 }
 function judge(f, nt, ok, perfect) {
@@ -4256,7 +4293,7 @@ function placeFishUi(f, hide) {
   if (f.st === 'reel') {   // the notes, sliding in toward the ring
     const now = songNow();
     for (const nt of f.g.notes) {
-      const k = (nt.at - now) / LANE_AHEAD;
+      const k = (nt.at - now) / f.g.ahead;
       nt.el.style.left = `calc(22px + ${k} * (100% - 36px))`;
       nt.el.hidden = k > 1.05 || k < -0.12;
     }
@@ -6084,4 +6121,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, myKey };
