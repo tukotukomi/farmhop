@@ -24,7 +24,8 @@ export const STRINGS = {
     },
     fish: {
       go: 'Go fishing', book: 'Fish Book', cast: 'Tap to cast!', castPad: 'Press A to cast!', castKeys: 'Press Space to cast!', castArrows: 'Press ↑ to cast!',
-      reel: 'Hold to reel it in!', reelPad: 'Hold A to reel it in!', reelKeys: 'Hold Space to reel it in!', reelArrows: 'Hold ↑ to reel it in!',
+      reel: 'Tap on the beat!', reelPad: 'Press A on the beat!', reelKeys: 'Press Space on the beat!', reelArrows: 'Press ↑ on the beat!',
+      perfect: 'Perfect!', good: 'Good!', miss: 'Miss',
       soon: 'Too soon!', away: 'It got away!', noFish: 'No fish yet! Upgrade the Fish Pond first.',
       cm: '{n} cm', new: 'New!', best: 'Biggest yet!', bestCm: 'Biggest {n} cm', count: '×{n}', locked: 'Pond level {n}', caught: 'Caught {n} of {all}',
       names: { minnow: 'Minnow', bluegill: 'Bluegill', boot: 'Old Boot', goldfish: 'Goldfish', perch: 'Perch', koi: 'Koi', catfish: 'Catfish', trout: 'Rainbow Trout', pike: 'Pike', goldkoi: 'Golden Koi', moonfish: 'Moonfish' },
@@ -108,7 +109,8 @@ export const STRINGS = {
     },
     fish: {
       go: 'Ir a pescar', book: 'Libro de peces', cast: '¡Toca para lanzar!', castPad: '¡Pulsa A para lanzar!', castKeys: '¡Pulsa Espacio para lanzar!', castArrows: '¡Pulsa ↑ para lanzar!',
-      reel: '¡Mantén pulsado para recoger!', reelPad: '¡Mantén A para recoger!', reelKeys: '¡Mantén Espacio para recoger!', reelArrows: '¡Mantén ↑ para recoger!',
+      reel: '¡Toca al ritmo!', reelPad: '¡Pulsa A al ritmo!', reelKeys: '¡Pulsa Espacio al ritmo!', reelArrows: '¡Pulsa ↑ al ritmo!',
+      perfect: '¡Perfecto!', good: '¡Bien!', miss: 'Fallo',
       soon: '¡Demasiado pronto!', away: '¡Se escapó!', noFish: '¡Aún no hay peces! Mejora primero el estanque.',
       cm: '{n} cm', new: '¡Nuevo!', best: '¡El más grande!', bestCm: 'El mayor: {n} cm', count: '×{n}', locked: 'Estanque nivel {n}', caught: 'Pescados {n} de {all}',
       names: { minnow: 'Pececillo', bluegill: 'Pez sol', boot: 'Bota vieja', goldfish: 'Pez dorado', perch: 'Perca', koi: 'Carpa koi', catfish: 'Bagre', trout: 'Trucha arcoíris', pike: 'Lucio', goldkoi: 'Koi dorada', moonfish: 'Pez luna' },
@@ -192,7 +194,8 @@ export const STRINGS = {
     },
     fish: {
       go: '去钓鱼', book: '鱼类图鉴', cast: '点一下抛竿！', castPad: '按 A 抛竿！', castKeys: '按空格抛竿！', castArrows: '按 ↑ 抛竿！',
-      reel: '按住收线！', reelPad: '按住 A 收线！', reelKeys: '按住空格收线！', reelArrows: '按住 ↑ 收线！',
+      reel: '跟着节拍点！', reelPad: '跟着节拍按 A！', reelKeys: '跟着节拍按空格！', reelArrows: '跟着节拍按 ↑！',
+      perfect: '完美！', good: '不错！', miss: '没按中',
       soon: '太早啦！', away: '鱼跑掉了！', noFish: '还没有鱼！先升级鱼塘吧。',
       cm: '{n} 厘米', new: '新！', best: '最大的一条！', bestCm: '最大 {n} 厘米', count: '×{n}', locked: '鱼塘等级 {n}', caught: '已钓到 {n} / {all}',
       names: { minnow: '小鲦鱼', bluegill: '蓝鳃太阳鱼', boot: '旧靴子', goldfish: '金鱼', perch: '鲈鱼', koi: '锦鲤', catfish: '鲶鱼', trout: '虹鳟', pike: '狗鱼', goldkoi: '金色锦鲤', moonfish: '月光鱼' },

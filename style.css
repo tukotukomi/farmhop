@@ -463,14 +463,21 @@ body:not(.farm) :is(.fishUi, .fishCatch), :is(.fishUi, .fishCatch).away { displa
 }
 .fishSay:empty { display: none; }
 .fishSay.bite { font-size: 30px; line-height: 1; padding: 4px 16px 6px; background: #ffd23f; animation: yay .3s cubic-bezier(.3, 1.8, .5, 1); }
-.reel { position: absolute; left: 34px; top: -30px; display: none; gap: 5px; }
-.fishUi.reeling .reel { display: flex; }
-.meter { position: relative; width: 34px; height: 168px; box-sizing: border-box; border: 3px solid #3a2442; border-radius: 14px; background: linear-gradient(#8edcf6, #3f9fd8); overflow: hidden; }
-.meter .zone { position: absolute; left: 2px; right: 2px; box-sizing: border-box; border-radius: 9px; background: rgba(140, 230, 120, .8); border: 2px solid #2f9a3c; }
-.meter .fishDot { position: absolute; left: 50%; width: 28px; height: 22px; translate: -50% 50%; }
-.meter .fishDot svg { width: 100%; height: 100%; display: block; }
-.prog { position: relative; width: 14px; height: 168px; box-sizing: border-box; border: 3px solid #3a2442; border-radius: 8px; background: #fff4e0; overflow: hidden; }
-.prog i { position: absolute; left: 0; right: 0; bottom: 0; background: #ffd23f; }
+.reel { position: absolute; bottom: 60px; left: 0; translate: -50% 0; display: none; }
+.fishUi.reeling .reel { display: block; }
+.lane {
+  position: relative; width: 240px; height: 46px; box-sizing: border-box; overflow: hidden;
+  border: 3px solid #3a2442; border-radius: 999px; background: linear-gradient(#8edcf6, #3f9fd8);
+}
+.lane .ring { position: absolute; left: 22px; top: 50%; width: 30px; height: 30px; translate: -50% -50%; border: 3px solid #fff; border-radius: 50%; box-shadow: 0 0 0 2px #3a2442; }
+.lane .note { position: absolute; top: 50%; width: 22px; height: 22px; translate: -50% -50%; box-sizing: border-box; border-radius: 50%; background: #ffd23f; border: 2.5px solid #3a2442; }
+.lane .note.hit { animation: notePop .25s ease-out forwards; }
+.lane .note.missed { background: #c9c1cf; opacity: .55; }
+@keyframes notePop { to { scale: 1.9; opacity: 0; } }
+.reel .count {
+  position: absolute; right: -10px; top: -14px; padding: 1px 9px 2px; font-size: 14px; color: #3a2442;
+  background: #fff4e0; border: 2.5px solid #3a2442; border-radius: 999px;
+}
 .fishCatch .card {
   position: absolute; bottom: 10px; left: 0; translate: -50% 0; width: max-content; max-width: 200px;
   display: grid; justify-items: center; gap: 1px; padding: 4px 14px 10px; text-align: center;

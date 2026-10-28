@@ -1330,7 +1330,6 @@ const sfx = (() => {
     cast() { tone(900, 380, 0.2, 'sine', 0.06); noise(0.18, 0.12, 'highpass', 2500); },
     plop() { noise(0.12, 0.25, 'bandpass', 900); tone(520, 260, 0.12, 'sine', 0.08); },
     bite() { tone(1046, null, 0.06, 'square', 0.06); tone(1319, null, 0.08, 'square', 0.06, 0.09); noise(0.2, 0.3, 'bandpass', 1500); },
-    reel() { tone(1500, 1300, 0.025, 'square', 0.02); },
     lost() { tone(440, 220, 0.35, 'triangle', 0.07); },
     honk() { tone(420, 330, 0.18, 'sawtooth', 0.09); tone(430, 340, 0.2, 'sawtooth', 0.09, 0.2); },
     buzz() { tone(110, 120, 0.45, 'sawtooth', 0.025); },
@@ -3847,10 +3846,9 @@ $('pond').addEventListener('click', e => { if (e.target.id === 'pond') closePond
 // ---------- Fishing ----------
 // Go fishing from the Fish Pond panel, by tapping the dock, or (friends) by tapping
 // the pond. Your hopper hops to the dock, or to a free spot on the bank, and gets
-// a rod out. Cast, wait for the bobber to dip, then hook it in time. Reeling in is
-// a tug of war: hold to lift the green zone, let go to drop it, and keep the fish
-// inside until the bar beside it fills. Everything caught goes in the Fish Book and
-// is sold for sunflowers straight away.
+// a rod out. Cast, wait for the bobber to dip, then hook it in time, and reel it
+// in by tapping along with the music (see startReel). Everything caught goes in
+// the Fish Book and is sold for sunflowers straight away.
 // Everyone can fish at once: you, friends on this screen (X to fish, A to reel,
 // B to stop; the keyboard friend Right Shift and the up arrow), and guests on
 // their own devices, who each see everyone else's rod and bobber and catches.
@@ -4050,30 +4048,52 @@ function stepFisher(f, dt) {
       if (tap) startReel(f);
       else if (f.t <= 0) { say(f, 'away'); sfx.lost(); setSt(f, 'ready'); }
       break;
-    case 'reel': reelGame(f, dt); break;
+    case 'reel': reelGame(f, tap); break;
     case 'show': if (f.t <= 0 || (tap && f.t < 2)) setSt(f, 'ready'); break;
   }
 }
-// The tug of war. y is 0 at the bottom of the meter and 1 at the top.
+// Reeling in, to the music: notes slide along a lane toward the ring on the
+// song's own beat, and a tap as one reaches the ring catches it, sung in the
+// hopper's voice up the scale. Little fish give a few slow notes and plenty of
+// leeway; big ones more notes, some on the off-beat, a tighter window, and fewer
+// misses allowed. A tap with no note at the ring costs the next one.
+const BEAT = 60 / 84, LANE_AHEAD = 4 * BEAT;   // the song's beat; notes come into sight four beats early
+const songNow = () => performance.now() / 1000;
 function startReel(f) {
-  const hard = f.sp.wiggle;
-  f.g = { zy: 0.1, zv: 0, zh: clamp(0.36 - hard * 0.045, 0.22, 0.36), fy: 0.3, ft: 0.5, fn: 0, prog: 0.3, tick: 0 };
-  setSt(f, 'reel', 0);
+  const hard = f.sp.wiggle, now = songNow(), pos = music ? music.position() : 0;
+  let at = now + (BEAT - pos % BEAT) + 2 * BEAT;   // on the beat, a couple of beats from now
+  const count = Math.round(3 + hard * 3), notes = [];
+  const lane = f.ui.querySelector('.lane');
+  lane.querySelectorAll('.note').forEach(e => e.remove());
+  for (let i = 0; i < count; i++) {
+    const el = document.createElement('i');
+    el.className = 'note';
+    lane.append(el);
+    notes.push({ at, el, done: 0 });                // done: 1 caught, -1 missed
+    at += Math.random() < (hard - 1) * 0.35 ? BEAT / 2 : BEAT;
+  }
+  f.g = { notes, win: Math.max(0.09, 0.2 - hard * 0.04), need: Math.ceil(count * clamp(0.5 + hard * 0.12, 0.5, 0.85)), hits: 0, miss: 0, sung: 0 };
+  setSt(f, 'reel');
 }
-function reelGame(f, dt) {
-  const g = f.g, sp = f.sp;
-  g.zv = clamp(g.zv + (f.hold ? 3 : -2.4) * dt, -1.4, 1.4);
-  g.zy += g.zv * dt;
-  if (g.zy < 0) { g.zy = 0; g.zv = Math.max(0, g.zv); }
-  if (g.zy > 1 - g.zh) { g.zy = 1 - g.zh; g.zv = Math.min(0, g.zv); }
-  if ((g.fn -= dt) <= 0) { g.ft = 0.04 + Math.random() * 0.92; g.fn = (0.6 + Math.random() * 1.2) / Math.sqrt(sp.wiggle); }
-  const spd = 0.15 + sp.wiggle * 0.3;
-  g.fy += clamp(g.ft - g.fy, -spd * dt, spd * dt);
-  const inside = g.fy >= g.zy && g.fy <= g.zy + g.zh;
-  g.prog = clamp(g.prog + (inside ? 0.3 : -0.18) * dt, 0, 1);
-  if (inside && (g.tick -= dt) < 0) { g.tick = 0.14; sfx.reel(); }
-  if (g.prog >= 1) landFish(f);
-  else if (g.prog <= 0) { say(f, 'away'); sfx.lost(); setSt(f, 'ready'); }
+function judge(f, nt, ok, perfect) {
+  const g = f.g;
+  nt.done = ok ? 1 : -1;
+  nt.el.classList.add(ok ? 'hit' : 'missed');
+  if (ok) { g.hits++; sfx.voice(f.w.id, padFreq(1, g.sung++ % SCALE.length), true); }
+  else g.miss++;
+  say(f, ok ? (perfect ? 'perfect' : 'good') : 'miss');
+  f.msgT = 0.5;
+}
+function reelGame(f, tap) {
+  const g = f.g, now = songNow();
+  if (tap) {
+    const nt = g.notes.find(n => !n.done && Math.abs(n.at - now) <= g.win);
+    if (nt) judge(f, nt, true, Math.abs(nt.at - now) <= g.win * 0.45);
+    else { const next = g.notes.find(n => !n.done && n.at - now < 0.5); if (next) judge(f, next, false); else sfx.bump(); }
+  }
+  for (const nt of g.notes) if (!nt.done && now - nt.at > g.win) judge(f, nt, false);
+  if (g.notes.length - g.miss < g.need) { say(f, 'away'); sfx.lost(); setSt(f, 'ready'); }   // can't be caught now
+  else if (g.notes.every(n => n.done)) landFish(f);
 }
 function logFish(id, cm) {   // into this device's Fish Book: is it a new kind, or the biggest yet?
   const was = fishBook[id];
@@ -4168,11 +4188,10 @@ function guestFish(slot, m) {
 }
 
 // On screen: a speech bubble with what to do, and the reel meter beside the hopper.
-const FISH_DOT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12c2.6-4 8.4-5.4 12.6-1.6L20.5 7v10l-4.4-3.4C11.9 17.4 6.1 16 3.5 12z" fill="#ff9a3c" stroke="#3a2442" stroke-width="1.8" stroke-linejoin="round"/><circle cx="8" cy="11.2" r="1.3" fill="#3a2442"/></svg>';
 function fishUi() {
   const el = document.createElement('div');
   el.className = 'fishUi';
-  el.innerHTML = `<div class="fishSay"></div><div class="reel"><div class="meter"><i class="zone"></i><i class="fishDot">${FISH_DOT}</i></div><div class="prog"><i></i></div></div>`;
+  el.innerHTML = '<div class="fishSay"></div><div class="reel"><div class="lane"><i class="ring"></i></div><b class="count"></b></div>';
   document.body.append(el);
   return el;
 }
@@ -4189,7 +4208,7 @@ function promptFor(f) {
   if (f.st === 'ready') return t('fish.cast' + how);
   if (f.st === 'wait') return '…';
   if (f.st === 'bite') return '!';
-  if (f.st === 'reel' && f.g.prog < 0.45) return t('fish.reel' + how);
+  if (f.st === 'reel' && !f.g.hits && !f.g.miss) return t('fish.reel' + how);
   return '';
 }
 function placeFishUi(f, hide) {
@@ -4205,11 +4224,14 @@ function placeFishUi(f, hide) {
     s.textContent = text;
     s.classList.toggle('bite', text === '!');
   }
-  if (f.st === 'reel') {
-    const g = f.g;
-    el.querySelector('.zone').style.cssText = `bottom:${g.zy * 100}%;height:${g.zh * 100}%`;
-    el.querySelector('.fishDot').style.bottom = `${g.fy * 100}%`;
-    el.querySelector('.prog i').style.height = `${g.prog * 100}%`;
+  if (f.st === 'reel') {   // the notes, sliding in toward the ring
+    const now = songNow();
+    for (const nt of f.g.notes) {
+      const k = (nt.at - now) / LANE_AHEAD;
+      nt.el.style.left = `calc(22px + ${k} * (100% - 36px))`;
+      nt.el.hidden = k > 1.05 || k < -0.12;
+    }
+    el.querySelector('.count').textContent = `${f.g.hits}/${f.g.need}`;
   }
 }
 function updateFishing(dt) {
@@ -4217,6 +4239,7 @@ function updateFishing(dt) {
   const t = game.time, paused = game.picking;
   for (const f of fishers.values()) {
     if (!paused) stepFisher(f, dt);
+    else if (f.st === 'reel') for (const nt of f.g.notes) nt.at += dt;   // a menu open: the notes wait
     drawRig(f.rig, f.st, t);
     placeFishUi(f, paused);
     if ((f.tell -= dt) < 0 && f.st !== 'walk' && f.st !== 'settle') tellFish(f);   // now and then, for anyone who just arrived
