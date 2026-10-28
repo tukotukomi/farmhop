@@ -417,20 +417,26 @@ body.pad .heroCard.focus, body.keys .heroCard.focus, .heroCard:focus-visible { o
 :is(#bunkGrid, #shopGrid) .heroCard .tag.cost .flower { width: 24px; height: 24px; }
 :is(#bunkGrid, #shopGrid) .heroCard.short .tag.cost { opacity: .7; }
 /* ---------- Farm Buildings menu ---------- */
-#buildGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 168px)); justify-content: center; gap: 12px; width: 100%; }
-#buildGrid .heroCard { background: #ffe9c7; }
-#buildGrid .lvl { font-size: 13px; font-weight: 700; opacity: .75; margin-top: 4px; background: none; border: 0; padding: 0; }
-#buildGrid .heroCard.unbuilt { background: #ddd6e2; }
-#buildGrid .heroCard.unbuilt img { filter: grayscale(1) brightness(.6) contrast(.5); opacity: .5; }   /* just a grey shape until it's built */
-#buildGrid .heroCard.unbuilt .heroName { background: #ece7f0; color: #8a7f92; }
-#buildGrid .heroCard .tag {
+:is(#buildGrid, #bookGrid) { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 168px)); justify-content: center; gap: 12px; width: 100%; }
+:is(#buildGrid, #bookGrid) .heroCard { background: #ffe9c7; }
+:is(#buildGrid, #bookGrid) .lvl { font-size: 13px; font-weight: 700; opacity: .75; margin-top: 4px; background: none; border: 0; padding: 0; }
+:is(#buildGrid, #bookGrid) .heroCard.unbuilt { background: #ddd6e2; }
+:is(#buildGrid, #bookGrid) .heroCard.unbuilt img { filter: grayscale(1) brightness(.6) contrast(.5); opacity: .5; }   /* just a grey shape until it's built */
+:is(#buildGrid, #bookGrid) .heroCard.unbuilt .heroName { background: #ece7f0; color: #8a7f92; }
+:is(#buildGrid, #bookGrid) .heroCard .tag {
   position: absolute; top: -12px; right: -10px;
   display: inline-flex; align-items: center; gap: 2px; height: 34px; box-sizing: border-box;
   background: var(--cream); padding: 0 9px 0 3px; font-size: 16px; font-weight: 700;
   border: 2.5px solid var(--ink); border-radius: 999px; box-shadow: 0 3px 0 var(--ink-soft);
 }
-#buildGrid .heroCard .tag .flower { width: 24px; height: 24px; }
-#buildGrid .heroCard .tag:empty { display: none; }
+:is(#buildGrid, #bookGrid) .heroCard .tag .flower { width: 24px; height: 24px; }
+:is(#buildGrid, #bookGrid) .heroCard .tag:empty { display: none; }
+#bookGrid { grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); }
+#bookGrid .heroCard { background: #d8f1ff; cursor: default; }
+#bookGrid .heroCard img { max-width: 110px; }
+#bookGrid .heroCard .tag { padding: 0 10px; }
+#bookGrid .heroCard.unbuilt img { filter: brightness(0) opacity(.25); }   /* not caught yet: just its shadow */
+#bookCount { margin: -4px auto 6px; }
 .buildActs { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 6px; }
 .actBtn {
   border-radius: 999px !important; width: auto; height: auto;
@@ -439,6 +445,47 @@ body.pad .heroCard.focus, body.keys .heroCard.focus, .heroCard:focus-visible { o
 }
 .actBtn svg { width: 34px; height: 34px; }
 #arrangeBtn { --c1: var(--leaf); --c2: var(--leaf-d); }
+#fishGo { --c1: #8fd8ff; --c2: #3f9fd8; }
+#fishBookBtn { --c1: var(--berry); --c2: var(--berry-d); }
+/* ---------- Fishing ---------- */
+#fishBar { position: fixed; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom) + 36px); display: none; }
+body.farm.fishing #fishBar { display: flex; }
+body.farm.fishing #farmBtns { display: none; }
+#bookBtn { --c1: var(--berry); --c2: var(--berry-d); width: 76px; height: 76px; }
+#bookBtn svg { width: 46px; height: 46px; }
+#fishStop svg { width: 56px; height: 56px; margin: 0; }
+.fishUi, .fishCatch { position: fixed; left: 0; top: 0; z-index: 4; width: 0; height: 0; pointer-events: none; }
+body:not(.farm) :is(.fishUi, .fishCatch), :is(.fishUi, .fishCatch).away { display: none; }
+.fishSay {
+  position: absolute; bottom: 10px; left: 0; translate: -50% 0; width: max-content; max-width: 220px;
+  padding: 6px 14px 8px; border-radius: 18px; background: #fff4e0; border: 3px solid #3a2442; color: #3a2442;
+  font-size: 16px; font-weight: 700; line-height: 1.2; text-align: center;
+}
+.fishSay:empty { display: none; }
+.fishSay.bite { font-size: 30px; line-height: 1; padding: 4px 16px 6px; background: #ffd23f; animation: yay .3s cubic-bezier(.3, 1.8, .5, 1); }
+.reel { position: absolute; left: 34px; top: -30px; display: none; gap: 5px; }
+.fishUi.reeling .reel { display: flex; }
+.meter { position: relative; width: 34px; height: 168px; box-sizing: border-box; border: 3px solid #3a2442; border-radius: 14px; background: linear-gradient(#8edcf6, #3f9fd8); overflow: hidden; }
+.meter .zone { position: absolute; left: 2px; right: 2px; box-sizing: border-box; border-radius: 9px; background: rgba(140, 230, 120, .8); border: 2px solid #2f9a3c; }
+.meter .fishDot { position: absolute; left: 50%; width: 28px; height: 22px; translate: -50% 50%; }
+.meter .fishDot svg { width: 100%; height: 100%; display: block; }
+.prog { position: relative; width: 14px; height: 168px; box-sizing: border-box; border: 3px solid #3a2442; border-radius: 8px; background: #fff4e0; overflow: hidden; }
+.prog i { position: absolute; left: 0; right: 0; bottom: 0; background: #ffd23f; }
+.fishCatch .card {
+  position: absolute; bottom: 10px; left: 0; translate: -50% 0; width: max-content; max-width: 200px;
+  display: grid; justify-items: center; gap: 1px; padding: 4px 14px 10px; text-align: center;
+  background: #fff4e0; border: 3px solid #3a2442; border-radius: 20px; box-shadow: 0 4px 0 var(--ink-soft); color: #3a2442;
+  animation: yay .45s cubic-bezier(.3, 1.8, .5, 1);
+}
+.fishCatch img { width: 92px; height: 92px; }
+.fishCatch b { font-size: 17px; line-height: 1.1; }
+.fishCatch .cm { font-size: 14px; font-weight: 600; opacity: .75; }
+.fishCatch .gain { display: inline-flex; align-items: center; gap: 2px; margin-top: 3px; font-size: 15px; font-weight: 700; }
+.fishCatch .gain .flower { width: 20px; height: 20px; }
+.fishCatch .badge {
+  position: absolute; top: -12px; right: -14px; rotate: 8deg; padding: 2px 10px 3px; font-style: normal;
+  font-size: 14px; font-weight: 700; color: #fff; background: var(--berry); border: 2.5px solid #3a2442; border-radius: 999px;
+}
 #decorShopBtn { --c1: var(--berry); --c2: var(--berry-d); }
 body.pad .actBtn.focus, body.keys .actBtn.focus { outline: 4px solid var(--sky); outline-offset: 3px; }
 #bunkGrid .heroCard.yay { animation: yay .5s cubic-bezier(.3, 1.8, .5, 1); }

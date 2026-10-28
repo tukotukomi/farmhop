@@ -1327,6 +1327,11 @@ const sfx = (() => {
     upgrade() { tone(784, null, 0.1, 'square', 0.06); tone(988, null, 0.1, 'square', 0.06, 0.1); tone(1319, null, 0.32, 'square', 0.06, 0.2); noise(0.4, 0.25, 'bandpass', 1400, 0.05); },
     lullaby() { tone(784, null, 0.4, 'triangle', 0.08); tone(659, null, 0.4, 'triangle', 0.08, 0.35); tone(523, null, 0.9, 'triangle', 0.08, 0.7); },
     launch() { tone(300, 1200, 0.4, 'square', 0.07); },
+    cast() { tone(900, 380, 0.2, 'sine', 0.06); noise(0.18, 0.12, 'highpass', 2500); },
+    plop() { noise(0.12, 0.25, 'bandpass', 900); tone(520, 260, 0.12, 'sine', 0.08); },
+    bite() { tone(1046, null, 0.06, 'square', 0.06); tone(1319, null, 0.08, 'square', 0.06, 0.09); noise(0.2, 0.3, 'bandpass', 1500); },
+    reel() { tone(1500, 1300, 0.025, 'square', 0.02); },
+    lost() { tone(440, 220, 0.35, 'triangle', 0.07); },
     honk() { tone(420, 330, 0.18, 'sawtooth', 0.09); tone(430, 340, 0.2, 'sawtooth', 0.09, 0.2); },
     buzz() { tone(110, 120, 0.45, 'sawtooth', 0.025); },
     chomp() { noise(0.4, 0.4, 'bandpass', 900); tone(140, 70, 0.35, 'square', 0.08); },
@@ -2804,6 +2809,57 @@ function duckMesh(s) {
 }
 
 // Rebuild the pond for its current level. Everything up to that level is there.
+// ---------- fish you can catch ----------
+// Each Fish Pond level lets new kinds in (lvl). w = how often it bites compared
+// with the others, cm = smallest and biggest, price = sunflowers it sells for,
+// wiggle = how hard it fights on the line.
+const FISH = [
+  { id: 'minnow', lvl: 1, w: 10, cm: [4, 9], price: 1, wiggle: 0.6, col: [0xa9b8c4, 0xe8eef2], shape: { long: 0.85, tall: 0.75 } },
+  { id: 'bluegill', lvl: 1, w: 8, cm: [10, 22], price: 2, wiggle: 0.9, col: [0x4f7fc4, 0xffb347], shape: { tall: 1.25 } },
+  { id: 'boot', lvl: 1, w: 3, cm: [24, 30], price: 0, wiggle: 0.3 },
+  { id: 'goldfish', lvl: 2, w: 6, cm: [6, 15], price: 3, wiggle: 1.1, col: [0xff9a2a, 0xffd23f] },
+  { id: 'perch', lvl: 3, w: 5, cm: [15, 30], price: 4, wiggle: 1.3, col: [0xb8d050, 0xf2e6b0], shape: { stripes: 0x4a6a24 } },
+  { id: 'koi', lvl: 4, w: 4, cm: [30, 60], price: 6, wiggle: 1.5, col: [0xffffff, 0xff6a2a], shape: { koi: true, long: 1.1 } },
+  { id: 'catfish', lvl: 5, w: 3, cm: [40, 90], price: 8, wiggle: 1.7, col: [0x6e6258, 0xd8c8a8], shape: { long: 1.15, tall: 0.8, whiskers: true } },
+  { id: 'trout', lvl: 6, w: 3, cm: [25, 55], price: 10, wiggle: 2, col: [0x7fa8a0, 0xff7fb8], shape: { trout: true, long: 1.1 } },
+  { id: 'pike', lvl: 7, w: 2, cm: [50, 100], price: 14, wiggle: 2.3, col: [0x6f8a3a, 0xece4b0], shape: { long: 1.4, tall: 0.65 } },
+  { id: 'goldkoi', lvl: 8, w: 1.2, cm: [40, 70], price: 20, wiggle: 2.6, col: [0xffd23f, 0xfff4e0], shape: { koi: true, long: 1.1 } },
+  { id: 'moonfish', lvl: 9, w: 0.8, cm: [20, 40], price: 30, wiggle: 2.9, col: [0xbd96ff, 0xdff3ff], shape: { long: 0.8, tall: 1.5 } },
+];
+// A fish side on, nose toward +x, about a unit long and centred half a unit up
+// (for the Fish Book's pictures and the catch cards).
+function fishModel(sp) {
+  const v = new VB(1);
+  if (sp.id === 'boot') {
+    const LEATHER = 0x8a5a33;
+    v.rbox(0.36, 0.6, 0.3, -0.16, 0.62, 0, LEATHER, 0.1);                       // the leg
+    v.rbox(0.72, 0.26, 0.32, 0.04, 0.3, 0, LEATHER, 0.1);                       // the foot
+    v.rbox(0.76, 0.07, 0.34, 0.04, 0.16, 0, 0x4a3020, 0.03);                    // the sole
+    v.cyl(0.13, 0.13, 0.04, -0.16, 0.92, 0, 0x4a3020);                          // the way in
+    for (let i = 0; i < 3; i++) v.rbox(0.18, 0.03, 0.02, -0.02, 0.5 - i * 0.09, 0.16, 0xf4ead8, 0.01, 0, 0, 0.3);   // laces
+    v.ball(0.07, 0.03, 0.07, 0.22, 0.45, 0.05, 0x5fb84a);                       // a bit of pond weed
+    return { group: v.mesh() };
+  }
+  const [a, b] = sp.col, s = sp.shape || {}, L = s.long || 1, H = s.tall || 1;
+  const skin = (x, y, z) => {
+    if (s.koi) return Math.sin(x * 9 + 1) * Math.cos(y * 11 + z * 5) > 0.15 ? b : a;   // patches
+    if (s.trout) return Math.abs(y - 0.5) < 0.035 ? b : y < 0.45 ? 0xf2f0e6 : a;         // a pink stripe down the side
+    if (s.stripes && y > 0.47 && Math.sin(x * 20) > 0.5) return s.stripes;
+    return y < 0.45 ? b : a;                                                              // pale belly
+  };
+  v.ball(0.42 * L, 0.24 * H, 0.13, 0, 0.5, 0, skin);
+  const fin = (x, y, rz, sx, sy) => v.add(prim('fin', () => new THREE.ConeGeometry(1, 1, 12)), a, x, y, 0, 0, 0, rz, sx, sy, 0.035);
+  fin(-0.48 * L, 0.5, -Math.PI / 2, 0.2 * H, 0.3);                           // tail
+  fin(-0.04 * L, 0.5 + 0.24 * H, 0.2, 0.15, 0.16);                           // back fin
+  fin(0.02, 0.38, Math.PI - 0.6, 0.06, 0.12);                                // a little side fin
+  for (const z of [-1, 1]) {
+    v.ball(0.05, 0.05, 0.03, 0.28 * L, 0.55, z * 0.1, 0xffffff);
+    v.ball(0.026, 0.026, 0.02, 0.3 * L, 0.55, z * 0.12, 0x111111);
+  }
+  if (s.whiskers) for (const z of [-1, 1]) v.cyl(0.008, 0.008, 0.3, 0.46 * L, 0.42, z * 0.08, 0x3a2442, 0, 0, -1.1);
+  return { group: v.mesh() };
+}
+
 function buildPond() {
   const g = farm.pond, L = farm.level;
   for (const c of [...g.children]) { g.remove(c); if (c.geometry !== PGEO) c.geometry?.dispose(); }   // PGEO is shared with particles
@@ -2966,6 +3022,9 @@ function spawnWalkers() {
   syncPlayerWalkers();
 }
 function removeWalker(w) {
+  stopFish(w.key);
+  const s = seen.get(w.key);
+  if (s) { dropRig(s.rig); seen.delete(w.key); }
   farm.group.remove(w.m.group);
   disposeHero(w.m);
   farm.walkers.splice(farm.walkers.indexOf(w), 1);
@@ -3018,7 +3077,7 @@ function landLeap(w, x, z, up) {
 }
 function farmHop(id, dx, dr) {
   const w = walkerOf(id);
-  if (!w) return;
+  if (!w || fishers.has(id)) return;
   if (w.leap) { w.queued = [dx, dr]; return; }   // pressed again mid-hop: go straight after this one
   w.goal = null;
   leapTo(w, w.x + dx * FARM_STEP, w.z - dr * FARM_STEP);
@@ -3042,7 +3101,7 @@ function nextLeap(w) {
 }
 // The TV's own hopper, from the keyboard or a controller
 function hostFarmHop(dx, dr) {
-  if (game.state !== 'farm' || game.picking || decor.on || jam.open) return false;
+  if (game.state !== 'farm' || game.picking || decor.on || jam.open || fishers.has(myKey())) return false;
   farmHop(myKey(), dx, dr);
   return true;
 }
@@ -3081,14 +3140,15 @@ function updateWalkers(dt, t) {
       inner.position.y = lerp(inner.position.y, 0, Math.min(1, dt * 10));
       inner.rotation.z = lerp(inner.rotation.z, 0, Math.min(1, dt * 10));
       if ((w.wait -= dt) <= 0) {
-        if (GUEST) w.wait = 1;   // on a friend's farm, the host decides where everyone wanders
+        if (w.fishing) w.wait = 1;
+        else if (GUEST) w.wait = 1;   // on a friend's farm, the host decides where everyone wanders
         else { [w.tx, w.tz] = nextSpot(w); toGuests({ t: 'walk', k: w.key, x: w.x, z: w.z, tx: w.tx, tz: w.tz }); }
       }
     }
     let da = w.face - group.rotation.y;
     da = Math.atan2(Math.sin(da), Math.cos(da));
     group.rotation.y += da * Math.min(1, dt * 8);
-    group.position.set(w.x, 0, w.z);
+    group.position.set(w.x, w.y || 0, w.z);
     for (const tl of tails) tl.rotation[tl.userData.axis || 'z'] = tl.userData.side * sway;
   }
   const marks = playerMarks();
@@ -3103,7 +3163,7 @@ function updateWalkers(dt, t) {
     m.visible = !!w;
     if (!w) return;
     m.geometry = n < 0 ? MARKER_GEO : PLAYER_MARKERS[n];
-    m.position.set(w.x, w.top + 0.32 + Math.sin(t * 3 + i) * 0.06 + w.m.inner.position.y, w.z);
+    m.position.set(w.x, (w.y || 0) + w.top + 0.32 + Math.sin(t * 3 + i) * 0.06 + w.m.inner.position.y, w.z);
     m.rotation.y = Math.sin(t * 1.5 + i) * 0.5;
   });
 }
@@ -3199,8 +3259,8 @@ function setHint() {
 const TIP_EVERY = 60, TIP_SHOW = 6;
 const tip = { wait: 3, show: 0, n: 0, w: null };
 function tipList() {
-  if (GUEST) return ['guest', 'hop', 'hopper'];
-  return ['hop', 'start', 'pond', !farm.bunkBuilt && 'bunk', !farm.stageBuilt && 'stage', 'decor', 'hopper', 'friends'].filter(Boolean);
+  if (GUEST) return ['guest', 'hop', farm.level >= 1 && 'fishGuest', 'hopper'].filter(Boolean);
+  return ['hop', 'start', 'pond', farm.level >= 1 && 'fish', !farm.bunkBuilt && 'bunk', !farm.stageBuilt && 'stage', 'decor', 'hopper', 'friends'].filter(Boolean);
 }
 function tipText(key) {
   const pad = document.body.classList.contains('pad');
@@ -3211,7 +3271,7 @@ function tipText(key) {
 const tipWalker = () => farm.walkers?.find(w => w.id === 'betty' && !w.hidden) || walkerOf(myKey());
 function updateTip(dt) {
   const el = $('tip');
-  const quiet = game.state !== 'farm' || decor.on || game.picking || document.body.classList.contains('show-logo');
+  const quiet = game.state !== 'farm' || decor.on || game.picking || fishers.has(myKey()) || document.body.classList.contains('show-logo');
   if (quiet) {
     if (tip.show > 0) { tip.show = 0; el.classList.remove('show'); }
     tip.wait = Math.max(tip.wait, 3);   // a moment's breath before she speaks again
@@ -3238,6 +3298,13 @@ function updateTip(dt) {
   el.style.setProperty('--tail', `${Math.min(Math.max(x - left + half, 22), el.offsetWidth - 22)}px`);
 }
 const _tipAt = new THREE.Vector3();
+function bettySays(text) {   // a word from Betty Lou right now
+  const el = $('tip');
+  el.textContent = text;
+  tip.w = tipWalker();
+  tip.show = 4;
+  el.classList.add('show');
+}
 // Full-screen wipe; `swap` runs while the screen is covered.
 function transition(kind, swapAt, swap) {
   const el = $('wipe');
@@ -3250,6 +3317,7 @@ function transition(kind, swapAt, swap) {
 function goRoad() {   // sunrise, then onto the road at first light
   if (game.state !== 'farm' || GUEST) return;
   exitDecor();
+  stopAllFishing();
   game.state = 'sunrise';
   closeHeroes();
   closePond();
@@ -3272,6 +3340,7 @@ function goRoad() {   // sunrise, then onto the road at first light
 }
 // A guest's side of the sunrise: the host's road, the host's line-up.
 function goRoadGuest(m) {
+  stopAllFishing();
   closeHeroes();
   closeSettings();
   sfx.rooster();
@@ -3398,6 +3467,8 @@ function zoomFarm(k) {
 const _a = new THREE.Vector3(), _b = new THREE.Vector3();
 window.addEventListener('pointerdown', e => {
   if (!exploring(e)) return;
+  const meF = fishers.get(myKey());
+  if (meF) { fishPtr = e.pointerId; fishPress(meF, true, 'tap'); return; }   // fishing: the whole screen is the reel
   if (decor.on && !touches.size && decorGrab(e)) return;   // picked up a piece: drag it instead of the view
   touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   farmTap = touches.size === 1 ? { x: e.clientX, y: e.clientY, id: e.pointerId } : null;
@@ -3423,6 +3494,7 @@ window.addEventListener('pointermove', e => {
   }
 });
 function farmPointerUp(e) {
+  if (fishPtr != null && fishPtr === e.pointerId) { fishPtr = null; const f = fishers.get(myKey()); if (f) fishPress(f, false); return; }
   if (decor.drag && decor.drag.id === e.pointerId) { decorDrop(); return; }
   if (!touches.delete(e.pointerId)) return;
   pinch = 0;
@@ -3445,6 +3517,8 @@ function tapFarm(x, y) {
   const hit = (obj) => _ray.intersectObject(obj, true).length > 0;
   const w = farm.walkers.find(w => !w.hidden && hit(w.m.group));
   if (w) { w.hop = 0.5; sfx.hop(w.id); return; }
+  const pondHit = _ray.intersectObject(farm.pieces.pond.group, true)[0];
+  if (pondHit && (GUEST || onDock(pondHit.point))) { goFish(myKey(), 'tap'); return; }
   if (!GUEST) {   // a guest's taps on buildings just hop there
     if (hit(farm.pieces.bunk.group)) { openBunk(); return; }
     if (hit(farm.pieces.stage.group)) { stageAct(); return; }
@@ -3471,7 +3545,12 @@ const KEYS = {
   ArrowUp: [0, 1], KeyW: [0, 1], ArrowDown: [0, -1], KeyS: [0, -1],
   ArrowLeft: [-1, 0], KeyA: [-1, 0], ArrowRight: [1, 0], KeyD: [1, 0],
 };
-window.addEventListener('keyup', e => { if (jam.open) letGo('k' + e.code); });
+window.addEventListener('keyup', e => {
+  if (jam.open) letGo('k' + e.code);
+  const meF = fishers.get(myKey()), kf = keysPlayer() && fishers.get('p' + keysPlayer());
+  if (meF && (e.code === 'Space' || e.code === 'Enter')) fishPress(meF, false);
+  if (kf && e.code.startsWith('Arrow')) fishPress(kf, false);
+});
 window.addEventListener('keydown', e => {
   sfx.ensure();
   if (partyOpen()) { if (e.code === 'Escape' || e.code === 'Enter') closeParty(); e.preventDefault(); return; }
@@ -3482,8 +3561,10 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
     return;
   }
-  if (game.picking && pondOpen()) {   // Fish Pond panel: Enter buys, Escape closes
+  if (game.picking && bookOpen()) { if (e.code === 'Escape' || e.code === 'Enter') closeBook(); e.preventDefault(); return; }
+  if (game.picking && pondOpen()) {   // Fish Pond panel: Enter buys, F goes fishing, Escape closes
     if (e.code === 'Enter' || e.code === 'Space') buyPond();
+    else if (e.code === 'KeyF') goFish(myKey(), 'keys');
     else if (e.code === 'Escape') closePond();
     e.preventDefault();
     return;
@@ -3551,6 +3632,18 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
     return;
   }
+  if (game.state === 'farm' && !game.picking) {   // fishing: Space or Enter casts and reels, F or Escape stops
+    const meF = fishers.get(myKey()), kp = keysPlayer(), kf = kp && fishers.get('p' + kp);
+    if (meF && ['Space', 'Enter', 'Escape', 'KeyF'].includes(e.code)) {
+      if (e.code === 'Escape' || e.code === 'KeyF') stopFish(myKey());
+      else if (!e.repeat) fishPress(meF, true, 'keys');
+      e.preventDefault();
+      return;
+    }
+    if (kp && e.code === 'ShiftRight') { toggleFish('p' + kp, 'arrows'); e.preventDefault(); return; }   // the keyboard friend
+    if (kf && e.code.startsWith('Arrow')) { if (!e.repeat) fishPress(kf, true); e.preventDefault(); return; }
+    if (e.code === 'KeyF') { goFish(myKey(), 'keys'); return; }
+  }
   if (game.state === 'farm') {          // Enter starts the day, P opens the pond, B the buildings, C picks a hopper
     if (e.code === 'Enter' || e.code === 'Space') { goRoad(); e.preventDefault(); }
     else if (e.code === 'KeyP') openPond();
@@ -3597,6 +3690,7 @@ function step(dt) {
   } else updateFarm(dt);
   updateCamera(dt);
   updateTip(dt);
+  updateFishing(dt);
   if (game.where === 'road') ensureLanes();
   updateParts(dt);
   if (game.state === 'play' && game.crew.some(h => h.alive && !h.parked)) {   // the day wears on
@@ -3654,9 +3748,10 @@ function renderPortraits() {
     [farm[b.id], farm[b.flag]] = was;
     return { group };
   } }, 256, 1.0, 1.75, null, -0.45));
+  const fish = FISH.map(sp => shot({ build: () => fishModel(sp) }, 192, 0.5, 0.7, null, 0.35));
   r.dispose();
   r.forceContextLoss();
-  return { head, cards, decor, builds };
+  return { head, cards, decor, builds, fish };
 }
 
 const shots = renderPortraits();
@@ -3692,6 +3787,7 @@ function heroNav(dir) {
   markHero();
 }
 function openHeroes() {
+  stopFish(myKey());   // a new hopper would leave the rod behind
   heroFocus = Math.max(0, shownCards().findIndex(c => c.dataset.id === heroId));
   markHero();
   $('heroes').classList.add('show');
@@ -3727,7 +3823,7 @@ function refreshPond() {
   $('pondNeed').textContent = needText(short);
 }
 function openPond() {
-  if (GUEST) return;
+  if (GUEST) { goFish(myKey(), document.body.classList.contains('pad') ? 'pad' : 'tap'); return; }   // a guest can't buy, but can fish
   if (game.state !== 'farm') return;
   refreshPond();
   $('pond').classList.add('show');
@@ -3746,6 +3842,439 @@ function buyPond() {
 $('pondBuy').addEventListener('click', buyPond);
 $('pondClose').addEventListener('click', closePond);
 $('pond').addEventListener('click', e => { if (e.target.id === 'pond') closePond(); });
+
+// ---------- Fishing ----------
+// Go fishing from the Fish Pond panel, by tapping the dock, or (friends) by tapping
+// the pond. Your hopper hops to the dock, or to a free spot on the bank, and gets
+// a rod out. Cast, wait for the bobber to dip, then hook it in time. Reeling in is
+// a tug of war: hold to lift the green zone, let go to drop it, and keep the fish
+// inside until the bar beside it fills. Everything caught goes in the Fish Book and
+// is sold for sunflowers straight away.
+// Everyone can fish at once: you, friends on this screen (X to fish, A to reel,
+// B to stop; the keyboard friend Right Shift and the up arrow), and guests on
+// their own devices, who each see everyone else's rod and bobber and catches.
+const FISH_KEY = 'bl-fish';
+let fishBook = store.get(FISH_KEY, {});            // id -> { n: how many, best: biggest in cm }
+const fishers = new Map();                         // walker key -> someone fishing on this screen
+const seen = new Map();                            // walker key -> someone fishing on another screen (just their rod)
+const catches = [];                                // catch cards floating over hoppers
+const DOCK_Y = 0.15;
+let fishPtr = null;                                // the finger or mouse button reeling for you
+const pondPiece = () => farm.pieces.pond;
+const farmToPond = (x, z) => {                     // a farm point in the pond's own space
+  const p = pondPiece(), a = p.r * Math.PI / 2, c = Math.cos(a), s = Math.sin(a), dx = x - p.x, dz = z - p.z;
+  return [dx * c - dz * s, dx * s + dz * c];
+};
+const fishName = id => t('fish.names.' + id);
+// Where to stand: the end of the dock if there is one and it's free, else the
+// nearest free spot on the bank that isn't up against something else.
+function fishSpot(w) {
+  const [rx, rz] = farm.pondR, p = pondPiece();
+  const taken = [...fishers.values(), ...seen.values()].filter(f => f.w !== w).map(f => f.spot);
+  if (farm.level >= 3 && !taken.some(s => s.dock)) {
+    return { dock: true, at: pieceToFarm(p, rx * 0.55, rz * 0.75 - 0.4), land: pieceToFarm(p, rx * 0.55, rz + 0.8), aim: [rx * 0.55, -rz * 0.25] };
+  }
+  let best = null, bd = Infinity;
+  for (let i = 0; i < 24; i++) {
+    const th = i / 24 * Math.PI * 2, lx = Math.cos(th) * (rx + 0.6), lz = Math.sin(th) * (rz + 0.6);
+    if (farm.level >= 3 && Math.abs(lx - rx * 0.55) < 0.7 && lz > 0) continue;   // not across the dock
+    const [x, z] = pieceToFarm(p, lx, lz);
+    if (x < YARD.x0 || x > YARD.x1 || z < YARD.z0 || z > YARD.z1 || blockedAt(x, z)) continue;
+    if (taken.some(s => Math.hypot(s.at[0] - x, s.at[1] - z) < 1)) continue;
+    const d = Math.hypot(x - w.x, z - w.z);
+    if (d < bd) { bd = d; best = { at: [x, z], land: [x, z], aim: [Math.cos(th) * rx * 0.4, Math.sin(th) * rz * 0.4] }; }
+  }
+  return best;
+}
+// via: how they're playing, for the prompts: 'tap', 'pad', 'keys' (Space) or 'arrows'.
+function goFish(key, via) {
+  if (game.state !== 'farm' || decor.on || jam.open || fishers.has(key)) return;
+  const w = walkerOf(key);
+  if (!w || w.hidden) return;
+  closePond();
+  if (farm.level < 1) { if (key === myKey()) bettySays(t('fish.noFish')); sfx.bump(); return; }
+  const spot = fishSpot(w);
+  if (!spot) { sfx.bump(); return; }
+  const f = { key, w, via, spot, st: 'walk', t: 0, tell: 0, hold: false, tapped: false, msg: '', msgT: 0, say: null, ui: fishUi(), rig: addRig(w) };
+  fishers.set(key, f);
+  w.fishing = true;
+  w.goal = w.queued = null;
+  hopToward(key, ...spot.land);
+  if (key === myKey()) {
+    document.body.classList.add('fishing');
+    farmCam.x = clamp(spot.at[0], FARM_PAN.x0, FARM_PAN.x1);
+    farmCam.z = clamp(spot.at[1] + 1.4, FARM_PAN.z0, FARM_PAN.z1);
+  }
+  sfx.pick();
+}
+function stopFish(key) {
+  const f = fishers.get(key);
+  if (!f) return;
+  fishers.delete(key);
+  f.ui.remove();
+  dropRig(f.rig);
+  const w = f.w;
+  w.fishing = false;
+  w.wait = STEER_IDLE;
+  if (w.y) { w.y = 0; landLeap(w, ...f.spot.land, 0.4); }   // hop back off the dock
+  if (f.st !== 'walk' && f.st !== 'settle') tellFish(f, false);
+  if (key === myKey()) { document.body.classList.remove('fishing'); fishPtr = null; }
+}
+function stopAllFishing() {
+  for (const key of [...fishers.keys()]) stopFish(key);
+  for (const [key, s] of seen) { dropRig(s.rig); s.w.fishing = false; s.w.y = 0; seen.delete(key); }
+}
+const toggleFish = (key, via) => fishers.has(key) ? stopFish(key) : goFish(key, via);
+function fishPress(f, down, via) {
+  if (via) f.via = via;
+  if (down && !f.hold) f.tapped = true;
+  f.hold = down;
+}
+
+// The rod in the hopper's hands, the bobber and the line between them.
+const ROD_GEO = (() => {
+  const v = new VB(0.6);
+  v.cyl(0.012, 0.024, 0.95, 0, 0.475, 0, 0x8a5a33);
+  v.cyl(0.032, 0.032, 0.16, 0, 0.1, 0, 0x3a2442);                        // the handle
+  v.cyl(0.05, 0.05, 0.04, 0.045, 0.24, 0, 0xc9cfd4, 0, 0, Math.PI / 2);    // the reel
+  return v.geometry();
+})();
+const BOB_GEO = (() => {
+  const v = new VB(0.6);
+  v.ball(0.06, 0.06, 0.06, 0, 0.03, 0, (x, y) => y > 0.03 ? 0xff4b4b : 0xffffff);
+  v.cyl(0.008, 0.008, 0.06, 0, 0.11, 0, 0x3a2442);
+  return v.geometry();
+})();
+const LINE_MAT = new THREE.LineBasicMaterial({ color: 0x3a2442 });
+const _tip = new THREE.Vector3();
+function addRig(w) {
+  const rod = new THREE.Mesh(ROD_GEO, VMAT);
+  rod.position.set(0.2, w.top * 0.42, -0.05);
+  rod.rotation.x = -0.95;                            // tipped out in front
+  w.m.group.add(rod);
+  const bob = new THREE.Mesh(BOB_GEO, VMAT);
+  bob.visible = false;
+  farm.group.add(bob);
+  const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), LINE_MAT);
+  line.frustumCulled = false;
+  line.visible = false;
+  line.layers.set(GLOW_LAYER);                       // a hairline, no ink outline
+  farm.group.add(line);
+  return { w, rod, bob, line, bx: 0, bz: 0, k: 1 };
+}
+function dropRig(rig) {
+  rig.w.m.group.remove(rig.rod);
+  farm.group.remove(rig.bob, rig.line);
+  rig.line.geometry.dispose();
+}
+function drawRig(rig, st, t) {
+  const out = st === 'fly' || st === 'wait' || st === 'bite' || st === 'reel';
+  rig.bob.visible = rig.line.visible = out;
+  rig.rod.rotation.x = st === 'reel' ? -0.55 + Math.sin(t * 22) * 0.06 : st === 'bite' ? -0.8 : -0.95;
+  if (!out) return;
+  rig.rod.updateWorldMatrix(true, false);
+  farm.group.worldToLocal(rig.rod.localToWorld(_tip.set(0, 0.95, 0)));
+  let x = rig.bx, z = rig.bz, y = 0.07 + Math.sin(t * 3 + rig.bx * 5) * 0.012;
+  if (st === 'bite') y -= 0.05 + Math.abs(Math.sin(t * 25)) * 0.03;
+  if (st === 'reel') y -= 0.03 + Math.sin(t * 13) * 0.02;
+  if (st === 'fly') {                                // flying out on an arc
+    const k = rig.k;
+    x = lerp(_tip.x, x, k); z = lerp(_tip.z, z, k);
+    y = lerp(_tip.y, y, k) + Math.sin(Math.PI * k) * 0.6;
+  }
+  rig.bob.position.set(x, y, z);
+  const pos = rig.line.geometry.attributes.position;
+  pos.setXYZ(0, _tip.x, _tip.y, _tip.z);
+  pos.setXYZ(1, x, y + 0.13, z);
+  pos.needsUpdate = true;
+}
+
+// What's biting: any kind the pond is big enough for, the common ones more often.
+function rollFish() {
+  const can = FISH.filter(sp => sp.lvl <= farm.level);
+  let r = Math.random() * can.reduce((n, sp) => n + sp.w, 0);
+  for (const sp of can) if ((r -= sp.w) <= 0) return sp;
+  return can[0];
+}
+function setSt(f, st, time = 0) {
+  f.st = st;
+  f.t = time;
+  f.ui.classList.toggle('reeling', st === 'reel');
+  tellFish(f);
+}
+function say(f, key) { f.msg = t('fish.' + key); f.msgT = 1.4; }
+function cast(f) {
+  const [ax, az] = f.spot.aim, j = () => (Math.random() - 0.5) * 0.4;
+  [f.rig.bx, f.rig.bz] = pieceToFarm(pondPiece(), ax + j(), az + j());
+  f.rig.k = 0;
+  sfx.cast();
+  setSt(f, 'fly', 0.5);
+}
+function stepFisher(f, dt) {
+  const w = f.w, tap = f.tapped;
+  f.tapped = false;
+  f.t -= dt;
+  f.msgT -= dt;
+  switch (f.st) {
+    case 'walk':                                     // hopping over; arrived (or stuck): one last hop onto the spot
+      if (w.leap || w.goal) break;
+      landLeap(w, ...f.spot.at, 0.45);
+      if (f.spot.dock) w.y = DOCK_Y;
+      f.st = 'settle';
+      break;
+    case 'settle':
+      if (w.leap) break;
+      { const [ax, az] = pieceToFarm(pondPiece(), ...f.spot.aim); w.face = Math.atan2(-(ax - w.x), -(az - w.z)); }
+      setSt(f, 'ready');
+      break;
+    case 'ready': if (tap) cast(f); break;
+    case 'fly':
+      f.rig.k = clamp(1 - f.t / 0.5, 0, 1);
+      if (f.t <= 0) {
+        sfx.plop();
+        burst(f.rig.bx, 0.08, FARM_Z + f.rig.bz, [0xffffff, 0xbfe9ff], 5, 0.5, 2, 0.05, 0.4);
+        setSt(f, 'wait', 1.5 + Math.random() * 4.5);
+      }
+      break;
+    case 'wait':
+      if (tap) { say(f, 'soon'); sfx.bump(); setSt(f, 'ready'); }
+      else if (f.t <= 0) {
+        f.sp = rollFish();
+        sfx.bite();
+        burst(f.rig.bx, 0.08, FARM_Z + f.rig.bz, [0xffffff, 0xbfe9ff], 8, 0.8, 2.5, 0.06, 0.5);
+        setSt(f, 'bite', 1.1);
+      }
+      break;
+    case 'bite':
+      if (tap) startReel(f);
+      else if (f.t <= 0) { say(f, 'away'); sfx.lost(); setSt(f, 'ready'); }
+      break;
+    case 'reel': reelGame(f, dt); break;
+    case 'show': if (f.t <= 0 || (tap && f.t < 2)) setSt(f, 'ready'); break;
+  }
+}
+// The tug of war. y is 0 at the bottom of the meter and 1 at the top.
+function startReel(f) {
+  const hard = f.sp.wiggle;
+  f.g = { zy: 0.1, zv: 0, zh: clamp(0.36 - hard * 0.045, 0.22, 0.36), fy: 0.3, ft: 0.5, fn: 0, prog: 0.3, tick: 0 };
+  setSt(f, 'reel', 0);
+}
+function reelGame(f, dt) {
+  const g = f.g, sp = f.sp;
+  g.zv = clamp(g.zv + (f.hold ? 3 : -2.4) * dt, -1.4, 1.4);
+  g.zy += g.zv * dt;
+  if (g.zy < 0) { g.zy = 0; g.zv = Math.max(0, g.zv); }
+  if (g.zy > 1 - g.zh) { g.zy = 1 - g.zh; g.zv = Math.min(0, g.zv); }
+  if ((g.fn -= dt) <= 0) { g.ft = 0.04 + Math.random() * 0.92; g.fn = (0.6 + Math.random() * 1.2) / Math.sqrt(sp.wiggle); }
+  const spd = 0.15 + sp.wiggle * 0.3;
+  g.fy += clamp(g.ft - g.fy, -spd * dt, spd * dt);
+  const inside = g.fy >= g.zy && g.fy <= g.zy + g.zh;
+  g.prog = clamp(g.prog + (inside ? 0.3 : -0.18) * dt, 0, 1);
+  if (inside && (g.tick -= dt) < 0) { g.tick = 0.14; sfx.reel(); }
+  if (g.prog >= 1) landFish(f);
+  else if (g.prog <= 0) { say(f, 'away'); sfx.lost(); setSt(f, 'ready'); }
+}
+function logFish(id, cm) {   // into this device's Fish Book: is it a new kind, or the biggest yet?
+  const was = fishBook[id];
+  fishBook[id] = { n: (was?.n || 0) + 1, best: Math.max(was?.best || 0, cm) };
+  store.set(FISH_KEY, fishBook);
+  return { isNew: !was, isBest: !!was && cm > was.best };
+}
+function landFish(f) {
+  const sp = f.sp, cm = Math.round(sp.cm[0] + (sp.cm[1] - sp.cm[0]) * Math.random() ** 1.6);
+  const rec = logFish(sp.id, cm);
+  if (sp.price) {   // sold on the spot
+    game.coins += sp.price;
+    if (GUEST) guestNet.send({ t: 'fsell', sp: sp.id });   // the sunflowers go to the farm we're on
+    else store.set('bl-coins', game.coins);
+    hud();
+  }
+  showCatch(f.w, sp, cm, rec);
+  burst(f.rig.bx, 0.1, FARM_Z + f.rig.bz, [0xffffff, 0xbfe9ff, 0xffd23f], 14, 1.2, 3.5, 0.07, 0.6);
+  sfx.splash();
+  if (rec.isNew || rec.isBest) sfx.upgrade(); else if (sp.price) sfx.coin();
+  const msg = { t: 'fc', k: f.key, sp: sp.id, cm };
+  if (GUEST) guestNet.send(msg); else toGuests(msg);
+  setSt(f, 'show', 3);
+}
+// A card over the hopper's head: the fish, its size, what it sold for, and New! or Best!
+function showCatch(w, sp, cm, rec) {
+  const el = document.createElement('div');
+  el.className = 'fishCatch';
+  const badge = rec?.isNew ? t('fish.new') : rec?.isBest ? t('fish.best') : '';
+  el.innerHTML = `<div class="card"><img alt="" src="${shots.fish[FISH.indexOf(sp)]}"><b></b><span class="cm"></span>${sp.price ? `<span class="gain">+${sp.price} ${FLOWER_SVG}</span>` : ''}${badge ? '<i class="badge"></i>' : ''}</div>`;
+  el.querySelector('b').textContent = fishName(sp.id);
+  el.querySelector('.cm').textContent = t('fish.cm', { n: cm });
+  if (badge) el.querySelector('.badge').textContent = badge;
+  document.body.append(el);
+  for (const c of catches.filter(c => c.w === w)) c.t = Math.min(c.t, 0);   // one card per hopper
+  catches.push({ el, w, t: 3 });
+}
+// Tell everyone else on the farm what we're up to, so they see our rod and bobber.
+function tellFish(f, on = true) {
+  f.tell = 2;
+  const w = f.w, st = f.st === 'show' || f.st === 'walk' || f.st === 'settle' ? 'ready' : f.st;
+  const [x, z] = on ? [w.x, w.z] : f.spot.land;   // stopping: where they hop back to
+  const msg = { t: 'fv', k: f.key, on, x, z, dock: !!f.spot.dock, face: w.face, st, bx: f.rig.bx, bz: f.rig.bz };
+  if (GUEST) { if (f.key === myKey()) guestNet.send(msg); }
+  else toGuests(msg);
+}
+function applyFishView(m) {
+  const w = walkerOf(m.k);
+  if (!w) return;
+  let s = seen.get(m.k);
+  const x = clamp(+m.x, FARM_BOUNDS.x0, FARM_BOUNDS.x1), z = clamp(+m.z, FARM_BOUNDS.z0, FARM_BOUNDS.z1);
+  if (!isFinite(x) || !isFinite(z)) return;
+  if (!m.on) {
+    if (s) { dropRig(s.rig); seen.delete(m.k); }
+    w.fishing = false;
+    w.y = 0;
+    w.wait = STEER_IDLE;
+    if (Math.hypot(w.x - x, w.z - z) > 0.1) landLeap(w, x, z, 0.4);   // back off the dock
+    return;
+  }
+  if (!s) { s = { w, rig: addRig(w), spot: null, st: 'ready' }; seen.set(m.k, s); }
+  w.fishing = true;
+  w.goal = w.leap = null;
+  w.x = w.tx = x; w.z = w.tz = z;
+  w.y = m.dock ? DOCK_Y : 0;
+  if (isFinite(+m.face)) w.face = +m.face;
+  s.spot = { at: [x, z], dock: !!m.dock };
+  s.st = ['ready', 'fly', 'wait', 'bite', 'reel'].includes(m.st) ? m.st : 'ready';
+  if (s.st === 'fly') s.st = 'wait';
+  s.rig.bx = clamp(+m.bx || 0, FARM_BOUNDS.x0, FARM_BOUNDS.x1);
+  s.rig.bz = clamp(+m.bz || 0, FARM_BOUNDS.z0, FARM_BOUNDS.z1);
+}
+function remoteCatch(m) {
+  const sp = FISH.find(s => s.id === m.sp), w = walkerOf(m.k);
+  if (sp && w) showCatch(w, sp, clamp(m.cm | 0, 1, 999), null);
+}
+// The host hears from a guest: their rod, a catch, or a fish sold for the farm.
+const lastSell = new Map();
+function guestFish(slot, m) {
+  if (m.t === 'fsell') {
+    const sp = FISH.find(s => s.id === m.sp), now = performance.now();
+    if (!sp || !sp.price || now - (lastSell.get(slot) || 0) < 1500) return;   // nobody lands two fish that fast
+    lastSell.set(slot, now);
+    game.coins += sp.price;
+    store.set('bl-coins', game.coins);
+    hud();
+    return;
+  }
+  const msg = { ...m, k: 'p' + slot };
+  if (m.t === 'fv') applyFishView(msg); else remoteCatch(msg);
+  toGuests(msg, slot);
+}
+
+// On screen: a speech bubble with what to do, and the reel meter beside the hopper.
+const FISH_DOT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12c2.6-4 8.4-5.4 12.6-1.6L20.5 7v10l-4.4-3.4C11.9 17.4 6.1 16 3.5 12z" fill="#ff9a3c" stroke="#3a2442" stroke-width="1.8" stroke-linejoin="round"/><circle cx="8" cy="11.2" r="1.3" fill="#3a2442"/></svg>';
+function fishUi() {
+  const el = document.createElement('div');
+  el.className = 'fishUi';
+  el.innerHTML = `<div class="fishSay"></div><div class="reel"><div class="meter"><i class="zone"></i><i class="fishDot">${FISH_DOT}</i></div><div class="prog"><i></i></div></div>`;
+  document.body.append(el);
+  return el;
+}
+const _scr = new THREE.Vector3();
+function screenAt(w, up) {   // a point over a hopper's head, in screen pixels
+  w.m.group.getWorldPosition(_scr);
+  _scr.y += w.top + up;
+  _scr.project(camera);
+  return [(_scr.x + 1) / 2 * innerWidth, (1 - _scr.y) / 2 * innerHeight];
+}
+function promptFor(f) {
+  if (f.msgT > 0) return f.msg;
+  const how = { tap: '', pad: 'Pad', keys: 'Keys', arrows: 'Arrows' }[f.via] ?? '';
+  if (f.st === 'ready') return t('fish.cast' + how);
+  if (f.st === 'wait') return '…';
+  if (f.st === 'bite') return '!';
+  if (f.st === 'reel' && f.g.prog < 0.45) return t('fish.reel' + how);
+  return '';
+}
+function placeFishUi(f, hide) {
+  const el = f.ui;
+  el.classList.toggle('away', hide);
+  if (hide) return;
+  const [x, y] = screenAt(f.w, 0.25);
+  el.style.transform = `translate(${x}px, ${y}px)`;
+  const text = promptFor(f);
+  if (text !== f.say) {
+    f.say = text;
+    const s = el.querySelector('.fishSay');
+    s.textContent = text;
+    s.classList.toggle('bite', text === '!');
+  }
+  if (f.st === 'reel') {
+    const g = f.g;
+    el.querySelector('.zone').style.cssText = `bottom:${g.zy * 100}%;height:${g.zh * 100}%`;
+    el.querySelector('.fishDot').style.bottom = `${g.fy * 100}%`;
+    el.querySelector('.prog i').style.height = `${g.prog * 100}%`;
+  }
+}
+function updateFishing(dt) {
+  if (game.where !== 'farm') return;
+  const t = game.time, paused = game.picking;
+  for (const f of fishers.values()) {
+    if (!paused) stepFisher(f, dt);
+    drawRig(f.rig, f.st, t);
+    placeFishUi(f, paused);
+    if ((f.tell -= dt) < 0 && f.st !== 'walk' && f.st !== 'settle') tellFish(f);   // now and then, for anyone who just arrived
+  }
+  for (const s of seen.values()) drawRig(s.rig, s.st, t);
+  for (let i = catches.length - 1; i >= 0; i--) {
+    const c = catches[i];
+    if ((c.t -= dt) <= 0 || !farm.walkers.includes(c.w)) { c.el.remove(); catches.splice(i, 1); continue; }
+    const [x, y] = screenAt(c.w, 0.35);
+    c.el.style.transform = `translate(${x}px, ${y}px)`;
+    c.el.classList.toggle('away', paused);
+  }
+}
+// Did a tap on the pond land on the dock?
+function onDock(pt) {
+  if (farm.level < 3) return false;
+  const [rx, rz] = farm.pondR, [lx, lz] = farmToPond(pt.x - farm.group.position.x, pt.z - farm.group.position.z);
+  return Math.abs(lx - rx * 0.55) < 0.4 && Math.abs(lz - rz * 0.75) < 0.65;
+}
+
+// ---------- Fish Book ----------
+// Every kind of fish: the ones you've caught with your biggest and how many, the
+// rest a grey shape and "???" (with the pond level they need, if it's not there yet).
+const bookOpen = () => $('book').classList.contains('show');
+const bookGrid = $('bookGrid');
+FISH.forEach((sp, i) => {
+  const card = document.createElement('div');
+  card.className = 'heroCard';
+  card.innerHTML = `<img class="cutout" alt="" src="${shots.fish[i]}"><span class="heroName"></span><span class="lvl"></span><i class="tag"></i>`;
+  bookGrid.append(card);
+});
+function refreshBook() {
+  [...bookGrid.children].forEach((c, i) => {
+    const sp = FISH[i], rec = fishBook[sp.id];
+    c.classList.toggle('unbuilt', !rec);
+    c.querySelector('.heroName').textContent = rec ? fishName(sp.id) : t('notBuilt');
+    c.querySelector('.lvl').textContent = rec ? t('fish.bestCm', { n: rec.best }) : sp.lvl > farm.level ? t('fish.locked', { n: sp.lvl }) : '';
+    c.querySelector('.tag').textContent = rec ? t('fish.count', { n: rec.n }) : '';
+  });
+  $('bookCount').textContent = t('fish.caught', { n: FISH.filter(sp => fishBook[sp.id]).length, all: FISH.length });
+}
+function openBook() {
+  if (game.state !== 'farm') return;
+  closePond();
+  refreshBook();
+  $('book').classList.add('show');
+  game.picking = true;
+}
+function closeBook() {
+  $('book').classList.remove('show');
+  game.picking = anyPanel();
+}
+$('fishGo').addEventListener('click', () => { sfx.ensure(); goFish(myKey(), 'tap'); });
+$('fishBookBtn').addEventListener('click', () => { sfx.ensure(); openBook(); });
+$('bookBtn').addEventListener('click', () => { sfx.ensure(); openBook(); });
+$('fishStop').addEventListener('click', () => stopFish(myKey()));
+$('bookClose').addEventListener('click', closeBook);
+$('book').addEventListener('click', e => { if (e.target.id === 'book') closeBook(); });
+
 
 // ---------- Bunkhouse panel ----------
 // Before it's built: what it costs. After: every hopper, a green check on the ones
@@ -3943,6 +4472,7 @@ function enterDecor() {
   if (GUEST) return;
   if (game.state !== 'farm' || decor.on) return;
   closeHeroes(); closePond(); closeBunk(); closeBuilds(); closeSettings();
+  stopAllFishing();
   decor.on = true;
   document.body.classList.add('decor');
   selectPiece(null);
@@ -4347,6 +4877,7 @@ function jamResize() {
 function openJam() {
   if (game.state !== 'farm' || !farm.stageBuilt || (GUEST && !jam.hostOpen)) return;
   closeHeroes(); closePond(); closeBunk(); closeStage();
+  stopAllFishing();
   jamSetup();
   if (jam.model) { jam.scene.remove(jam.model.group); disposeHero(jam.model); }
   jam.model = hero().build();
@@ -4617,7 +5148,7 @@ function onPlayer(slot, m, direct = false) {
   if (m.t === 'rtc') { if (!direct) rtcSignal(slot, m); return; }
   // Once a phone's direct link is open its notes and hops come that way; one still
   // on its way through the relay is older than what's already arrived, so skip it.
-  if (!direct && peers.get(slot)?.dc?.readyState === 'open' && /^(note|drum|hop|leap|r[hdbpc])$/.test(m.t)) return;
+  if (!direct && peers.get(slot)?.dc?.readyState === 'open' && /^(note|drum|hop|leap|r[hdbpc]|fv|fc|fsell)$/.test(m.t)) return;
   const pl = party.players.get(slot);
   if (m.t === 'hello' && m.guest) {   // a friend playing on their own device: send them the farm
     const was = party.players.get(slot);
@@ -4637,6 +5168,7 @@ function onPlayer(slot, m, direct = false) {
     toGuests({ ...m, k }, slot);
     return;
   }
+  if (/^f(v|c|sell)$/.test(m.t)) { if (pl?.guest && game.where === 'farm') guestFish(slot, m); return; }
   if (m.t === 'leap') {
     const w = pl?.guest && game.where === 'farm' && walkerOf('p' + slot);
     const x = clamp(+m.x, YARD.x0, YARD.x1), z = clamp(+m.z, YARD.z0, YARD.z1), up = clamp(+m.up || 0, 0, 0.5);
@@ -4883,6 +5415,14 @@ function pollLocalPads(list) {
       continue;
     }
     if (game.picking) continue;
+    const fk = 'p' + slot, lf = fishers.get(fk);
+    if (lf) {   // fishing: A casts and reels, B or X stops
+      if (pressed(0)) fishPress(lf, true);
+      if (released(0)) fishPress(lf, false);
+      if (pressed(1) || pressed(2)) stopFish(fk);
+      continue;
+    }
+    if (game.state === 'farm' && pressed(2)) { goFish(fk, 'pad'); continue; }   // X: go fishing
     if (dir) send({ t: 'hop', dx: DIRS[dir][0], dr: DIRS[dir][1] });
     if (released(0)) send({ t: 'hop', dx: 0, dr: 1 });   // A, like a tap: hop forward
     if (game.state === 'farm') {
@@ -4931,6 +5471,7 @@ function addPlayerModel(pl) {
   jam.scene.add(pl.m.group);
 }
 function dropPlayer(slot) {
+  stopFish('p' + slot);
   closePeer(slot);
   const pl = party.players.get(slot);
   if (!pl) return;
@@ -5121,6 +5662,7 @@ function applyLang() {
   if (pondOpen()) refreshPond();
   if (bunkOpen()) refreshBunk();
   if (buildsOpen()) refreshBuilds();
+  if (bookOpen()) refreshBook();
   if (shopOpen()) refreshShop();
   if (stageOpen()) refreshStage();
   if (settingsOpen()) renderSettings();
@@ -5221,9 +5763,18 @@ function pollPad() {
     if (pressed(1) || pressed(8) || pressed(9)) closeSettings();
     return;
   }
-  if (game.picking && pondOpen()) {
+  if (game.picking && bookOpen()) { if (pressed(0) || pressed(1) || pressed(9)) closeBook(); return; }
+  if (game.picking && pondOpen()) {   // A buys, Y goes fishing, B closes
     if (pressed(0) || pressed(9)) buyPond();
-    if (pressed(1) || pick) closePond();
+    if (pressed(3)) { goFish(myKey(), 'pad'); return; }
+    if (pressed(1) || pressed(2)) closePond();
+    return;
+  }
+  const meF = game.state === 'farm' && !game.picking && fishers.get(myKey());
+  if (meF) {   // fishing: A casts and reels, B stops
+    if (pressed(0)) fishPress(meF, true, 'pad');
+    if (released(0)) fishPress(meF, false);
+    if (pressed(1)) stopFish(myKey());
     return;
   }
   if (jam.open) {   // the six buttons play the row the d-pad picked; left/right shift the octave
@@ -5354,6 +5905,8 @@ if (guestNet) {
   guestNet.on(m => {
     if (m.t === 'leap') { const w = walkerOf(m.k); if (w && m.k !== myKey()) landLeap(w, +m.x, +m.z, +m.up); }
     else if (m.t === 'crew') applyCrew(m.walkers || []);
+    else if (m.t === 'fv') { if (m.k !== myKey()) applyFishView(m); }
+    else if (m.t === 'fc') { if (m.k !== myKey()) remoteCatch(m); }
     else if (m.t === 'band') applyBand(m.list || []);
     else if (m.t === 'jn') bandNote(m);
     else if (m.t === 'jd') bandDrum(m);
