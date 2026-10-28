@@ -6012,7 +6012,7 @@ if (RELAY && !GUEST) try { if (sessionStorage.getItem('bl-party-room')) partySta
 // Language, music and effects volume, the road's view angle, and the art style.
 // With a controller or arrow keys: up/down picks a row, left/right changes it.
 const settingsOpen = () => $('settings').classList.contains('show');
-const SET_ROWS = ['lang', 'music', 'fx', 'coop', 'gfx', ...(SUPPORT_URL ? ['sup'] : [])];
+const SET_ROWS = [...(SUPPORT_URL ? ['sup'] : []), 'lang', 'music', 'fx', 'coop', 'gfx'];   // in the order they're shown
 const GFX_CHOICES = ['auto', ...Q_LEVELS];
 let setFocus = 0;
 function segment(el, labels, current, pick, icons) {
@@ -6049,7 +6049,7 @@ function renderSettings() {
   $('songRow').hidden = !supporter || !!GUEST;   // on a friend's farm, the farm's song is theirs to pick
   if (supporter && !GUEST) segment($('segSong'), t('sup.songs'), songStyle() === 'dnb' ? 1 : 0, i => setSong(!!i));
   const nav = document.body.classList.contains('pad') || document.body.classList.contains('keys');
-  document.querySelectorAll('.setRow').forEach((r, i) => r.classList.toggle('focus', nav && i === setFocus));
+  document.querySelectorAll('.setRow').forEach(r => r.classList.toggle('focus', nav && r.dataset.row === SET_ROWS[setFocus]));
 }
 function setLang(id) {
   lang = id;
