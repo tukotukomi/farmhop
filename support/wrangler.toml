@@ -1,0 +1,9 @@
+name = "farmhop-support"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+# Created with: npx wrangler@3 kv:namespace create SUPPORT
+# (the id below is filled in from what that prints)
+[[kv_namespaces]]
+binding = "SUPPORT"
+id = "REPLACE_WITH_KV_ID"

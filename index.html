@@ -246,7 +246,50 @@
       <div class="seg" id="segGfx" role="radiogroup" aria-labelledby="gfxLabel"></div>
       <p class="setNote" id="gfxNote"></p>
     </div>
+    <div class="setRow" data-row="sup" id="supRow" hidden>
+      <div class="setLabel" data-i18n="sup.row">Hop Supporter</div>
+      <button id="supBtn" class="supBtn bubble"><svg class="heart" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-8-4.9-8-10.6C4 6.9 6.2 5 8.6 5c1.5 0 2.7.8 3.4 2 .7-1.2 1.9-2 3.4-2C17.8 5 20 6.9 20 9.9c0 5.7-8 10.6-8 10.6z" fill="#ff5f9e" stroke="#3a2442" stroke-width="1.8" stroke-linejoin="round"/></svg><span data-i18n="sup.become">Become a Hop Supporter</span></button>
+      <p id="supHave" class="supBadge"><svg class="heart" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-8-4.9-8-10.6C4 6.9 6.2 5 8.6 5c1.5 0 2.7.8 3.4 2 .7-1.2 1.9-2 3.4-2C17.8 5 20 6.9 20 9.9c0 5.7-8 10.6-8 10.6z" fill="#ff5f9e" stroke="#3a2442" stroke-width="1.8" stroke-linejoin="round"/></svg><span data-i18n="sup.badge">Hop Supporter</span></p>
+      <div id="songRow" class="songRow">
+        <div class="setLabel" id="songLabel" data-i18n="sup.song">Farm song</div>
+        <div class="seg" id="segSong" role="radiogroup" aria-labelledby="songLabel"></div>
+      </div>
+    </div>
     <button id="setClose" class="closeBtn bubble" data-i18n-aria="aria.close" aria-label="Close">&#x2715;</button>
+  </div>
+</div>
+
+<div id="support" class="sheet" role="dialog" aria-modal="true" aria-labelledby="supTitle">
+  <div class="panel supPanel">
+    <h2 id="supTitle" data-i18n="sup.title">Become a Hop Supporter</h2>
+    <p class="supIntro" data-i18n="sup.intro">A $5 thank-you keeps the farm growing. Supporters get:</p>
+    <ul class="supPerks">
+      <li data-i18n="sup.perk1">Two new hoppers: DJ Ribbit and Moonbun</li>
+      <li data-i18n="sup.perk2">A drum and bass farm song, with fishing to its beat</li>
+      <li data-i18n="sup.perk3">A supporter heart by your name</li>
+    </ul>
+    <div id="supAsk" class="supAsk">
+      <p class="supStep"><b>1</b><span data-i18n="sup.step1">Copy your supporter code</span></p>
+      <button id="supCopy" class="supCode bubble"><span id="supCodeText"></span><small data-i18n="sup.copy">Copy</small><small class="done" data-i18n="sup.copied">Copied!</small></button>
+      <p class="supStep"><b>2</b><span data-i18n="sup.step2">Support $5 on Ko-fi and paste the code into your message</span></p>
+      <a id="supKofi" class="buyBtn bubble supKofi" target="_blank" rel="noopener"><svg class="heart" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-8-4.9-8-10.6C4 6.9 6.2 5 8.6 5c1.5 0 2.7.8 3.4 2 .7-1.2 1.9-2 3.4-2C17.8 5 20 6.9 20 9.9c0 5.7-8 10.6-8 10.6z" fill="#ff5f9e" stroke="#3a2442" stroke-width="1.8" stroke-linejoin="round"/></svg><span data-i18n="sup.kofi">Support on Ko-fi</span></a>
+      <p class="supStep"><b>3</b><span data-i18n="sup.step3">Come back here: it unlocks by itself</span></p>
+      <p id="supStatus" class="supNote"></p>
+      <details class="supRestore">
+        <summary data-i18n="sup.already">Already a supporter?</summary>
+        <form id="supForm" class="joinRow">
+          <input id="supInput" class="supInput" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="120" data-i18n-aria="sup.restoreHint" aria-label="Your code or Ko-fi email" placeholder="HOP-… / email">
+          <button class="bubble supGo" data-i18n="sup.restore">Restore</button>
+        </form>
+        <p id="supRestoreNote" class="supNote"></p>
+      </details>
+    </div>
+    <div id="supThanks" class="supAsk" hidden>
+      <p class="supBadge big" hidden><svg class="heart" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-8-4.9-8-10.6C4 6.9 6.2 5 8.6 5c1.5 0 2.7.8 3.4 2 .7-1.2 1.9-2 3.4-2C17.8 5 20 6.9 20 9.9c0 5.7-8 10.6-8 10.6z" fill="#ff5f9e" stroke="#3a2442" stroke-width="1.8" stroke-linejoin="round"/></svg><span data-i18n="sup.badge">Hop Supporter</span></p>
+      <p data-i18n="sup.thanks">Thank you so much! Your new hoppers have moved in.</p>
+      <p class="supNote"><span data-i18n="sup.yourCode">Your code, for other devices:</span> <b id="supMine"></b></p>
+    </div>
+    <button id="supClose" class="closeBtn bubble" data-i18n-aria="aria.close" aria-label="Close">&#x2715;</button>
   </div>
 </div>
 

@@ -748,6 +748,53 @@ body.guest #phonesBtn, body.guest #partyBtn, body.guest #play { display: none !i
   #wipe.sunrise .rooster { animation: none; }
 }
 
+/* ---------- Hop Supporters ---------- */
+.heart { width: 1.15em; height: 1.15em; flex: none; vertical-align: -0.2em; }
+#bunkGrid .tag.sup { background: #ffe1ef; }
+.supBtn {
+  --c1: #ff7fb8; --c2: #e0558f; justify-self: start;
+  display: inline-flex; align-items: center; gap: 8px; width: auto; height: auto;
+  padding: 8px 18px 10px; border-radius: 999px !important; font-size: 17px; font-weight: 700; color: #fff;
+  text-shadow: 0 2px 0 rgba(58, 36, 66, .4);
+}
+.supBadge { margin: 0; display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: #c23d78; }
+.supBadge.big { font-size: 22px; justify-content: center; }
+.songRow { display: grid; gap: 7px; }
+.songRow[hidden], .supAsk[hidden], #supRow[hidden], .supBtn[hidden], .supBadge[hidden] { display: none; }
+.supPanel { display: grid; gap: 10px; text-align: center; max-width: 380px !important; }
+.supPanel h2 { margin-bottom: 0 !important; }
+.supIntro { margin: 0; font-weight: 600; }
+.supPerks { margin: 0; padding: 10px 14px 10px 30px; text-align: left; background: #fff; border: 3px solid var(--ink-soft); border-radius: 18px; font-weight: 600; line-height: 1.45; }
+.supAsk { display: grid; justify-items: center; gap: 10px; }
+.supStep { margin: 4px 0 0; display: flex; align-items: center; gap: 8px; font-weight: 700; text-align: left; }
+.supStep b {
+  flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--sun); border: 2.5px solid var(--ink); font-size: 14px;
+}
+.supCode {
+  --c1: #fff; --c2: #e8dccb; width: auto; height: auto; border-radius: 999px !important;
+  display: inline-flex; align-items: baseline; gap: 10px; padding: 8px 18px 10px;
+  font-size: 24px; font-weight: 700; letter-spacing: .08em; color: var(--ink);
+}
+.supCode small { font-size: 13px; letter-spacing: 0; opacity: .7; }
+.supCode .done, .supCode.copied small:not(.done) { display: none; }
+.supCode.copied .done { display: inline; color: #2f9a3c; opacity: 1; }
+.supKofi { --c1: #ff7fb8; --c2: #e0558f; text-decoration: none; font-size: 20px; }
+.supKofi .heart { width: 26px; height: 26px; }
+.supNote { margin: 0; font-size: 14px; font-weight: 500; opacity: .8; min-height: 1em; }
+.supRestore { width: 100%; }
+.supRestore summary { cursor: pointer; font-weight: 700; padding: 4px; }
+.supRestore form { margin-top: 8px; }
+.supInput {
+  flex: 1 1 auto; min-width: 0; font: inherit; font-size: 17px; font-weight: 600; color: var(--ink);
+  padding: 8px 14px; border: 3px solid var(--ink); border-radius: 999px; background: #fff;
+}
+.supGo { --c1: var(--leaf); --c2: var(--leaf-d); width: auto; height: auto; padding: 8px 16px 10px; border-radius: 999px !important; font-size: 16px; font-weight: 700; color: #fff; }
+.partyChip .heart { margin-left: 2px; }
+/* fishing to the drum and bass break: a night-club lane */
+.lane.dnb { background: linear-gradient(#5a3cc0, #2e2260); }
+.lane.dnb .ring { border-color: #7fffd8; box-shadow: 0 0 0 2px #3a2442, 0 0 10px #7fffd8; }
+
 /* ---------- settings ---------- */
 .setPanel { display: grid; gap: 14px; max-width: 380px !important; margin-top: 12px; }
 .setPanel h2 { margin-bottom: 0 !important; }

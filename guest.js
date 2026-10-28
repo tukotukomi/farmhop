@@ -23,7 +23,7 @@ function waitNote() {
   };
 }
 
-export function joinFarm(room, relay, text, wantHero) {
+export function joinFarm(room, relay, text, wantHero, about = () => ({})) {
   let pid;
   try {
     pid = sessionStorage.getItem('bl-guest-pid');
@@ -46,7 +46,7 @@ export function joinFarm(room, relay, text, wantHero) {
     note,
   };
   const relaySend = obj => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); };
-  const hello = () => relaySend({ t: 'hello', guest: true, hero: wantHero() });
+  const hello = () => relaySend({ t: 'hello', guest: true, hero: wantHero(), ...about() });   // about: e.g. { sup: true } for a Hop Supporter
 
   // The direct link: offered once the host has taken us, through the relay.
   function startDirect() {

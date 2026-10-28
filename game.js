@@ -4,7 +4,7 @@
 // the cells outside the playable strip are shaded darker, like Crossy Road.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { createMusic } from './music.js';
+import { createMusic, breakHit } from './music.js';
 import { STRINGS, LANGS } from './lang.js';
 import { joinFarm } from './guest.js';
 
@@ -43,11 +43,12 @@ const heroName = id => t('heroes.' + id);
 // before anything reads a setting, wait for the host to send it (guest.js). The
 // farm's settings then come from the host and are only kept in memory, so this
 // device's own farm is never touched.
-const FARM_KEYS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-coins', 'bl-top'];
+const FARM_KEYS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-coins', 'bl-top', 'bl-dnb'];
 const joinArgs = new URLSearchParams(location.hash.slice(1));
 const GUEST = /^[A-Za-z0-9_-]{22,64}$/.test(joinArgs.get('join') || '') ? joinArgs.get('join') : null;
 const guestNet = GUEST && window.FARMHOP_RELAY_URL
-  ? await joinFarm(GUEST, joinArgs.get('relay') || window.FARMHOP_RELAY_URL, t, () => { try { return sessionStorage.getItem('bl-guest-hero') || JSON.parse(localStorage.getItem('bl-hero')); } catch { return null; } })
+  ? await joinFarm(GUEST, joinArgs.get('relay') || window.FARMHOP_RELAY_URL, t, () => { try { return sessionStorage.getItem('bl-guest-hero') || JSON.parse(localStorage.getItem('bl-hero')); } catch { return null; } },
+    () => { try { return { sup: !!JSON.parse(localStorage.getItem('bl-supporter')) }; } catch { return {}; } })
   : null;
 let guestKeys = guestNet ? { ...guestNet.farm.keys, 'bl-owned-v2': true } : null;
 let guestKey = guestNet?.farm.me || null;   // which hopper on the farm is ours: 'p' + our slot
@@ -763,13 +764,92 @@ function buildTuko() {
   return finishHero(group, inner, [wobble(inner, t, 0, 0.24, 0.12, 1)]);
 }
 
+function buildRibbit() {   // DJ Ribbit: a frog in big headphones
+  const FROG = 0x6fd24a, FROG_D = 0x4fae36, BELLY = 0xe9f7b0, W = 0xffffff, K = 0x2e2230, PHONE = 0x8a5cff, PHONE_D = 0x5a3cc0, PAD = 0xff7fb8;
+  const group = new THREE.Group(), inner = new THREE.Group();
+  group.add(inner);
+  const b = new VB();
+  for (const s of [-1, 1]) {
+    b.ball(0.09, 0.035, 0.12, s * 0.1, 0.035, -0.04, FROG_D);           // big flat feet
+    b.cap(0.055, 0.08, s * 0.09, 0.16, 0, FROG);
+    b.cap(0.04, 0.12, s * 0.185, 0.41, -0.02, FROG, 0, 0, s * 0.25);    // arms
+    b.ball(0.045, 0.045, 0.045, s * 0.21, 0.31, -0.03, FROG_D);         // hands
+    b.ball(0.085, 0.085, 0.08, s * 0.12, 0.86, -0.05, FROG);            // eyes up on top
+    b.ball(0.062, 0.064, 0.03, s * 0.12, 0.87, -0.115, W);
+    b.ball(0.03, 0.036, 0.015, s * 0.12, 0.865, -0.142, K);
+    b.ball(0.011, 0.013, 0.006, s * 0.12 + 0.012, 0.882, -0.156, W);
+    b.ball(0.042, 0.022, 0.01, s * 0.17, 0.655, -0.185, 0xff9eb5);      // cheeks
+    b.ball(0.07, 0.09, 0.09, s * 0.275, 0.73, 0.03, PHONE);             // headphone cups
+    b.ball(0.025, 0.065, 0.065, s * 0.33, 0.73, 0.03, PAD);
+  }
+  b.ball(0.17, 0.17, 0.14, 0, 0.36, 0, FROG);                          // body
+  b.ball(0.11, 0.12, 0.04, 0, 0.36, -0.115, BELLY);                    // pale tummy
+  b.hiBall(0.27, 0.17, 0.21, 0, 0.7, 0, FROG);                         // wide head
+  b.torus(0.08, 0.011, Math.PI, 0, 0.665, -0.19, 0xc2475f, 0, 0, Math.PI);   // a big wide grin
+  b.torus(0.285, 0.024, Math.PI, 0, 0.73, 0.06, PHONE_D);             // the headband, over the top
+  inner.add(b.mesh());
+  const n = new VB();                                                 // a music note bobbing over one ear
+  n.cap(0.008, 0.11, 0, 0.06, 0, K);
+  n.ball(0.03, 0.022, 0.02, -0.024, 0, 0, K, 0, 0, 0.4);
+  n.cap(0.008, 0.035, 0.02, 0.105, 0, K, 0, 0, -1.2);
+  return finishHero(group, inner, [wobble(inner, n, 0.36, 0.9, 0.04, 1, 'x')]);
+}
+
+function buildMoonbun() {   // Moonbun: a lavender bunny with a crescent-moon clip
+  const FUR = 0xcdb8ff, FUR_D = 0xa98be8, W = 0xfff8ff, PINK = 0xff9ec4, MOON = 0xffd23f;
+  const group = new THREE.Group(), inner = new THREE.Group();
+  group.add(inner);
+  const b = new VB();
+  const wob = [];
+  for (const s of [-1, 1]) {
+    b.ball(0.07, 0.045, 0.13, s * 0.09, 0.045, -0.05, W);               // big bunny feet
+    b.cap(0.055, 0.08, s * 0.09, 0.16, 0, FUR);
+    b.cap(0.04, 0.12, s * 0.185, 0.41, -0.02, FUR, 0, 0, s * 0.25);     // arms
+    b.ball(0.045, 0.045, 0.045, s * 0.21, 0.31, -0.03, W);              // paws
+    b.ball(0.06, 0.045, 0.04, s * 0.04, 0.645, -0.18, W);               // muzzle
+    b.ball(0.033, 0.043, 0.02, s * 0.095, 0.765, -0.19, 0x2e2230);      // eyes
+    b.ball(0.012, 0.014, 0.008, s * 0.095 + 0.01, 0.782, -0.208, W);
+    b.ball(0.04, 0.02, 0.01, s * 0.16, 0.67, -0.17, PINK);              // cheeks
+    const e = new VB();                                               // long ears that flop as she hops
+    e.ball(0.06, 0.21, 0.04, 0, 0.2, 0, FUR, 0, 0, -s * 0.12);
+    e.ball(0.034, 0.15, 0.01, 0, 0.2, -0.035, PINK, 0, 0, -s * 0.12);
+    wob.push(wobble(inner, e, s * 0.1, 0.86, 0.02, s));
+  }
+  b.ball(0.17, 0.17, 0.14, 0, 0.36, 0, FUR);                           // body
+  b.ball(0.1, 0.12, 0.04, 0, 0.37, -0.115, W);                         // white tummy
+  b.hiBall(0.24, 0.2, 0.2, 0, 0.72, 0, FUR);                           // head
+  b.ball(0.026, 0.018, 0.015, 0, 0.68, -0.215, PINK);                  // nose
+  b.cap(0.012, 0.03, -0.012, 0.62, -0.19, W, 0, 0, 0.2);               // two front teeth
+  b.cap(0.012, 0.03, 0.012, 0.62, -0.19, W, 0, 0, -0.2);
+  b.torus(0.055, 0.02, Math.PI * 1.25, 0.15, 0.86, -0.1, MOON, 0, 0, -0.5);   // crescent-moon hair clip
+  b.ball(0.05, 0.04, 0.05, 0, 0.92, 0.0, FUR_D);                       // a little tuft
+  inner.add(b.mesh());
+  const t = new VB();                                                 // cotton tail
+  t.ball(0.075, 0.075, 0.075, 0, 0, 0.06, W);
+  wob.push(wobble(inner, t, 0, 0.26, 0.12, 1));
+  return finishHero(group, inner, wob);
+}
+
+// ---------- Hop Supporters ----------
+// $5 on Ko-fi (see support/): supporters get DJ Ribbit and Moonbun, a badge, and the
+// drum and bass version of the farm tune, which their guests hear too. bl-supporter
+// holds their code once it's paid; bl-sup-pending the one they're paying with.
+const SUPPORT_URL = (new URLSearchParams(location.search).get('support') || window.FARMHOP_SUPPORT_URL || '').replace(/\/$/, '');
+const KOFI_URL = 'https://ko-fi.com/funbytuko';
+const SUP_CODE = /^HOP-[A-HJKMNP-Z2-9]{6}$/;
+const supCode = () => { const v = store.get('bl-supporter', null); return SUP_CODE.test(v) ? v : null; };
+let supporter = !!supCode();
+
 const HEROES = [
   { id: 'betty', name: 'Betty Lou', build: () => buildGirl(), bg: '#ffd6ec', pad: '#ff7fb8' },
   { id: 'axolotl', name: 'Axolotl Princess', build: buildAxolotl, bg: '#d9f2ff', price: 20, pad: '#7fd0ff' },
   { id: 'catstar', name: 'Catstar', build: buildCatstar, bg: '#fff1b8', price: 20, pad: '#ffd24a' },
   { id: 'leafwish', name: 'LeafWish', build: buildLeafWish, bg: '#e6dcff', price: 20, pad: '#7ad653' },
   { id: 'tuko', name: 'Tuko', build: buildTuko, bg: '#ffe1c4', price: 20, pad: '#ff9a3c' },
+  { id: 'ribbit', name: 'DJ Ribbit', build: buildRibbit, bg: '#dcf7c8', pad: '#6fd24a', supporter: true },
+  { id: 'moonbun', name: 'Moonbun', build: buildMoonbun, bg: '#efe6ff', pad: '#cdb8ff', supporter: true },
 ];
+const SUP_HEROES = HEROES.filter(h => h.supporter).map(h => h.id);   // live on every supporter's farm
 const STARTERS = ['betty'];   // owned from the start; everyone else is invited from the Bunkhouse
 // Farms from before only Betty Lou came free keep the three friends they started with.
 if (!store.get('bl-owned-v2', false)) {
@@ -777,7 +857,7 @@ if (!store.get('bl-owned-v2', false)) {
   if (played) store.set('bl-owned', [...new Set([...store.get('bl-owned', []), 'axolotl', 'catstar', 'leafwish'])]);
   store.set('bl-owned-v2', true);
 }
-const owned = new Set([...STARTERS, ...store.get('bl-owned', [])].filter(id => HEROES.some(h => h.id === id)));
+const owned = new Set([...STARTERS, ...store.get('bl-owned', []), ...(supporter ? SUP_HEROES : [])].filter(id => HEROES.some(h => h.id === id)));
 const ownedHeroes = () => HEROES.filter(h => owned.has(h.id));
 let heroId = store.get('bl-hero', 'betty');
 if (!owned.has(heroId) && !GUEST) heroId = 'betty';   // a guest may bring a hopper from their own farm
@@ -1066,6 +1146,7 @@ const sfx = (() => {
       musicBus.gain.value = vol.music;
       musicBus.connect(out);
       music = createMusic(ctx, musicBus);   // the sound button mutes both
+      music.setStyle(songStyle());
       music.start();
       noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
       const d = noiseBuf.getChannelData(0);
@@ -1202,6 +1283,12 @@ const sfx = (() => {
           sweep('sine', n * 2, n * 2, t, 0.06, 0.16);
           sweep('triangle', n * 4, n * 4, t, 0.03, 0.04);
           sweep('triangle', n * 2, n * 3, t + 0.05, 0.05, 0.04);
+        } else if (id === 'ribbit') {
+          sweep('square', n, n, t, 0.07, 0.035);
+          sweep('triangle', n * 2, n * 2, t, 0.14, 0.07);
+        } else if (id === 'moonbun') {
+          sweep('sine', n * 2, n * 2, t, 0.5, 0.1);
+          sweep('sine', n * 3, n * 3, t, 0.35, 0.03);
         } else {
           pluck(n, t, 0.28, 0.11);
           pluck(n / 2, t, 0.2, 0.05);
@@ -1225,6 +1312,14 @@ const sfx = (() => {
         sweep('triangle', n * 4, n * 4, t, 0.03, 0.04);
         sweep('triangle', n * 2, n * 3, t + 0.06, 0.06, 0.045);
         sweep('sine', n * 3, n * 3, t + 0.11, 0.08, 0.04);
+      } else if (id === 'ribbit') {                             // a two-part ribbit, in key
+        sweep('square', n * 0.75, n, t, 0.05, 0.035);
+        sweep('square', n, n * 1.5, t + 0.08, 0.07, 0.035);
+        sweep('triangle', n * 2, n * 2, t + 0.08, 0.1, 0.05);
+      } else if (id === 'moonbun') {                            // a soft thump and a little moon bell
+        sweep('sine', n, n * 0.5, t, 0.08, 0.12);
+        sweep('sine', n * 2, n * 2, t + 0.04, 0.5, 0.08);
+        sweep('sine', n * 3, n * 3, t + 0.09, 0.35, 0.025);
       } else {                                                  // Betty Lou: a banjo pluck
         pluck(n, t, 0.28, 0.11);
         pluck(n / 2, t, 0.2, 0.05);
@@ -1236,7 +1331,7 @@ const sfx = (() => {
     hold(id, n, amt) {
       if (!ctx || muted || amt <= 0) return null;
       const t = ctx.currentTime, o = ctx.createOscillator(), f1 = ctx.createBiquadFilter(), g = ctx.createGain();
-      const V = { betty: ['pulse', 1, 0], axolotl: ['sine', 1, 5], catstar: ['triangle', 1, 6.5], leafwish: ['triangle', 2, 0], tuko: ['sawtooth', 2, 0] }[id] || ['triangle', 1, 0];
+      const V = { betty: ['pulse', 1, 0], axolotl: ['sine', 1, 5], catstar: ['triangle', 1, 6.5], leafwish: ['triangle', 2, 0], tuko: ['sawtooth', 2, 0], ribbit: ['square', 1, 0], moonbun: ['sine', 2, 4] }[id] || ['triangle', 1, 0];
       const [wave, oct, wob] = V;
       if (wave === 'pulse') o.setPeriodicWave(pulseWave()); else o.type = wave;
       o.frequency.value = n * oct;   // octaves of the pad's note, so it stays in key
@@ -1980,6 +2075,8 @@ const PUFFS = {
   catstar: [[0xffd23f, 0xfff3a0, 0xffffff], false],         // little stars
   leafwish: [[0x6cc94a, 0x8fe070, 0x4fa83a], false],        // leaves
   tuko: [[0xff8a2a, 0xffb24a, 0xd2541a], false],            // autumn leaves
+  ribbit: [[0x8a5cff, 0xff7fb8, 0x6fd24a], false],          // disco confetti
+  moonbun: [[0xffd23f, 0xfff4b0, 0xcdb8ff], false],         // moon dust
 };
 function hopPuff(h = P) {
   const [cols, soft] = PUFFS[h.hero] || PUFFS.betty;
@@ -3573,8 +3670,9 @@ window.addEventListener('keyup', e => {
 });
 window.addEventListener('keydown', e => {
   sfx.ensure();
-  if (e.target.closest?.('input')) { if (e.code === 'Escape') closeParty(); return; }   // typing a room code
+  if (e.target.closest?.('input')) { if (e.code === 'Escape') { closeParty(); closeSupport(); } return; }   // typing a room code, or a supporter code
   if (partyOpen()) { if (e.code === 'Escape' || e.code === 'Enter') closeParty(); e.preventDefault(); return; }
+  if (game.picking && supportOpen()) { if (e.code === 'Escape') closeSupport(); return; }
   if (game.picking && settingsOpen()) {   // Settings: arrows change things, Escape or Enter closes
     const nav = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[e.code];
     if (nav) { document.body.classList.add('keys'); settingsNav(nav); }
@@ -4115,11 +4213,21 @@ function fishRhythm(lvl) {   // [sixteenths from the start, ...]: a phrase a few
   }
   return out;
 }
+// With the drum and bass tune on, the notes are the break itself: the snare's
+// backbeat first, then kicks, the kick that skips in a sixteenth early, ghost
+// notes and, at the top, the snare rolls of the fill.
+function breakRhythm(lvl, from) {
+  const beats = Math.min(4 + lvl, 12), out = [];
+  for (let s = 0; s < beats * 4; s++) { const d = breakHit(from + s); if (d && d <= lvl) out.push(s); }
+  return out;
+}
 function startReel(f) {
   const lvl = Math.min(f.sp.lvl, 9), now = songNow(), pos = music ? music.position() : 0;
   const start = now + (BEAT - pos % BEAT) + 2 * BEAT;   // on the beat, a couple of beats from now
-  const steps = fishRhythm(lvl), notes = [];
+  const dnb = music?.style === 'dnb';
+  const steps = dnb ? breakRhythm(lvl, music.stepAt(pos + start - now)) : fishRhythm(lvl), notes = [];
   const lane = f.ui.querySelector('.lane');
+  lane.classList.toggle('dnb', dnb);
   lane.querySelectorAll('.note').forEach(e => e.remove());
   for (const s of steps) {
     const el = document.createElement('i');
@@ -4410,6 +4518,7 @@ $('book').addEventListener('click', e => { if (e.target.id === 'book') closeBook
 const bunkOpen = () => $('bunk').classList.contains('show');
 const bunkGrid = $('bunkGrid');
 const FLOWER_SVG = document.querySelector('#coins .flower').outerHTML;
+const HEART_SVG = '<svg class="heart" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-8-4.9-8-10.6C4 6.9 6.2 5 8.6 5c1.5 0 2.7.8 3.4 2 .7-1.2 1.9-2 3.4-2C17.8 5 20 6.9 20 9.9c0 5.7-8 10.6-8 10.6z" fill="#ff5f9e" stroke="#3a2442" stroke-width="1.8" stroke-linejoin="round"/></svg>';
 const CHECK_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#3a2442" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 let bunkFocus = 0;
 HEROES.forEach((h, i) => {
@@ -4430,12 +4539,13 @@ function refreshBunk(msg) {
   [...bunkGrid.children].forEach((c, i) => {
     const h = HEROES[i], have = owned.has(h.id);
     c.classList.toggle('locked', !have);
-    c.classList.toggle('short', !have && game.coins < h.price);
+    c.classList.toggle('short', !have && !h.supporter && game.coins < h.price);
     c.classList.toggle('focus', nav && i === bunkFocus);
+    c.hidden = h.supporter && !SUPPORT_URL && !have;
     const tag = c.querySelector('.tag');
-    tag.className = 'tag ' + (have ? 'check' : 'cost');
-    tag.innerHTML = have ? CHECK_SVG : FLOWER_SVG + `<span>${h.price}</span>`;
-    c.setAttribute('aria-label', t(have ? 'aria.lives' : 'aria.unlock', { name: heroName(h.id), n: h.price }));
+    tag.className = 'tag ' + (have ? 'check' : h.supporter ? 'cost sup' : 'cost');
+    tag.innerHTML = have ? CHECK_SVG : h.supporter ? HEART_SVG + `<span>${t('sup.tag')}</span>` : FLOWER_SVG + `<span>${h.price}</span>`;
+    c.setAttribute('aria-label', have ? t('aria.lives', { name: heroName(h.id) }) : h.supporter ? t('aria.supHero', { name: heroName(h.id) }) : t('aria.unlock', { name: heroName(h.id), n: h.price }));
   });
   $('bunkNeed').textContent = msg ?? (farm.bunkBuilt ? '' : needText(BUNK_COST - game.coins));
 }
@@ -4474,12 +4584,13 @@ function buildBunkhouse() {
 }
 function unlockHero(id) {
   const h = HEROES.find(x => x.id === id);
+  if (h.supporter) { if (!owned.has(id)) { closeBunk(); openSupport(); } return; }
   if (!farm.bunkBuilt || owned.has(id)) return;
   if (game.coins < h.price) { sfx.bump(); refreshBunk(needText(h.price - game.coins)); return; }
   game.coins -= h.price;
   store.set('bl-coins', game.coins);
   owned.add(id);
-  store.set('bl-owned', [...owned].filter(x => !STARTERS.includes(x)));
+  store.set('bl-owned', [...owned].filter(x => !STARTERS.includes(x) && !SUP_HEROES.includes(x)));
   heroGrid.querySelector(`[data-id="${id}"]`).hidden = false;
   const bp = farm.pieces.bunk;
   const w = addWalker(h, pieceToFarm(bp, -0.3, 1.55));   // out the Bunkhouse door, with a happy hop
@@ -5293,13 +5404,14 @@ function onPlayer(slot, m, direct = false) {
   if (m.t === 'hello' && m.guest) {   // a friend playing on their own device: send them the farm
     const was = party.players.get(slot);
     if (was?.road) dropFromRoad(was);   // reconnecting mid-round: their old hopper makes way
-    party.players.set(slot, { hero: null, kick: 0, guest: true });
+    party.players.set(slot, { hero: null, kick: 0, guest: true, sup: !!m.sup });
     assign(slot, anyHero(m.hero) ? m.hero : 'betty');
     partySend(slot, { t: 'farm', farm: farmSnap(slot) });
     return;
   }
   // A guest may play any hopper: one from their own farm, or one of ours.
   if (m.t === 'pick' && pl?.guest) { if (anyHero(m.hero)) assign(slot, m.hero); return; }
+  if (m.t === 'sup' && pl?.guest) { pl.sup = true; renderParty(); return; }   // a friend just became a supporter
   if (/^r[hdbpc]$/.test(m.t)) {   // a guest's hopper on the road
     if (!pl?.guest || game.where !== 'road') return;
     const k = 'p' + slot;
@@ -5579,6 +5691,8 @@ function farmSnap(slot) {   // the farm's settings, which hopper they're playing
   const keys = {};
   for (const k of FARM_KEYS) { const v = store.get(k, null); if (v !== null) keys[k] = v; }
   keys['bl-hero'] = party.players.get(slot)?.hero || 'betty';
+  if (supporter) keys['bl-owned'] = [...new Set([...(keys['bl-owned'] || []), ...SUP_HEROES])];   // a supporter's own hoppers live here too
+  keys['bl-dnb'] = songStyle() === 'dnb';
   return { keys, me: 'p' + slot, walkers: farm.walkers ? crewList() : [] };
 }
 const anyHero = id => HEROES.some(h => h.id === id);
@@ -5590,7 +5704,7 @@ if (!GUEST) onFarmSave = () => {   // bought, built or moved something: guests g
 function assign(slot, hero) {
   const old = party.players.get(slot);
   if (old?.m) { jam.scene?.remove(old.m.group); disposeHero(old.m); }
-  const pl = { hero, oct: 0, sus: 0.35, drums: false, kick: 0, m: null, banjo: null, guest: !!old?.guest, local: old?.local || null, col: old?.col ?? freeColor(slot) };
+  const pl = { hero, oct: 0, sus: 0.35, drums: false, kick: 0, m: null, banjo: null, guest: !!old?.guest, local: old?.local || null, col: old?.col ?? freeColor(slot), sup: !!old?.sup };
   party.players.set(slot, pl);
   if (jam.scene) addPlayerModel(pl);
   if (old?.road) dropFromRoad(old);
@@ -5666,7 +5780,7 @@ function renderParty() {
   const chip = ([slot, p]) => {
     const path = p.local ? 'screen' : peers.get(slot)?.path || 'relay';
     const how = p.local?.keys ? ' ⌨' : p.local ? ' 🎮' : '';
-    return `<span class="partyChip" style="--c:${HEROES.find(h => h.id === p.hero).pad}"><b style="background:${MARK_CSS[p.col]}">${p.col + 1}</b>${heroName(p.hero)}${how}<i class="path ${path}">${t('party.' + path)}</i></span>`;
+    return `<span class="partyChip" style="--c:${HEROES.find(h => h.id === p.hero).pad}"><b style="background:${MARK_CSS[p.col]}">${p.col + 1}</b>${heroName(p.hero)}${p.sup ? HEART_SVG : ''}${how}<i class="path ${path}">${t('party.' + path)}</i></span>`;
   };
   $('partyChips').innerHTML = list.map(chip).join('');
   const far = list.filter(([, p]) => !p.local), here = list.filter(([, p]) => p.local);
@@ -5763,7 +5877,7 @@ if (RELAY && !GUEST) try { if (sessionStorage.getItem('bl-party-room')) partySta
 // Language, music and effects volume, the road's view angle, and the art style.
 // With a controller or arrow keys: up/down picks a row, left/right changes it.
 const settingsOpen = () => $('settings').classList.contains('show');
-const SET_ROWS = ['lang', 'music', 'fx', 'coop', 'gfx'];
+const SET_ROWS = ['lang', 'music', 'fx', 'coop', 'gfx', ...(SUPPORT_URL ? ['sup'] : [])];
 const GFX_CHOICES = ['auto', ...Q_LEVELS];
 let setFocus = 0;
 function segment(el, labels, current, pick, icons) {
@@ -5794,6 +5908,11 @@ function renderSettings() {
   const v = sfx.volumes;
   setVolSlider('volMusic', v.music);
   setVolSlider('volFx', v.fx);
+  $('supRow').hidden = !SUPPORT_URL;
+  $('supBtn').hidden = supporter;
+  $('supHave').hidden = !supporter;
+  $('songRow').hidden = !supporter || !!GUEST;   // on a friend's farm, the farm's song is theirs to pick
+  if (supporter && !GUEST) segment($('segSong'), t('sup.songs'), songStyle() === 'dnb' ? 1 : 0, i => setSong(!!i));
   const nav = document.body.classList.contains('pad') || document.body.classList.contains('keys');
   document.querySelectorAll('.setRow').forEach((r, i) => r.classList.toggle('focus', nav && i === setFocus));
 }
@@ -5858,6 +5977,7 @@ function settingsNav(dir) {
     renderSettings();
   } else if (row === 'coop') setSplit(!splitPref);
   else if (row === 'gfx') setGfx(GFX_CHOICES[(GFX_CHOICES.indexOf(gfx) + d + GFX_CHOICES.length) % GFX_CHOICES.length]);
+  else if (row === 'sup') { if (supporter && !GUEST) setSong(songStyle() !== 'dnb'); else if (!supporter) openSupport(); }
 }
 for (const [id, which] of [['volMusic', 'music'], ['volFx', 'fx']]) {
   $(id).addEventListener('input', e => {
@@ -5880,6 +6000,118 @@ $('fullBtn').addEventListener('click', () => {
 for (const type of ['fullscreenchange', 'webkitfullscreenchange']) document.addEventListener(type, () => $('fullBtn').classList.toggle('on', isFull()));
 $('setClose').addEventListener('click', closeSettings);
 $('settings').addEventListener('click', e => { if (e.target.id === 'settings') closeSettings(); });
+
+// ---------- Become a Hop Supporter ----------
+// The player gets a code (HOP-XXXXXX), supports on Ko-fi with it in their message,
+// and this panel asks the support worker every few seconds until it's paid. Lost
+// it? Their code, or the email they used on Ko-fi, brings it back.
+const supportOpen = () => $('support').classList.contains('show');
+let supTimer = null;
+function songStyle() { return (GUEST || supporter) && store.get('bl-dnb', false) ? 'dnb' : 'classic'; }
+function applySong() { music?.setStyle(songStyle()); }
+function setSong(on) {
+  store.set('bl-dnb', on);   // a farm setting: the guests on this farm hear it too
+  applySong();
+  renderSettings();
+}
+function pendingCode() {
+  let c = store.get('bl-sup-pending', null);
+  if (!SUP_CODE.test(c)) {
+    const r = crypto.getRandomValues(new Uint8Array(6));
+    c = 'HOP-' + [...r].map(b => CODE_ABC[b % CODE_ABC.length]).join('');
+    store.set('bl-sup-pending', c);
+  }
+  return c;
+}
+async function supFetch(path, body) {
+  const r = await fetch(SUPPORT_URL + path, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {});
+  return { ok: r.ok, data: await r.json().catch(() => ({})) };
+}
+async function checkPaid(code) {
+  try { return (await supFetch('/check?code=' + encodeURIComponent(code))).data.paid === true; } catch { return false; }
+}
+function refreshSupport(note) {
+  $('supAsk').hidden = supporter;
+  $('supThanks').hidden = !supporter;
+  $('supTitle').textContent = t(supporter ? 'sup.thanksTitle' : 'sup.title');
+  $('supCodeText').textContent = supporter ? supCode() : pendingCode();
+  $('supMine').textContent = supCode() || '';
+  $('supKofi').href = KOFI_URL;
+  if (note !== undefined) $('supStatus').textContent = note;
+}
+function openSupport() {
+  if (!SUPPORT_URL) return;
+  closeSettings();
+  refreshSupport(t('sup.waiting'));
+  $('supRestoreNote').textContent = '';
+  $('support').classList.add('show');
+  game.picking = true;
+  clearInterval(supTimer);
+  supTimer = setInterval(async () => {   // paid yet?
+    if (!supportOpen() || supporter || document.hidden) return;
+    if (await checkPaid(pendingCode())) welcomeSupporter(pendingCode());
+  }, 4000);
+}
+function closeSupport() {
+  clearInterval(supTimer);
+  $('support').classList.remove('show');
+  game.picking = anyPanel();
+}
+// Paid: the hoppers move in, the badge and the song switch appear.
+function welcomeSupporter(code) {
+  if (supporter) return;
+  store.set('bl-supporter', code);
+  supporter = true;
+  sfx.upgrade();
+  for (const id of SUP_HEROES) {
+    if (owned.has(id)) continue;
+    owned.add(id);
+    const c = heroGrid.querySelector(`[data-id="${id}"]`);
+    if (c) c.hidden = false;
+    if (!GUEST && farm.walkers && game.where === 'farm') {
+      const me = walkerOf(myKey());
+      const w = addWalker(HEROES.find(h => h.id === id), me ? [me.x + (id === 'ribbit' ? 0.8 : -0.8), me.z + 0.6] : null);
+      w.hop = 0.5;
+      cheer(w.x, w.z);
+    }
+  }
+  if (GUEST) guestNet.send({ t: 'sup' });
+  else onFarmSave?.();   // guests see the new hoppers
+  refreshSupport(t('sup.thanks'));
+  if (settingsOpen()) renderSettings();
+  if (bunkOpen()) refreshBunk();
+}
+$('supBtn').addEventListener('click', () => { sfx.ensure(); openSupport(); });
+$('supClose').addEventListener('click', closeSupport);
+$('support').addEventListener('click', e => { if (e.target.id === 'support') closeSupport(); });
+$('supCopy').addEventListener('click', async () => {
+  const code = $('supCodeText').textContent;
+  try { await navigator.clipboard.writeText(code); $('supCopy').classList.add('copied'); setTimeout(() => $('supCopy').classList.remove('copied'), 1400); }
+  catch { getSelection().selectAllChildren($('supCodeText')); }   // no clipboard: select it so it can be copied by hand
+});
+$('supForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const v = $('supInput').value.trim(), note = $('supRestoreNote');
+  const m = v.toUpperCase().replace(/\s+/g, '').match(/^HOP-?([A-HJKMNP-Z2-9]{6})$/);
+  note.textContent = t('sup.checking');
+  try {
+    if (m) {
+      const code = 'HOP-' + m[1];
+      if (await checkPaid(code)) welcomeSupporter(code); else note.textContent = t('sup.notPaid');
+    } else if (v.includes('@')) {
+      const r = await supFetch('/restore', { email: v });
+      if (r.ok && SUP_CODE.test(r.data.code)) welcomeSupporter(r.data.code); else note.textContent = t('sup.noEmail');
+    } else note.textContent = t('sup.what');
+  } catch { note.textContent = t('sup.offline'); }
+});
+// Came back from Ko-fi with the panel shut, or reopened the game: one look.
+async function lookForPayment() {
+  if (supporter || !SUPPORT_URL) return;
+  const c = store.get('bl-sup-pending', null);
+  if (SUP_CODE.test(c) && await checkPaid(c)) welcomeSupporter(c);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) lookForPayment(); });
+setTimeout(lookForPayment, 3000);
 
 // ---------- gamepad (for the big TV) ----------
 // Rumble the controller for stampedes; Android phones get a short buzz instead.
@@ -5921,6 +6153,7 @@ function pollPad() {
   const pick = pressed(2) || pressed(3);
 
   if (partyOpen()) { if (pressed(0) || pressed(1) || pressed(9)) closeParty(); return; }
+  if (game.picking && supportOpen()) { if (pressed(1) || pressed(9)) closeSupport(); return; }
   if (game.picking && settingsOpen()) {
     if (dir) settingsNav(dir);
     if (pressed(1) || pressed(8) || pressed(9)) closeSettings();
@@ -6038,7 +6271,7 @@ if (guestNet) {
     try {
       const own = JSON.parse(localStorage.getItem('bl-owned')) || [];
       const before = !JSON.parse(localStorage.getItem('bl-owned-v2')) && ['bl-top', 'bl-coins', 'bl-hero', 'bl-pond'].some(k => localStorage.getItem(k) !== null);
-      return new Set([...STARTERS, ...own, ...(before ? ['axolotl', 'catstar', 'leafwish'] : [])]);   // as the old farms were
+      return new Set([...STARTERS, ...own, ...(before ? ['axolotl', 'catstar', 'leafwish'] : []), ...(supporter ? SUP_HEROES : [])]);   // as the old farms were
     } catch { return new Set(STARTERS); }
   })();
   const head = document.createElement('h3');
@@ -6101,6 +6334,7 @@ if (guestNet) {
       // Something new was bought, built or moved: start again on the new farm. Sunflowers just update.
       if (LOOKS.some(k => JSON.stringify(m.farm.keys[k] ?? null) !== JSON.stringify(guestKeys[k] ?? null))) { location.reload(); return; }
       Object.assign(guestKeys, m.farm.keys);
+      applySong();
       game.coins = guestKeys['bl-coins'] ?? 0;
       game.top = guestKeys['bl-top'] ?? 0;
       hud();
@@ -6121,4 +6355,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, myKey };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, myKey, get music() { return music; } };

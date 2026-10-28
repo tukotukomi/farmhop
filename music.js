@@ -4,6 +4,9 @@
 // jazzy vaporwave chords, then run through a tape wobble, a dusty low-pass, an
 // echo and a soft reverb. D major, 84 BPM, 32 bars (about 90 s) on a loop:
 // A (band only), A (fiddle comes in), B, A.
+//
+// Hop Supporters can switch to a drum and bass version: the same chords, banjo
+// and fiddle over a two-step break at double time (168), a reese bass, and no swing.
 
 const BPM = 84;
 const STEP = 60 / BPM / 4;          // one sixteenth note, in seconds
@@ -44,6 +47,22 @@ const B_TUNE = [
 const FORM = [[A_PROG, null], [A_PROG, A_TUNE], [B_PROG, B_TUNE], [A_PROG, A_TUNE]];
 // Banjo forward roll: which chord tone (lowest = 0) each sixteenth picks.
 const ROLL = [0, 1, 2, 0, 1, 2, 0, 3, 1, 2, 3, 1, 2, 3, 1, 2];
+
+// The drum and bass break, one bar per string, a character per sixteenth (of the
+// 84 grid, so an eighth note at 168): K kick, S the backbeat snare, g a ghost
+// snare, r a snare roll. Bar 4 of every 4 is a fill.
+const BREAKS = [
+  'K.S..KS.K.S..KS.',
+  'K.S.gKS.K.Sg.KS.',
+  'K.S..KS.KgS..KSg',
+  'K.S.gKS.K.SrrSrr',
+];
+// How hard each hit is to tap along with when fishing (see the game's startReel).
+export function breakHit(step) {
+  const s = ((step % 16) + 16) % 16, c = BREAKS[Math.floor(step / 16) % 4][s];
+  if (c === '.') return 0;
+  return c === 'S' ? 1 : c === 'K' ? (s % 4 === 0 ? 2 : 5) : c === 'g' ? 7 : 8;
+}
 
 const hz = m => 440 * Math.pow(2, (m - 69) / 12);
 
@@ -133,12 +152,12 @@ export function createMusic(ctx, out) {
     s.connect(f).connect(g).connect(to);
     s.start(t, Math.random() * 0.5); s.stop(t + dur);
   }
-  function kick(t, vol) {
+  function kick(t, vol, len = 0.22) {
     const o = ctx.createOscillator(), g = ctx.createGain();
     o.frequency.setValueAtTime(110, t);
     o.frequency.exponentialRampToValueAtTime(42, t + 0.12);
     g.gain.setValueAtTime(vol, t);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + len);
     o.connect(g).connect(bus);
     o.start(t); o.stop(t + 0.25);
   }
@@ -150,10 +169,44 @@ export function createMusic(ctx, out) {
   };
   const rootOf = chord => { let r = chord[0]; while (r > 45) r -= 12; while (r < 33) r += 12; return r; };
 
+  function snare(t, vol) {   // a crack of noise over a short tone
+    noise(t, 0.13, vol, 'bandpass', 1900);
+    noise(t, 0.05, vol * 0.6, 'highpass', 5000);
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.setValueAtTime(220, t);
+    o.frequency.exponentialRampToValueAtTime(160, t + 0.08);
+    g.gain.setValueAtTime(vol * 0.9, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+    o.connect(g).connect(bus);
+    o.start(t); o.stop(t + 0.1);
+  }
+  // The drum and bass parts, in place of the boom-chick bass, the mandolin and the kick.
+  function playDnb(step, t, bar, s, chord, next) {
+    const c = BREAKS[bar % 4][s];
+    if (c === 'K') kick(t, 0.36, 0.18);
+    if (c === 'S') snare(t, 0.2);
+    if (c === 'g') snare(t, 0.06);
+    if (c === 'r') { snare(t, 0.09); snare(t + STEP / 2, 0.11); }
+    noise(t, 0.03, s % 2 ? 0.03 : 0.045, 'highpass', 8000);              // hats on every eighth at 168...
+    if (s % 4 === 3) noise(t + STEP / 2, 0.025, 0.02, 'highpass', 9000);  // ...and a skip into each beat
+    // reese bass: two detuned saws, dark, over a sine sub, following the kick
+    const root = rootOf(chord), nr = rootOf(next);
+    const bass = (m, at, len, vol) => {
+      for (const dt of [-14, 14]) voice('sawtooth', m + 12, at, len, vol * 0.42, { attack: 0.01, cutoff: 520, detune: dt });
+      voice('sine', m, at, len, vol, { attack: 0.01 });
+    };
+    if (s === 0) bass(root, t, STEP * 4.6, 0.17);
+    if (s === 5) bass(root, t, STEP * 2.6, 0.14);
+    if (s === 8) bass(root + 7, t, STEP * 3.6, 0.14);
+    if (s === 13) bass(nr !== root ? nr : root + 12, t, STEP * 2.6, 0.13);
+  }
+
   // ---- the arrangement, one sixteenth at a time ----
-  let lastFiddle = 0;
+  let lastFiddle = 0, style = 'classic', want = 'classic', swing = SWING;
   function play(step, t) {
     const bar = Math.floor(step / 16) % 32, s = step % 16;
+    if (s === 0 && style !== want) { style = want; }   // switch on a bar line
+    const dnb = style === 'dnb';
     const [prog, tune] = FORM[Math.floor(bar / 8)];
     const i = bar % 8, chord = prog[i], next = prog[(i + 1) % 8];
 
@@ -165,8 +218,13 @@ export function createMusic(ctx, out) {
     }
     // banjo roll on a thin pulse, with the echo
     const tones = inRange(chord, 62, 79);
-    voice('pulse', tones[ROLL[s] % tones.length], t, 0.2, s % 4 === 0 ? 0.05 : 0.034, { attack: 0.002, cutoff: 3200, to: [bus, echo] });
+    voice('pulse', tones[ROLL[s] % tones.length], t, 0.2, (s % 4 === 0 ? 0.05 : 0.034) * (dnb ? 0.75 : 1), { attack: 0.002, cutoff: 3200, to: [bus, echo] });
 
+    if (dnb) playDnb(step, t, bar, s, chord, next);
+    else playClassic(t, s, chord, next);
+    playFiddle(t, s, tune, i);
+  }
+  function playClassic(t, s, chord, next) {
     // boom-chick bass on a triangle, walking up into the next chord
     const root = rootOf(chord), nr = rootOf(next);
     if (s === 0) voice('triangle', root, t, STEP * 7, 0.2);
@@ -181,7 +239,8 @@ export function createMusic(ctx, out) {
     }
     if (s === 0 || s === 8) kick(t, 0.32);
     if (s % 2 === 0) noise(t, 0.04, s % 4 === 2 ? 0.035 : 0.018, 'highpass', 7000);
-
+  }
+  function playFiddle(t, s, tune, i) {
     // the fiddle: square wave, sliding into notes, vibrato on the long ones
     if (tune) {
       for (const [at, m, len] of tune[i]) {
@@ -199,13 +258,14 @@ export function createMusic(ctx, out) {
   // ---- scheduler: queues notes a little ahead of the audio clock ----
   // Step k of the song starts at t0 + at(k) (swing shifts the odd sixteenths, pairs stay even).
   const LOOP = 512 * STEP;   // 32 bars of sixteenths
-  const at = k => Math.floor(k / 2) * 2 * STEP + (k % 2 ? STEP * (1 + SWING) : 0);
+  const at = k => Math.floor(k / 2) * 2 * STEP + (k % 2 ? STEP * (1 + swing) : 0);
   let step = 0, next = 0, timer = null, playing = false, t0 = 0;
   function tick() {
     if (next < ctx.currentTime - 0.1) { next = ctx.currentTime + 0.05; t0 = next - at(step); }   // fell behind (tab was hidden): skip ahead
     while (next < ctx.currentTime + 0.25) {
       play(step, next);
-      next += STEP * (1 + (step % 2 ? -SWING : SWING));
+      swing = style === 'dnb' ? 0 : SWING;
+      next += STEP * (1 + (step % 2 ? -swing : swing));
       step++;
     }
   }
@@ -230,6 +290,11 @@ export function createMusic(ctx, out) {
       dusty.frequency.setTargetAtTime(1300 + 2900 * d, ctx.currentTime, 0.5);
       verbIn.gain.setTargetAtTime(0.5 + 0.35 * (1 - d), ctx.currentTime, 0.5);
     },
+    // 'classic' or 'dnb' (Hop Supporters): changes over at the next bar line.
+    setStyle(s) { want = s === 'dnb' ? 'dnb' : 'classic'; },
+    get style() { return want; },
+    // The song's sixteenth (counted from the top of the loop) playing at position pos.
+    stepAt(pos) { return Math.round(pos / STEP); },
     // Duck under menus (e.g. 0.45 on the game-over sign), back to 1 in play.
     setLevel(v) { level.gain.setTargetAtTime(v, ctx.currentTime, 0.4); },
     // Seconds into the 32-bar loop right now, and jumping to a place in it: so friends
@@ -250,7 +315,8 @@ export function createMusic(ctx, out) {
       bus.gain.value = 1.2;
       while (next < secs) {
         play(step, next);
-        next += STEP * (1 + (step % 2 ? -SWING : SWING));
+        swing = style === 'dnb' ? 0 : SWING;
+        next += STEP * (1 + (step % 2 ? -swing : swing));
         step++;
       }
     },

@@ -1,2 +1,4 @@
 relay/.wrangler/
 node_modules/
+support/.wrangler/
+support/.dev.vars
