@@ -5606,6 +5606,7 @@ function closeParty() {
 $('phonesBtn').addEventListener('click', () => { sfx.ensure(); if (game.state === 'farm') openParty(); });
 $('partyBtn').addEventListener('click', () => { sfx.ensure(); openParty(); });
 $('partyDone').addEventListener('click', closeParty);
+$('party').addEventListener('click', e => { if (e.target.id === 'party') closeParty(); });   // a tap off the menu closes it
 $('partyKeys').addEventListener('click', () => { addLocal({ keys: true }); renderParty(); });
 $('partyLocal').addEventListener('click', e => {
   const x = e.target.closest('[data-x]'), b = e.target.closest('[data-slot]');

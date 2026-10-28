@@ -565,15 +565,22 @@ body.guest #phonesBtn, body.guest #partyBtn, body.guest #play { display: none !i
 .guestDot { flex: none; width: 14px; height: 14px; border-radius: 50%; background: var(--leaf); animation: guestPulse 1.2s ease-in-out infinite; }
 @keyframes guestPulse { 50% { transform: scale(.6); opacity: .5; } }
 .partyChip b { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--c); border: 2px solid var(--ink); font-size: 11px; }
+/* The frame stays put with its title and buttons; only what's between them scrolls.
+   A tap on the dark backdrop closes it. */
 .partyPanel {
-  position: fixed; inset: 0; z-index: 14; display: flex; background: rgba(36, 24, 48, .7); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
-  padding: calc(env(safe-area-inset-top) + 26px) calc(env(safe-area-inset-right) + 16px) calc(env(safe-area-inset-bottom) + 16px) calc(env(safe-area-inset-left) + 16px);
+  position: fixed; inset: 0; z-index: 14; display: flex; align-items: center; justify-content: center; background: rgba(36, 24, 48, .7);
+  padding: calc(env(safe-area-inset-top) + 16px) calc(env(safe-area-inset-right) + 16px) calc(env(safe-area-inset-bottom) + 16px) calc(env(safe-area-inset-left) + 16px);
 }
-.partyPanel .panel { margin: auto; flex: none; }   /* centred when it fits; when it doesn't, it scrolls from the top */
 .partyPanel .panel {
-  position: relative; width: 100%; max-width: 380px; display: grid; justify-items: center; gap: 10px; text-align: center;
+  position: relative; width: 100%; max-width: 380px; max-height: 100%; box-sizing: border-box;
+  display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;
   background: var(--cream); border: 4px solid var(--ink); border-radius: 30px; box-shadow: 0 8px 0 var(--ink-soft); padding: 34px 18px 18px;
 }
+.partyBody {
+  flex: 1 1 auto; min-height: 0; width: 100%; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  display: grid; justify-items: center; gap: 10px; padding: 2px 2px 6px; box-sizing: border-box;
+}
+.partyPanel .partyActions { flex: none; }
 .partyPanel .panel::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 20px; background: var(--gingham); border-bottom: 3px solid var(--ink); border-radius: 26px 26px 0 0; }
 .partyPanel h2 { margin: 0; font-size: 24px; }
 .partyQr { width: min(220px, 60vw, 40vh); aspect-ratio: 1; background: #fff; border: 3px solid var(--ink); border-radius: 16px; padding: 6px; display: grid; place-items: center; overflow-wrap: anywhere; font-size: 11px; }
