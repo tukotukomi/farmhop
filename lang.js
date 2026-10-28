@@ -104,7 +104,7 @@ export const STRINGS = {
     drumsHere: 'The drums are on the Jam Stage!',
     drumNames: ['Kick', 'Snare', 'Hi-hat', 'Open hat', 'Clap', 'Low tom', 'High tom', 'Cowbell'],
     aria: {
-      supHero: '{name}: for Hop Supporters', chooseHopper: 'Choose hopper', startDay: 'Start the day', fishPond: 'Fish Pond', bunkhouse: 'Bunkhouse', buildings: 'Farm buildings', fishBook: 'Fish Book', stopFishing: 'Stop fishing',
+      supHero: '{name}: for Hop Supporters', chooseHopper: 'Choose hopper', startDay: 'Start the day', fishPond: 'Fish Pond', bunkhouse: 'Bunkhouse', buildings: 'Farm buildings', fishBook: 'Fish Book', stopFishing: 'Stop fishing', cast: 'Cast',
       building: '{name}, level {n}', unbuilt: 'Not built yet: {n} sunflowers',
       unlock: 'Invite {name} for {n} sunflowers', lives: '{name} lives on the farm',
       decorate: 'Decorate the farm', done: 'Done', rotate: 'Turn', shop: 'Decorations shop', octUp: 'Octave up', octDown: 'Octave down', phones: 'Play with phones', instDrums: 'Play the drums', instHopper: 'Play {name}\'s sounds',
@@ -213,7 +213,7 @@ export const STRINGS = {
     drumsHere: '¡La batería está en el escenario!',
     drumNames: ['Bombo', 'Caja', 'Charles', 'Charles abierto', 'Palmada', 'Tom grave', 'Tom agudo', 'Cencerro'],
     aria: {
-      supHero: '{name}: para Hop Supporters', chooseHopper: 'Elegir saltarín', startDay: 'Empezar el día', fishPond: 'Estanque de peces', bunkhouse: 'La cabaña', buildings: 'Edificios de la granja', fishBook: 'Libro de peces', stopFishing: 'Dejar de pescar',
+      supHero: '{name}: para Hop Supporters', chooseHopper: 'Elegir saltarín', startDay: 'Empezar el día', fishPond: 'Estanque de peces', bunkhouse: 'La cabaña', buildings: 'Edificios de la granja', fishBook: 'Libro de peces', stopFishing: 'Dejar de pescar', cast: 'Lanzar',
       building: '{name}, nivel {n}', unbuilt: 'Sin construir: {n} girasoles',
       unlock: 'Invitar a {name} por {n} girasoles', lives: '{name} vive en la granja',
       decorate: 'Decorar la granja', done: 'Listo', rotate: 'Girar', shop: 'Tienda de decoraciones', octUp: 'Subir una octava', octDown: 'Bajar una octava', phones: 'Jugar con teléfonos', instDrums: 'Tocar la batería', instHopper: 'Tocar los sonidos de {name}',
@@ -322,7 +322,7 @@ export const STRINGS = {
     drumsHere: '架子鼓已经放到音乐舞台上了！',
     drumNames: ['底鼓', '军鼓', '闭镲', '开镲', '拍手', '低音桶鼓', '高音桶鼓', '牛铃'],
     aria: {
-      supHero: '{name}：支持者专属', chooseHopper: '选择角色', startDay: '开始新的一天', fishPond: '鱼塘', bunkhouse: '小木屋', buildings: '农场建筑', fishBook: '鱼类图鉴', stopFishing: '不钓了',
+      supHero: '{name}：支持者专属', chooseHopper: '选择角色', startDay: '开始新的一天', fishPond: '鱼塘', bunkhouse: '小木屋', buildings: '农场建筑', fishBook: '鱼类图鉴', stopFishing: '不钓了', cast: '抛竿',
       building: '{name}，等级 {n}', unbuilt: '还没建造：需要 {n} 朵向日葵',
       unlock: '用 {n} 朵向日葵邀请{name}', lives: '{name}住在农场里',
       decorate: '装饰农场', done: '完成', rotate: '转动', shop: '装饰品商店', octUp: '升高八度', octDown: '降低八度', phones: '用手机一起玩', instDrums: '打架子鼓', instHopper: '演奏{name}的声音',

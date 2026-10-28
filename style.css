@@ -448,8 +448,34 @@ body.pad .heroCard.focus, body.keys .heroCard.focus, .heroCard:focus-visible { o
 #fishGo { --c1: #8fd8ff; --c2: #3f9fd8; }
 #fishBookBtn { --c1: var(--berry); --c2: var(--berry-d); }
 /* ---------- Fishing ---------- */
-#fishBar { position: fixed; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom) + 36px); display: none; }
-body.farm.fishing #fishBar { display: flex; }
+/* Fishing buttons. Portrait: a row with the Fish Book dead centre, ✕ to its left and
+   the cast button to its right. Landscape: a stack down the right edge, ✕ on top and
+   the cast button in the bottom-right corner. */
+#fishBar {
+  position: fixed; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom) + 36px);
+  display: none; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; pointer-events: none;
+}
+body.farm.fishing #fishBar { display: grid; }
+#fishStop { justify-self: end; width: 58px; height: 58px; --c1: var(--berry); --c2: var(--berry-d); color: #fff; font-size: 22px; font-weight: 700; }
+#bookBtn { width: 70px; height: 70px; }
+#bookBtn svg { width: 42px; height: 42px; }
+#fishCast { justify-self: start; width: 96px; height: 96px; }
+#fishCast svg { width: 60px; height: 60px; }
+@media (orientation: landscape) {
+  #fishBar {
+    left: auto; right: calc(env(safe-area-inset-right) + 18px); bottom: calc(env(safe-area-inset-bottom) + 18px);
+    grid-template-columns: auto; justify-items: end; gap: 12px;
+  }
+  #fishStop, #fishCast { justify-self: end; }
+}
+@media (orientation: landscape) and (max-height: 440px) {   /* phones on their side: a little smaller */
+  #fishBar { gap: 8px; }
+  #fishStop { width: 50px; height: 50px; font-size: 19px; }
+  #bookBtn { width: 60px; height: 60px; }
+  #bookBtn svg { width: 36px; height: 36px; }
+  #fishCast { width: 80px; height: 80px; }
+  #fishCast svg { width: 50px; height: 50px; }
+}
 body.farm.fishing.reeling #fishBar { display: none; }   /* nothing but the beat lane while reeling in */
 body.farm.fishing #farmBtns { display: none; }
 #bookBtn { --c1: var(--berry); --c2: var(--berry-d); width: 76px; height: 76px; }

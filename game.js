@@ -4720,6 +4720,15 @@ $('fishGo').addEventListener('click', () => { sfx.ensure(); goFish(myKey(), 'tap
 $('fishBookBtn').addEventListener('click', () => { sfx.ensure(); openBook(); });
 $('bookBtn').addEventListener('click', () => { sfx.ensure(); openBook(); });
 $('fishStop').addEventListener('click', () => stopFish(myKey()));
+// Cast (and hook a bite) the moment it's pressed, like a tap on the water.
+$('fishCast').addEventListener('pointerdown', e => {
+  const f = fishers.get(myKey());
+  if (!f) return;
+  sfx.ensure();
+  fishPress(f, false);
+  fishPress(f, true, 'tap', e.timeStamp / 1000);
+  fishPress(f, false);
+});
 $('bookClose').addEventListener('click', closeBook);
 $('book').addEventListener('click', e => { if (e.target.id === 'book') closeBook(); });
 
