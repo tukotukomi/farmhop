@@ -14,8 +14,10 @@
 //   POST /restore           {"email": "..."} -> {"code": "..."} for someone who has
 //                           supported: their code back, or a new one if they never
 //                           pasted one into the message.
-//   GET  /admin             A small page listing supporters (needs ADMIN_KEY), with a
-//   POST /admin/list          button to give someone a code by hand.
+//   GET  /admin             A small page listing supporters, with a button to give
+//   POST /admin/list          someone a code by hand. Signing in takes the ADMIN_KEY
+//                             secret plus a code from an authenticator app (see
+//                             "signing in" below); the first visit sets the app up.
 //   POST /admin/issue
 //   POST /admin/gift        A free code: for family, friends, and trying it out.
 //
@@ -153,8 +155,92 @@ async function giveCode(env, tx) {
   return code;
 }
 
+// ---- signing in to the admin page ----
+// The admin key and a six-digit code from an authenticator app (TOTP, RFC 6238: an
+// HMAC-SHA1 of the 30-second time step). The app's secret is made here on the first
+// visit and kept in KV (totp:secret); delete that key to set up a new app. A good
+// sign-in gets a session good for 12 hours. Eight wrong tries lock it for 15 minutes,
+// and each code works only once.
+const B32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+function b32encode(bytes) {
+  let bits = 0, val = 0, out = "";
+  for (const b of bytes) {
+    val = ((val << 8) | b) & 0xffff; bits += 8;
+    while (bits >= 5) { out += B32[(val >>> (bits - 5)) & 31]; bits -= 5; }
+  }
+  return bits ? out + B32[(val << (5 - bits)) & 31] : out;
+}
+function b32decode(text) {
+  let bits = 0, val = 0;
+  const out = [];
+  for (const c of text.toUpperCase()) {
+    const i = B32.indexOf(c);
+    if (i < 0) continue;
+    val = ((val << 5) | i) & 0xffff; bits += 5;
+    if (bits >= 8) { out.push((val >>> (bits - 8)) & 255); bits -= 8; }
+  }
+  return new Uint8Array(out);
+}
+async function totpAt(secret, step) {
+  const key = await crypto.subtle.importKey("raw", b32decode(secret), { name: "HMAC", hash: "SHA-1" }, false, ["sign"]);
+  const msg = new Uint8Array(8);
+  for (let i = 7, c = step; i >= 0; i--, c = Math.floor(c / 256)) msg[i] = c & 255;
+  const h = new Uint8Array(await crypto.subtle.sign("HMAC", key, msg)), o = h[19] & 15;
+  const n = ((h[o] & 127) << 24) | (h[o + 1] << 16) | (h[o + 2] << 8) | h[o + 3];
+  return String(n % 1e6).padStart(6, "0");
+}
+async function totpStep(secret, code) {   // the time step the code is for (allowing a step either side), or null
+  const now = Math.floor(Date.now() / 30000);
+  for (const step of [now - 1, now, now + 1]) if (sameText(await totpAt(secret, step), String(code || ""))) return step;
+  return null;
+}
+const keyOk = (env, key) => !!env.ADMIN_KEY && sameText(String(key || ""), env.ADMIN_KEY);
+async function locked(env) { return (parseInt(await env.SUPPORT.get("login:fails")) || 0) >= 8; }
+async function failed(env) {
+  const n = (parseInt(await env.SUPPORT.get("login:fails")) || 0) + 1;
+  await env.SUPPORT.put("login:fails", String(n), { expirationTtl: 900 });
+  return json({ error: "wrong" }, 403);
+}
+async function newSession(env, step) {
+  await env.SUPPORT.put("totp:last", String(step));
+  await env.SUPPORT.delete("login:fails");
+  const token = [...crypto.getRandomValues(new Uint8Array(32))].map(b => b.toString(16).padStart(2, "0")).join("");
+  await env.SUPPORT.put("session:" + token, "1", { expirationTtl: 43200 });
+  return json({ token });
+}
+async function adminLogin(request, env) {
+  if (await locked(env)) return json({ error: "locked" }, 429);
+  const { key, code } = await request.json().catch(() => ({}));
+  if (!keyOk(env, key)) return failed(env);
+  const secret = await env.SUPPORT.get("totp:secret");
+  if (!secret) return json({ error: "setup" }, 409);                  // no app yet: set one up
+  const step = await totpStep(secret, code);
+  if (step === null || step <= (parseInt(await env.SUPPORT.get("totp:last")) || 0)) return failed(env);
+  return newSession(env, step);
+}
+async function adminSetup(request, env) {   // only before an app is set up
+  if (await locked(env)) return json({ error: "locked" }, 429);
+  const { key, code } = await request.json().catch(() => ({}));
+  if (!keyOk(env, key)) return failed(env);
+  if (await env.SUPPORT.get("totp:secret")) return json({ error: "done" }, 409);
+  if (!code) {                                                        // step 1: a new secret for the app to scan
+    const secret = b32encode(crypto.getRandomValues(new Uint8Array(20)));
+    await env.SUPPORT.put("totp:pending", secret, { expirationTtl: 900 });
+    return json({ secret, uri: `otpauth://totp/Farm%20Hop:admin?secret=${secret}&issuer=Farm%20Hop&digits=6&period=30` });
+  }
+  const secret = await env.SUPPORT.get("totp:pending");                // step 2: the app's first code proves it's set up
+  const step = secret ? await totpStep(secret, code) : null;
+  if (step === null) return failed(env);
+  await env.SUPPORT.put("totp:secret", secret);
+  await env.SUPPORT.delete("totp:pending");
+  return newSession(env, step);
+}
+async function isAdmin(request, env) {
+  const token = (request.headers.get("authorization") || "").replace(/^Bearer /, "");
+  return /^[0-9a-f]{64}$/.test(token) && !!(await env.SUPPORT.get("session:" + token));
+}
+
 // ---- the admin page ----
-const isAdmin = (request, env) => !!env.ADMIN_KEY && sameText((request.headers.get("authorization") || "").replace(/^Bearer /, ""), env.ADMIN_KEY);
 
 async function adminList(env) {
   const out = [];
@@ -195,15 +281,45 @@ const ADMIN_PAGE = `<!doctype html><meta charset="utf-8"><meta name="viewport" c
 td,th{padding:6px 8px;border-bottom:1px solid #e5d6c0;text-align:left;vertical-align:top}button{font:inherit;padding:4px 10px}
 input{font:inherit;padding:6px;width:min(320px,100%)}.no{color:#a33}</style>
 <h1>Hop Supporters</h1>
-<form id="f"><input id="k" type="password" placeholder="Admin key" autocomplete="current-password"> <button>Show</button></form>
+<form id="f"><input id="k" type="password" placeholder="Admin key" autocomplete="current-password"><br><br>
+<input id="c" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit code from your authenticator app"> <button>Sign in</button></form>
+<div id="setup" hidden><p><b>Set up your authenticator app.</b> Scan this with the app (or type the key below into it), then enter the 6-digit code it shows and press Sign in.</p>
+<div id="qr"></div><p>Key: <code id="sk"></code></p></div>
 <p id="s"></p><p id="g" hidden><input id="gn" placeholder="Who is it for?"> <button id="gb">Make a gift code</button></p><table id="t"></table>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <script>
-let key = '';
+let token = sessionStorage.getItem('hop-admin') || '', setup = false;
 const s = document.getElementById('s'), t = document.getElementById('t');
-const call = (path, body) => fetch(path, { method: 'POST', headers: { authorization: 'Bearer ' + key, 'content-type': 'application/json' }, body: JSON.stringify(body || {}) });
+const call = (path, body) => fetch(path, { method: 'POST', headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' }, body: JSON.stringify(body || {}) });
+const SAY = { wrong: 'Wrong key or code.', locked: 'Too many wrong tries. Wait 15 minutes.', done: 'Already set up: sign in with your code.' };
+const post = (path, body) => fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json()).catch(() => ({}));
+async function signIn(key, code) {
+  const d = await post(setup ? '/admin/setup' : '/admin/login', { key, code });
+  if (d.token) {
+    token = d.token;
+    sessionStorage.setItem('hop-admin', token);
+    document.getElementById('setup').hidden = document.getElementById('f').hidden = true;
+    load();
+    return;
+  }
+  if (d.error === 'setup') {   // first time: show the authenticator app's QR code
+    const d2 = await post('/admin/setup', { key });
+    if (!d2.secret) { s.textContent = SAY[d2.error] || 'Something went wrong.'; return; }
+    setup = true;
+    document.getElementById('setup').hidden = false;
+    document.getElementById('sk').textContent = d2.secret.match(/.{1,4}/g).join(' ');
+    const qr = qrcode(0, 'M');
+    qr.addData(d2.uri);
+    qr.make();
+    document.getElementById('qr').innerHTML = qr.createSvgTag({ cellSize: 5, margin: 3 });
+    s.textContent = '';
+    return;
+  }
+  s.textContent = SAY[d.error] || 'Something went wrong.';
+}
 async function load() {
   const r = await call('/admin/list');
-  if (!r.ok) { s.textContent = 'Wrong key.'; return; }
+  if (!r.ok) { token = ''; sessionStorage.removeItem('hop-admin'); document.getElementById('f').hidden = false; s.textContent = 'Please sign in.'; return; }
   const rows = await r.json();
   s.textContent = rows.length + ' payments';
   document.getElementById('g').hidden = false;
@@ -218,7 +334,8 @@ async function load() {
   }
 }
 document.getElementById('gb').onclick = async () => { const r = await call('/admin/gift', { name: document.getElementById('gn').value }); if (r.ok) { s.textContent = 'Gift code: ' + (await r.json()).code; load(); } };
-document.getElementById('f').onsubmit = e => { e.preventDefault(); key = document.getElementById('k').value; load(); };
+document.getElementById('f').onsubmit = e => { e.preventDefault(); signIn(document.getElementById('k').value, document.getElementById('c').value.replace(/\D/g, '')); };
+if (token) { document.getElementById('f').hidden = true; load(); }
 </script>`;
 
 export default {
@@ -231,8 +348,10 @@ export default {
       if (url.pathname === "/check" && request.method === "GET") return await check(url, env, headers);
       if (url.pathname === "/restore" && request.method === "POST") return await restore(request, env, headers);
       if (url.pathname === "/admin" && request.method === "GET") return new Response(ADMIN_PAGE, { headers: { "content-type": "text/html; charset=utf-8" } });
+      if (url.pathname === "/admin/login" && request.method === "POST") return await adminLogin(request, env);
+      if (url.pathname === "/admin/setup" && request.method === "POST") return await adminSetup(request, env);
       if (url.pathname.startsWith("/admin/") && request.method === "POST") {
-        if (!isAdmin(request, env)) return json({ error: "key" }, 403);
+        if (!(await isAdmin(request, env))) return json({ error: "key" }, 403);
         if (url.pathname === "/admin/list") return json(await adminList(env));
         if (url.pathname === "/admin/issue") return await adminIssue(request, env);
         if (url.pathname === "/admin/gift") return await adminGift(request, env);

@@ -48,7 +48,9 @@ It prints the address, like `https://farmhop-support.<you>.workers.dev`.
 
 ## Admin page
 
-`https://farmhop-support.<you>.workers.dev/admin`: enter the admin key to see who has
+`https://farmhop-support.<you>.workers.dev/admin`: sign in with the admin key and a
+6-digit code from an authenticator app (the first visit shows a QR code to set the app
+up; to move to a new app, delete the KV key `totp:secret` and visit again). See who has
 supported, give a code to someone who forgot to paste theirs ("Give a code"), or
 make a free gift code (for family, or to try the perks yourself).
 
