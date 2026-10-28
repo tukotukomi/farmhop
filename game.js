@@ -3469,13 +3469,24 @@ const _a = new THREE.Vector3(), _b = new THREE.Vector3();
 window.addEventListener('pointerdown', e => {
   if (!exploring(e)) return;
   const meF = fishers.get(myKey());
-  if (meF) { fishPtr = e.pointerId; fishPress(meF, true, 'tap'); return; }   // fishing: the whole screen is the reel
+  if (meF) {   // fishing: the whole screen is the reel
+    fishPtr = e.pointerId;
+    if (meF.st === 'bite' || meF.st === 'reel') { fishDrag = null; fishPress(meF, true, 'tap'); }   // timing counts: straight away
+    else fishDrag = { x: e.clientX, yaw: fishCam.yaw, moved: false };                            // a tap, or a drag to look around
+    return;
+  }
   if (decor.on && !touches.size && decorGrab(e)) return;   // picked up a piece: drag it instead of the view
   touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   farmTap = touches.size === 1 ? { x: e.clientX, y: e.clientY, id: e.pointerId } : null;
   pinch = 0;
 });
 window.addEventListener('pointermove', e => {
+  if (fishDrag && e.pointerId === fishPtr) {
+    const dx = e.clientX - fishDrag.x;
+    if (Math.abs(dx) > 8) fishDrag.moved = true;
+    if (fishDrag.moved) fishCam.yaw = fishDrag.yaw - dx * 0.012;
+    return;
+  }
   if (decor.drag && decor.drag.id === e.pointerId) { decorDrag(e); return; }
   const p = touches.get(e.pointerId);
   if (!p || game.state !== 'farm') return;
@@ -3495,7 +3506,14 @@ window.addEventListener('pointermove', e => {
   }
 });
 function farmPointerUp(e) {
-  if (fishPtr != null && fishPtr === e.pointerId) { fishPtr = null; const f = fishers.get(myKey()); if (f) fishPress(f, false); return; }
+  if (fishPtr != null && fishPtr === e.pointerId) {
+    fishPtr = null;
+    const f = fishers.get(myKey());
+    if (f && fishDrag && !fishDrag.moved && e.type === 'pointerup') fishPress(f, true, 'tap');   // it was a tap: cast
+    if (f) fishPress(f, false);
+    fishDrag = null;
+    return;
+  }
   if (decor.drag && decor.drag.id === e.pointerId) { decorDrop(); return; }
   if (!touches.delete(e.pointerId)) return;
   pinch = 0;
@@ -3550,6 +3568,7 @@ window.addEventListener('keyup', e => {
   if (jam.open) letGo('k' + e.code);
   const meF = fishers.get(myKey()), kf = keysPlayer() && fishers.get('p' + keysPlayer());
   if (meF && (e.code === 'Space' || e.code === 'Enter')) fishPress(meF, false);
+  if (['KeyA', 'KeyD', 'ArrowLeft', 'ArrowRight'].includes(e.code)) fishCam.spin = 0;
   if (kf && e.code.startsWith('Arrow')) fishPress(kf, false);
 });
 window.addEventListener('keydown', e => {
@@ -3636,6 +3655,8 @@ window.addEventListener('keydown', e => {
   }
   if (game.state === 'farm' && !game.picking) {   // fishing: Space or Enter casts and reels, F or Escape stops
     const meF = fishers.get(myKey()), kp = keysPlayer(), kf = kp && fishers.get('p' + kp);
+    const turn = { KeyA: 1, KeyD: -1, ...(kp ? {} : { ArrowLeft: 1, ArrowRight: -1 }) }[e.code];
+    if (meF && turn) { fishCam.spin = turn; e.preventDefault(); return; }
     if (meF && ['Space', 'Enter', 'Escape', 'KeyF'].includes(e.code)) {
       if (e.code === 'Escape' || e.code === 'KeyF') stopFish(myKey());
       else if (!e.repeat) fishPress(meF, true, 'keys');
@@ -4264,31 +4285,33 @@ function updateFishing(dt) {
 // ---------- the fishing camera ----------
 // Once your hopper is at the water, the camera drops down beside them: side on and
 // close, the line, the bobber and the pond in view, with the beat lane underneath.
-const fishCam = { on: false, pos: new THREE.Vector3(), look: new THREE.Vector3() };
-const _fcPos = new THREE.Vector3(), _fcLook = new THREE.Vector3();
+// It turns around them with a drag (while there's nothing on the line), A and D,
+// or a controller's right stick or shoulder buttons.
+const fishCam = { on: false, yaw: 0, shown: 0, spin: 0, swoop: 1, look: new THREE.Vector3() };
+let fishDrag = null;                                 // a drag that turns the camera, or a tap that casts
+const _fcLook = new THREE.Vector3();
 const camFisher = () => { const f = fishers.get(myKey()); return f && f.st !== 'walk' && f.st !== 'settle' && !decor.on ? f : null; };
 fishCamHook = dt => {
   const f = camFisher();
-  if (!f) { fishCam.on = false; return false; }
+  if (!f) { Object.assign(fishCam, { on: false, yaw: 0, shown: 0, spin: 0, swoop: 1 }); return false; }
   useCamera(perspCam);
   const w = f.w, base = farm.group.position, [ax, az] = pieceToFarm(pondPiece(), ...f.spot.aim);
   const dx = ax - w.x, dz = az - w.z, len = Math.hypot(dx, dz) || 1;
   let sx = -dz / len, sz = dx / len;                 // square on to the line
-  if (sz < 0) { sx = -sx; sz = -sz; }                // from the front of the farm
+  if (sz < 0) { sx = -sx; sz = -sz; }                // from the front of the farm, to begin with
+  fishCam.yaw += fishCam.spin * dt * 1.8;
+  fishCam.shown += (fishCam.yaw - fishCam.shown) * Math.min(1, dt * 8);
+  const c = Math.cos(fishCam.shown), s = Math.sin(fishCam.shown);
+  [sx, sz] = [sx * c - sz * s, sx * s + sz * c];
   const halfW = Math.atan(Math.tan(perspCam.fov * Math.PI / 360) * perspCam.aspect);
   const dist = Math.max(4.4, (len + 2.4) / 2 / Math.tan(halfW));   // the hopper and where the bobber lands both fit, with room around
-  const tx = base.x + w.x + dx * 0.28, tz = base.z + w.z + dz * 0.28, ty = (w.y || 0) + (perspCam.aspect < 1 ? 0.25 : -0.25);   // the pond sits above the beat lane (on a tall screen there's room below)
-  _fcPos.set(tx + sx * dist, ty + 1 + dist * 0.08, tz + sz * dist);
-  _fcLook.set(tx, ty, tz);
-  if (!fishCam.on) {                                 // swoop in from a little further out and higher up
-    fishCam.on = true;
-    fishCam.pos.set(tx + sx * dist * 1.6, ty + 2.5, tz + sz * dist * 1.6);
-    fishCam.look.copy(_fcLook);
-  }
-  const k = Math.min(1, dt * 3);
-  fishCam.pos.lerp(_fcPos, k);
-  fishCam.look.lerp(_fcLook, k);
-  camera.position.copy(fishCam.pos);
+  const ty = (w.y || 0) + (perspCam.aspect < 1 ? 0.25 : -0.25);   // the pond sits above the beat lane (on a tall screen there's room below)
+  _fcLook.set(base.x + w.x + dx * 0.28, ty, base.z + w.z + dz * 0.28);
+  if (!fishCam.on) { fishCam.on = true; fishCam.swoop = 1; fishCam.look.copy(_fcLook); }
+  fishCam.swoop *= Math.exp(-dt * 3);                // swoop in from further out and higher up
+  fishCam.look.lerp(_fcLook, Math.min(1, dt * 3));
+  const d = dist * (1 + fishCam.swoop * 0.6);
+  camera.position.set(fishCam.look.x + sx * d, ty + 1 + dist * 0.08 + fishCam.swoop * 2.2, fishCam.look.z + sz * d);
   camera.lookAt(fishCam.look);
   sun.position.copy(fishCam.look).add(SUN_OFF);
   sun.target.position.copy(fishCam.look);
@@ -5874,7 +5897,9 @@ function pollPad() {
     return;
   }
   const meF = game.state === 'farm' && !game.picking && fishers.get(myKey());
-  if (meF) {   // fishing: A casts and reels, B stops
+  if (meF) {   // fishing: A casts and reels, B stops, the right stick or LB / RB turn the camera
+    const rx = gp.axes[2] || 0;
+    fishCam.spin = Math.abs(rx) > 0.3 ? -rx : down[4] ? 1 : down[5] ? -1 : 0;
     if (pressed(0)) fishPress(meF, true, 'pad');
     if (released(0)) fishPress(meF, false);
     if (pressed(1)) stopFish(myKey());
