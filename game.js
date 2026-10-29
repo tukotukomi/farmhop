@@ -1467,102 +1467,57 @@ const sfx = (() => {
       const bus = which === 'music' ? musicBus : master;
       if (bus) bus.gain.setTargetAtTime(v, ctx.currentTime, 0.05);
     },
-    // Each hopper has its own hop, soft and musical rather than a bright square chirp.
-    // The notes walk a D-major pentatonic line (the soundtrack's key), so a run of
-    // hops plays a little tune.
+    // A hop plays the hopper's own voice (their Jam Stage instrument). The notes walk a
+    // D-major pentatonic line (the soundtrack's key), so a run of hops plays a little tune.
     hop(id) { this.voice(id, HOP_TUNE[hopStep++ % HOP_TUNE.length]); },
-    // One hopper's hop sound at pitch n. tight (the Jam Stage pads) lands every voice on
-    // its note in the first millisecond: no slides up from below, nothing held back, so
-    // a pad sounds the instant it's hit. The hop versions keep their swoops.
-    voice(id, n, tight = false) {
+    // One hopper's voice at pitch n: the same sound for a hop on the farm and a pad on
+    // the Jam Stage, so each hopper sounds like itself everywhere. Every layer starts
+    // right on the note (a little echo of the old hop may follow it), and only
+    // octaves and fifths of n are used, so it's always in key and tight on the beat.
+    // (tight is still passed by the Jam Stage; the sound is the same either way.)
+    voice(id, n) {
       if (!ctx || muted) return;
       const t = ctx.currentTime;
-      if (tight) {
-        if (id === 'axolotl') {                                  // the bloop, starting on the note
-          sweep('sine', n * 0.94, n * 1.06, t, 0.13, 0.17);
-          sweep('triangle', n * 4, n * 4, t, 0.1, 0.02);
-          sweep('sine', n * 1.9, n * 2.1, t + 0.05, 0.06, 0.05);
-        } else if (id === 'catstar') {                           // the spring's wobble, on the note an octave down
-          boing(n / 2 / 1.3, t, 0.3, 0.15, false);
-          sweep('triangle', n * 2, n * 2, t, 0.18, 0.035);
-        } else if (id === 'leafwish') {
-          rustle(t, 0.1, 0.12);
-          sweep('triangle', n * 2, n * 2, t, 0.45, 0.05);
-          sweep('sine', n * 3, n * 3, t + 0.02, 0.3, 0.015);
-        } else if (id === 'tuko') {                              // the tok already lands at once
-          sweep('sine', n * 2, n * 2, t, 0.06, 0.16);
-          sweep('triangle', n * 4, n * 4, t, 0.03, 0.04);
-          sweep('triangle', n * 2, n * 3, t + 0.05, 0.05, 0.04);
-        } else if (id === 'spider') {                            // a plucked web string
-          sweep('triangle', n * 2, n * 2, t, 0.06, 0.13);
-          sweep('sine', n * 4, n * 4, t, 0.05, 0.04);
-        } else if (id === 'lyla') {                              // a soft woof, on the note
-          sweep('sine', n / 2, n / 2, t, 0.12, 0.16);
-          sweep('triangle', n, n, t, 0.1, 0.12);
-        } else if (id === 'carla') {                             // a gentle little whistle
-          sweep('sine', n * 2, n * 2, t, 0.22, 0.12);
-          sweep('triangle', n, n, t, 0.12, 0.05);
-        } else if (id === 'siracha') {                           // a short quack on the note
-          sweep('square', n * 2, n * 2, t, 0.02, 0.012);
-          sweep('triangle', n, n, t, 0.12, 0.15);
-        } else if (id === 'ribbit') {                            // the croak's click, on a round, in-tune note
-          sweep('square', n * 2, n * 2, t, 0.025, 0.012);
-          sweep('triangle', n, n, t, 0.16, 0.16);
-          sweep('sine', n * 2, n * 2, t, 0.12, 0.04);
-        } else if (id === 'moonbun') {
-          sweep('sine', n * 2, n * 2, t, 0.5, 0.1);
-          sweep('sine', n * 3, n * 3, t, 0.35, 0.03);
-        } else {
-          pluck(n, t, 0.28, 0.11);
-          pluck(n / 2, t, 0.2, 0.05);
-        }
-        return;
-      }
-      if (id === 'axolotl') {                                   // a watery bubble bloop, then a smaller one
-        sweep('sine', n * 0.45, n * 1.6, t, 0.09, 0.16);
-        sweep('sine', n * 0.7, n * 2.2, t + 0.055, 0.07, 0.07);
-        sweep('triangle', n * 4, n * 4, t + 0.05, 0.12, 0.018);
-      } else if (id === 'catstar') {                            // a springy boing from her hat, plus a star chime
-        boing(n * 0.42, t, 0.32, 0.14);
-        sweep('triangle', n * 2, n * 2, t + 0.04, 0.18, 0.035);
+      if (id === 'axolotl') {                                   // a watery bloop, and a little bubble after
+        sweep('sine', n * 0.94, n * 1.06, t, 0.13, 0.17);
+        sweep('triangle', n * 4, n * 4, t, 0.1, 0.02);
+        sweep('sine', n * 2, n * 2, t + 0.05, 0.06, 0.05);
+      } else if (id === 'catstar') {                            // the spring in her cap, and a star chime
+        boing(n / 2 / 1.3, t, 0.3, 0.15, false);
+        sweep('triangle', n * 2, n * 2, t, 0.18, 0.035);
       } else if (id === 'leafwish') {                           // a leafy rustle and a wind-chime twinkle
-        rustle(t, 0.13, 0.16);
-        sweep('triangle', n * 2, n * 2, t + 0.03, 0.45, 0.045);
-        sweep('sine', n * 3, n * 3, t + 0.07, 0.3, 0.015);
-      } else if (id === 'tuko') {                               // a woodblock tok, then a quick little fox yip
-        // Octaves and fifths of the tune note only, so every pitch it lands on is in key.
-        sweep('sine', n * 2, n * 2, t, 0.05, 0.16);
+        rustle(t, 0.1, 0.12);
+        sweep('triangle', n * 2, n * 2, t, 0.45, 0.05);
+        sweep('sine', n * 3, n * 3, t + 0.02, 0.3, 0.015);
+      } else if (id === 'tuko') {                               // a woodblock tok, then a quick little fox yip a fifth up
+        sweep('sine', n * 2, n * 2, t, 0.06, 0.16);
         sweep('triangle', n * 4, n * 4, t, 0.03, 0.04);
-        sweep('triangle', n * 2, n * 3, t + 0.06, 0.06, 0.045);
-        sweep('sine', n * 3, n * 3, t + 0.11, 0.08, 0.04);
-      } else if (id === 'spider') {                             // skittering up the web: octave, octave and a fifth, two octaves
-        sweep('triangle', n * 2, n * 2, t, 0.045, 0.12);
-        sweep('triangle', n * 3, n * 3, t + 0.05, 0.045, 0.1);
-        sweep('sine', n * 4, n * 4, t + 0.1, 0.06, 0.05);
-      } else if (id === 'lyla') {                               // "arf!": a deep thump and a short bark on the note, a fifth to finish
-        sweep('sine', n / 2, n / 2, t, 0.09, 0.16);
-        sweep('triangle', n * 0.97, n, t + 0.01, 0.08, 0.14);
-        sweep('triangle', n * 1.5, n * 1.5, t + 0.1, 0.06, 0.07);
-      } else if (id === 'carla') {                              // "kwee-kwee": two soft capybara chirps, an octave up
-        sweep('sine', n * 2 * 0.97, n * 2, t, 0.08, 0.11);
-        sweep('triangle', n, n, t, 0.08, 0.05);
-        sweep('sine', n * 2 * 0.97, n * 2, t + 0.12, 0.1, 0.09);
-      } else if (id === 'siracha') {                            // "qua-ack": a nasal click, the fifth, then down to the note
-        sweep('square', n * 3, n * 3, t, 0.02, 0.012);
-        sweep('triangle', n * 1.5, n * 1.5, t, 0.05, 0.12);
-        sweep('triangle', n * 0.98, n, t + 0.05, 0.09, 0.15);
-        sweep('square', n * 2, n * 2, t + 0.05, 0.02, 0.01);
-      } else if (id === 'ribbit') {                             // "rib-bit": the note, then a fifth up, each with a croaky click
-        // Only a tiny scoop into each (3%), so what you hear is the note itself, in key.
-        sweep('square', n * 2, n * 2, t, 0.02, 0.01);
-        sweep('triangle', n * 0.97, n, t, 0.07, 0.15);
-        sweep('square', n * 3, n * 3, t + 0.085, 0.02, 0.01);
-        sweep('triangle', n * 1.5 * 0.97, n * 1.5, t + 0.085, 0.09, 0.13);
-        sweep('sine', n * 3, n * 3, t + 0.085, 0.08, 0.03);
+        sweep('triangle', n * 3, n * 3, t + 0.05, 0.05, 0.04);
+      } else if (id === 'spider') {                             // a plucked web string, skittering up an octave and a fifth
+        sweep('triangle', n * 2, n * 2, t, 0.06, 0.13);
+        sweep('sine', n * 4, n * 4, t, 0.05, 0.04);
+        sweep('triangle', n * 3, n * 3, t + 0.045, 0.04, 0.05);
+      } else if (id === 'lyla') {                               // a soft woof on the note, with a little "arf" a fifth up
+        sweep('sine', n / 2, n / 2, t, 0.12, 0.16);
+        sweep('triangle', n, n, t, 0.1, 0.13);
+        sweep('triangle', n * 1.5, n * 1.5, t + 0.07, 0.05, 0.05);
+      } else if (id === 'carla') {                              // a gentle capybara whistle, "kwee-kwee"
+        sweep('sine', n * 2, n * 2, t, 0.12, 0.12);
+        sweep('triangle', n, n, t, 0.12, 0.05);
+        sweep('sine', n * 2, n * 2, t + 0.11, 0.09, 0.06);
+      } else if (id === 'siracha') {                            // a quack: a nasal click on the note, with its fifth
+        sweep('square', n * 2, n * 2, t, 0.02, 0.012);
+        sweep('triangle', n, n, t, 0.12, 0.15);
+        sweep('triangle', n * 1.5, n * 1.5, t, 0.05, 0.06);
+      } else if (id === 'ribbit') {                             // "rib-bit": a croaky click on the note, then the fifth
+        sweep('square', n * 2, n * 2, t, 0.025, 0.012);
+        sweep('triangle', n, n, t, 0.16, 0.16);
+        sweep('sine', n * 2, n * 2, t, 0.12, 0.04);
+        sweep('triangle', n * 1.5, n * 1.5, t + 0.08, 0.07, 0.06);
       } else if (id === 'moonbun') {                            // a soft thump and a little moon bell
-        sweep('sine', n, n * 0.5, t, 0.08, 0.12);
-        sweep('sine', n * 2, n * 2, t + 0.04, 0.5, 0.08);
-        sweep('sine', n * 3, n * 3, t + 0.09, 0.35, 0.025);
+        sweep('sine', n / 2, n / 2, t, 0.07, 0.09);
+        sweep('sine', n * 2, n * 2, t, 0.5, 0.1);
+        sweep('sine', n * 3, n * 3, t, 0.35, 0.03);
       } else {                                                  // Betty Lou: a banjo pluck
         pluck(n, t, 0.28, 0.11);
         pluck(n / 2, t, 0.2, 0.05);
