@@ -347,6 +347,10 @@ body.farm:not(.decor) #hint { display: none; }   /* on the farm, Betty Lou gives
   box-shadow: 0 8px 0 var(--ink-soft); padding: 34px 14px 16px;
 }
 .sheet .panel > h2 { flex: none; }
+/* Action buttons (Sell, Choose all, Go fishing...) live in a panelFoot under the body, so they stay
+   on screen however far the body scrolls. */
+.panelFoot { flex: none; display: grid; justify-items: center; gap: 10px; padding-top: 10px; }
+.panelFoot > [hidden] { display: none; }
 .panelBody {
   flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y;
   display: grid; gap: inherit; justify-items: inherit; align-content: start; text-align: inherit; grid-template-columns: inherit;

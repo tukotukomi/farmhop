@@ -6084,6 +6084,7 @@ function bagNav(dir) {
 }
 function showSure(on) {
   $('bagSure').hidden = !on;
+  $('bagSureActs').hidden = !on;
   $('bagGrid').hidden = $('bagWho').hidden = on;
   if (on) $('bagBar').hidden = true;
   else refreshBag();
