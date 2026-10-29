@@ -1348,7 +1348,13 @@ const sfx = (() => {
       ctx = new AC();
       out = ctx.createGain();
       out.gain.value = muted ? 0 : 0.55;
-      out.connect(ctx.destination);
+      const limit = ctx.createDynamicsCompressor();   // a safety limiter: loud moments never clip in headphones
+      limit.threshold.value = -3;
+      limit.knee.value = 0;
+      limit.ratio.value = 20;
+      limit.attack.value = 0.002;
+      limit.release.value = 0.12;
+      out.connect(limit).connect(ctx.destination);
       master = ctx.createGain();
       master.gain.value = vol.fx;
       master.connect(out);
@@ -1457,6 +1463,29 @@ const sfx = (() => {
     o.connect(bp).connect(nose).connect(g).connect(master);
     o.start(t); o.stop(t + dur + 0.02);
   }
+  // A dog's woof: a low buzzy note through a "wuh" that opens and closes, with a puff
+  // of breath. The pitch never moves, so it stays in tune.
+  function woof(f, t, dur, vol) {
+    const o = ctx.createOscillator(), bp = ctx.createBiquadFilter(), g = ctx.createGain();
+    o.type = 'sawtooth';
+    o.frequency.value = f;
+    bp.type = 'bandpass';
+    bp.Q.value = 2.2;
+    bp.frequency.setValueAtTime(380, t);
+    bp.frequency.linearRampToValueAtTime(950, t + dur * 0.25);
+    bp.frequency.exponentialRampToValueAtTime(320, t + dur);
+    env(g, t, vol, dur, 0.006);
+    o.connect(bp).connect(g).connect(master);
+    o.start(t); o.stop(t + dur + 0.02);
+    const s = ctx.createBufferSource(), nf = ctx.createBiquadFilter(), ng = ctx.createGain();   // the breath
+    s.buffer = noiseBuf;
+    nf.type = 'bandpass';
+    nf.frequency.value = 900;
+    nf.Q.value = 1.2;
+    env(ng, t, vol * 0.35, dur * 0.5, 0.004);
+    s.connect(nf).connect(ng).connect(master);
+    s.start(t, Math.random() * 0.5); s.stop(t + dur);
+  }
   // A frog's croak: a low reedy pulse whose loudness rattles on and off at an eighth
   // of the note's own frequency, so the rasp is in tune with it.
   function croak(f, t, dur, vol) {
@@ -1466,7 +1495,7 @@ const sfx = (() => {
     o.frequency.value = f;
     lp.type = 'lowpass';
     lp.frequency.value = 1200;
-    lp.Q.value = 5;
+    lp.Q.value = 1.6;
     lfo.type = 'square';
     lfo.frequency.value = f / 8;
     am.gain.value = 0.5;
@@ -1552,10 +1581,9 @@ const sfx = (() => {
         eerie(n * 2, t, 0.42, 0.11);
         sweep('sine', n * 3, n * 3, t, 0.3, 0.02);
         for (const dt of [0, 0.035, 0.07]) sweep('square', n * 4, n * 4, t + dt, 0.012, 0.008);
-      } else if (id === 'lyla') {                               // a soft woof on the note, with a little "arf" a fifth up
-        sweep('sine', n / 2, n / 2, t, 0.12, 0.16);
-        sweep('triangle', n, n, t, 0.1, 0.13);
-        sweep('triangle', n * 1.5, n * 1.5, t + 0.07, 0.05, 0.05);
+      } else if (id === 'lyla') {                               // a bulldog's "woof!" on the note, with a soft chest thump
+        woof(n / 2, t, 0.17, 0.22);
+        sweep('sine', n / 2, n / 2, t, 0.09, 0.1);
       } else if (id === 'carla') {                              // a gentle capybara whistle, "kwee-kwee"
         sweep('sine', n * 2, n * 2, t, 0.12, 0.12);
         sweep('triangle', n, n, t, 0.12, 0.05);
@@ -1564,8 +1592,8 @@ const sfx = (() => {
         quack(n, t, 0.17, 0.34);
         sweep('sine', n / 2, n / 2, t, 0.1, 0.05);
       } else if (id === 'ribbit') {                             // "rib-bit": a froggy croak an octave down, then a shorter one a fifth up
-        croak(n / 2, t, 0.13, 0.3);
-        croak(n * 0.75, t + 0.12, 0.08, 0.22);
+        croak(n / 2, t, 0.13, 0.15);
+        croak(n * 0.75, t + 0.12, 0.08, 0.11);
       } else if (id === 'moonbun') {                            // a soft thump and a little moon bell
         sweep('sine', n / 2, n / 2, t, 0.07, 0.09);
         sweep('sine', n * 2, n * 2, t, 0.5, 0.1);
