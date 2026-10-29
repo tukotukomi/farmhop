@@ -3669,7 +3669,7 @@ const PIECES = {
   },
   flowers: { build: buildFlowers, foot: [-0.75, 0.75, -0.75, 0.75], at: [-4.5, 2.5, 0] },
   mailbox: { build: buildMailbox, foot: [-0.35, 0.35, -0.35, 0.35], at: [-3, 6, 0] },
-  noticeboard: { build: buildNoticeboard, foot: [-1.05, 1.05, -0.35, 0.35], at: [3.4, -4.4, 0] },   // always on the farm: the season's poster
+  noticeboard: { build: buildNoticeboard, foot: [-1.05, 1.05, -0.35, 0.35], at: [0, 6.85, 0] },   // always on the farm (new farms: mid front, by the fence): the season's poster
   scarecrow: { build: buildScarecrow, foot: [-0.75, 0.75, -0.45, 0.45], decor: true, price: 10, bg: '#fff1b8' },
   swing: { build: buildSwing, foot: [-1.1, 1.1, -0.9, 0.9], decor: true, price: 10, bg: '#d9f2ff', icon: 0.78 },   // icon: smaller in the shop, it's tall
   drums: { build: buildDrumKit, decor: true, onStage: true, price: 1, bg: '#ffd6ec' },   // sits on the Jam Stage, not in the yard
