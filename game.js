@@ -3999,9 +3999,13 @@ function buildNoticeboard(g) {
   const tex = new THREE.CanvasTexture(can);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;
-  const poster = new THREE.Mesh(new THREE.PlaneGeometry(1.86, 1.4), new THREE.MeshBasicMaterial({ map: tex }));
-  poster.position.set(0, 1.36, -0.03);
-  g.add(poster);
+  const geo = new THREE.PlaneGeometry(1.86, 1.4), mat = new THREE.MeshBasicMaterial({ map: tex });
+  for (const back of [false, true]) {   // the same poster on both faces, so it reads whichever way the board is turned
+    const poster = new THREE.Mesh(geo, mat);
+    poster.position.set(0, 1.36, back ? -0.13 : -0.03);
+    if (back) poster.rotation.y = Math.PI;
+    g.add(poster);
+  }
   farm.notice = { can, tex, at: 0 };
   drawNotice();
   return () => { if (Date.now() - farm.notice.at > 20000) drawNotice(); };   // the countdown keeps itself up to date
