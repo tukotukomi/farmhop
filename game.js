@@ -4089,7 +4089,7 @@ function buildMailbox(g) {
 // the rest go in POSTERS too, each with its own draw().
 const POSTER_W = 512, POSTER_H = 384;
 const POSTERS = [
-  { until: EVENT_END, draw: drawHalloweenPoster, tap: () => openEvent() },
+  { until: EVENT_END, draw: drawHalloweenPoster, tap: () => openEvent(), lights: 'halloween' },
 ];
 const posterNow = () => POSTERS.find(p => Date.now() < p.until) || { until: Infinity, draw: drawWelcomePoster, tap: null };
 function timeLeft(until) {   // "7 days left", then "23 hours left", then "59 minutes left"
@@ -4175,6 +4175,40 @@ function drawWelcomePoster(c, w, h) {
   c.fillStyle = '#6bd864'; c.beginPath(); c.moveTo(0, h); c.lineTo(0, h * 0.75); c.quadraticCurveTo(w / 2, h * 0.6, w, h * 0.75); c.lineTo(w, h); c.fill();
   posterText(c, t('notice.welcome'), w / 2, h * 0.42, 52, '#ff7fb8', w - 80, -0.03);
 }
+// A poster's string of lights round the board's frame: Halloween's are pumpkins, purple
+// spiders and little skulls, glowing and twinkling (and lighting up the dark at night).
+let halloweenBulbs = null;
+function bulbGeos() {
+  if (halloweenBulbs) return halloweenBulbs;
+  const p = new VB(0.6), sp = new VB(0.6), sk = new VB(0.6);
+  p.ball(0.075, 0.062, 0.075, 0, 0, 0, PUMPKIN(0, 0));                       // a pumpkin...
+  p.cyl(0.012, 0.016, 0.04, 0, 0.07, 0, 0x4f8a2f);
+  sp.ball(0.06, 0.055, 0.06, 0, 0, 0, 0xb070ff);                             // a spider: a purple glowing body...
+  sp.ball(0.035, 0.03, 0.035, 0, 0.06, 0, 0xb070ff);
+  for (const s of [-1, 1]) for (const a of [-0.5, -0.15, 0.2, 0.55]) sp.cap(0.008, 0.09, s * 0.07, a * 0.12, 0, 0x2a2033, 0, 0, s * (1.2 + a));   // ...and eight black legs
+  sk.ball(0.068, 0.07, 0.065, 0, 0, 0, 0xf6efdc);                            // a little skull
+  for (const s of [-1, 1]) for (const z of [-1, 1]) sk.ball(0.018, 0.02, 0.01, s * 0.025, 0.008, z * 0.06, 0x2a2033);   // eyes, on both faces
+  return (halloweenBulbs = [p.geometry(), sp.geometry(), sk.geometry()]);
+}
+function boardLights(kind) {
+  const g = new THREE.Group(), geos = bulbGeos(), bulbs = [], pts = [];
+  for (let i = 0; i <= 8; i++) pts.push([-1.02 + i * 0.255, 2.12 - Math.sin(i / 8 * Math.PI) * 0.05]);   // along the top, drooping a little
+  for (let i = 1; i <= 4; i++) for (const s of [-1, 1]) pts.push([s * 1.04, 2.12 - i * 0.34]);           // and down each side
+  const wire = new VB(0.4);
+  wire.cap(0.008, 2.1, 0, 2.11, -0.08, 0x2a2033, 0, 0, Math.PI / 2);
+  for (const s of [-1, 1]) wire.cap(0.008, 1.4, s * 1.04, 1.42, -0.08, 0x2a2033);
+  g.add(wire.mesh());
+  pts.forEach(([x, y], i) => {
+    const b = new THREE.Mesh(geos[i % 3], GLOW_VMAT);
+    b.position.set(x, y - 0.05, -0.08);
+    g.add(b);
+    bulbs.push([b, i * 0.9]);
+  });
+  lamps.push({ o: g, r: 1.6, s: 0.55, w: 0 });
+  g.userData.twinkle = t => { for (const [b, ph] of bulbs) b.scale.setScalar(1.3 * (0.88 + 0.14 * (0.5 + 0.5 * Math.sin(t * 3 + ph)))); };
+  g.userData.kind = kind;
+  return g;
+}
 function buildNoticeboard(g) {
   const v = new VB(0.6), WOOD = 0x9c6b3c, WOOD_D = 0x7a4f2c;
   for (const s of [-1, 1]) v.rbox(0.12, 2.2, 0.12, s * 0.95, 1.1, -0.06, WOOD_D, 0.03);   // posts
@@ -4195,9 +4229,15 @@ function buildNoticeboard(g) {
     if (back) poster.rotation.y = Math.PI;
     g.add(poster);
   }
-  farm.notice = { can, tex, at: 0 };
+  lamps.push({ o: g.children[g.children.length - 1], r: 1.5, s: 0.7, w: 0 });   // the poster stays readable after dark
+  const lights = boardLights('halloween');
+  g.add(lights);
+  farm.notice = { can, tex, at: 0, lights };
   drawNotice();
-  return () => { if (Date.now() - farm.notice.at > 20000) drawNotice(); };   // the countdown keeps itself up to date
+  return t => {
+    if (Date.now() - farm.notice.at > 20000) drawNotice();   // the countdown keeps itself up to date
+    if (lights.visible) lights.userData.twinkle(t);
+  };
 }
 function drawNotice() {
   const n = farm.notice;
@@ -4205,8 +4245,10 @@ function drawNotice() {
   n.at = Date.now();
   const c = n.can.getContext('2d');
   c.clearRect(0, 0, POSTER_W, POSTER_H);
-  posterNow().draw(c, POSTER_W, POSTER_H, n.at / 900);
+  const p = posterNow();
+  p.draw(c, POSTER_W, POSTER_H, n.at / 900);
   n.tex.needsUpdate = true;
+  n.lights.visible = p.lights === n.lights.userData.kind;   // the season's lights, only while its poster's up
 }
 document.fonts?.ready.then(() => drawNotice());
 
