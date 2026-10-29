@@ -935,7 +935,7 @@ function buildCarla() {   // Carla: a capybara in a yellow princess dress and ye
   return finishHero(group, inner, [wobble(inner, tiara, 0, 0.95, 0.02, 1, 'x')]);
 }
 
-function buildSiracha() {   // Siracha: a cool white duck in shades, a black beanie and a black hoodie lined in red
+function buildSiracha() {   // Sir Racha: a cool white duck in shades, a black beanie and a black hoodie lined in red
   const W = 0xffffff, K = 0x24222c, K2 = 0x3a3846, RED = 0xe53935, BILL = 0xffc21a, BILL_D = 0xf2a20a;
   const group = new THREE.Group(), inner = new THREE.Group();
   group.add(inner);
@@ -1055,7 +1055,7 @@ const HEROES = [
   { id: 'spider', name: 'Spicy Spider', build: buildSpicySpider, bg: '#e2e8ff', price: 20, pad: '#4f8fe6' },
   { id: 'lyla', name: 'Lyla', build: buildLyla, bg: '#e2f5dc', price: 20, pad: '#5fbf5a' },
   { id: 'carla', name: 'Carla', build: buildCarla, bg: '#fff3c4', price: 20, pad: '#ffb84a' },
-  { id: 'siracha', name: 'Siracha', build: buildSiracha, bg: '#ffe4e0', price: 20, pad: '#ff5a4a' },
+  { id: 'siracha', name: 'Sir Racha', build: buildSiracha, bg: '#ffe4e0', price: 20, pad: '#ff5a4a' },
   { id: 'ribbit', name: 'DJ Ribbit', build: buildRibbit, bg: '#dcf7c8', pad: '#6fd24a', supporter: true },
   { id: 'moonbun', name: 'Moonbun', build: buildMoonbun, bg: '#efe6ff', pad: '#cdb8ff', supporter: true },
 ];
