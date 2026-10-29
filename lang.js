@@ -27,6 +27,8 @@ export const STRINGS = {
       say: 'Find the spooky sunflower while you hop, then pick up pumpkins on the spooky farm. Trade {n} for the Pumpking, {m} for the Spooky Organ to play on the Jam Stage, or {g} to fill your pond with Glowing Goo! When the harvest ends, every pumpkin left turns into a sunflower.',
       organ: 'Spooky Organ', organHave: 'The organ is yours!', organDone: 'The Spooky Organ is on the Jam Stage!',
       goo: 'Glowing Goo pond', gooHave: 'The goo is yours!', gooDone: 'Your pond glows with goo! Switch styles in the Fish Pond.',
+      ask: 'Trade {n} for {name}?', yes: 'Trade', no: 'Not now', short: 'You need {n} more pumpkins for {name}.',
+      offer: { king: 'the Pumpking', organ: 'the Spooky Organ', goo: 'a Glowing Goo pond' },
       ends: 'The harvest ends {date}.', cashed: 'The Pumpkin Harvest is over: your {n} pumpkins turned into {n} sunflowers!',
     },
     photo: {
@@ -175,6 +177,8 @@ export const STRINGS = {
       say: 'Busca el girasol embrujado mientras saltas y recoge calabazas en la granja embrujada. ¡Cambia {n} por el Rey Calabaza, {m} por el Órgano tenebroso para tocar en el escenario, o {g} para llenar tu estanque de baba brillante! Cuando termine la cosecha, cada calabaza que te quede se convierte en un girasol.',
       organ: 'Órgano tenebroso', organHave: '¡El órgano es tuyo!', organDone: '¡El Órgano tenebroso está en el escenario!',
       goo: 'Estanque de baba brillante', gooHave: '¡La baba es tuya!', gooDone: '¡Tu estanque brilla con baba! Cambia el estilo en el Estanque.',
+      ask: '¿Cambiar {n} por {name}?', yes: 'Cambiar', no: 'Ahora no', short: 'Te faltan {n} calabazas para {name}.',
+      offer: { king: 'el Rey Calabaza', organ: 'el Órgano tenebroso', goo: 'un estanque de baba brillante' },
       ends: 'La cosecha termina el {date}.', cashed: 'Terminó la Cosecha de calabazas: ¡tus {n} calabazas se convirtieron en {n} girasoles!',
     },
     photo: {
@@ -323,6 +327,8 @@ export const STRINGS = {
       say: '跳跃时找找闹鬼向日葵，然后在闹鬼农场上捡南瓜。用 {n} 个换南瓜王，{m} 个换能在音乐舞台上弹的阴森管风琴，或者 {g} 个让池塘装满发光黏液！丰收节结束时，剩下的南瓜都会变成向日葵。',
       organ: '阴森管风琴', organHave: '管风琴是你的啦！', organDone: '阴森管风琴已经放到音乐舞台上啦！',
       goo: '发光黏液池塘', gooHave: '黏液是你的啦！', gooDone: '你的池塘冒着发光黏液！可以在鱼塘里换样式。',
+      ask: '用 {n} 换{name}？', yes: '换', no: '先不了', short: '还差 {n} 个南瓜才能换{name}。',
+      offer: { king: '南瓜王', organ: '阴森管风琴', goo: '发光黏液池塘' },
       ends: '丰收节在 {date} 结束。', cashed: '南瓜丰收节结束啦：你的 {n} 个南瓜变成了 {n} 朵向日葵！',
     },
     photo: {

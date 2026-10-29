@@ -154,7 +154,19 @@ body.farm.decor #eventBtn, body.guest #eventBtn { display: none; }
 #event .panelBody { overflow-x: hidden; }
 #event .panelFoot .buyBtn { font-size: 17px; padding: 7px 16px 9px; }
 #event .panelFoot .buyBtn .flower { width: 22px; height: 22px; }
-#eventOrganPrice[hidden], #eventGooPrice[hidden] { display: none; }
+.eventOffers .eventKing { position: relative; cursor: pointer; margin-top: 10px; }
+.eventOffers .eventKing.asking { outline: 4px solid var(--sky); outline-offset: 2px; }
+#event .eventOffers .tag { position: absolute; top: -12px; right: -8px; display: flex; align-items: center; gap: 2px; height: 26px; border: 2.5px solid var(--ink); border-radius: 999px; box-shadow: 0 2px 0 var(--ink-soft); }
+#event .eventOffers .tag.cost { background: var(--cream); padding: 0 8px 0 3px; font-size: 14px; font-weight: 700; }
+#event .eventOffers .tag.cost .flower { width: 20px; height: 20px; }
+#event .eventOffers .tag.check { background: var(--leaf); width: 26px; justify-content: center; }
+#event .eventOffers .tag.check svg { width: 18px; height: 18px; }
+#event .eventOffers .eventKing.short .tag.cost { opacity: .7; }
+.eventAsk { display: grid; justify-items: center; gap: 8px; }
+.eventAsk[hidden] { display: none; }
+.eventAskText { margin: 0; font-size: 17px; font-weight: 700; text-align: center; }
+.eventAskPrice { display: inline-flex; align-items: center; gap: 2px; vertical-align: -5px; }
+.eventAskPrice .flower { width: 22px; height: 22px; }
 .eventGooCard { background: #d9f5d0; }
 .eventOffers .eventKing { width: 100px; }
 .eventOffers .eventKing img { max-width: 86px; }

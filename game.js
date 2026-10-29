@@ -2306,6 +2306,7 @@ function updateSpooky(dt) {
     music.setKey(songKey(), haunt ? 'spooky' : songScale());
   }
   ECTO_MAT.visible = spooky.k > 0;
+  BONE_PAD_MAT.visible = spooky.k > 0.5;
   if (spooky.k > 0) {   // the ectoplasm glows and shimmers, and bubbles now and then
     ECTO_MAT.opacity = 0.96 * spooky.k;
     ECTO_MAT.color.setHSL(0.3 + 0.02 * Math.sin(game.time * 1.3), 1, 0.42 + 0.06 * Math.sin(game.time * 2.1)).multiplyScalar(1.5);   // yellow-green, and brighter than bright: it glows through the purple night
@@ -2475,6 +2476,23 @@ function catchUp(lane, T) {
 // every river and pond row, faded in and out with the spooky farm and shimmering.
 const ECTO_GEO = new THREE.PlaneGeometry(2 * VIS + 2, 1);
 const ECTO_MAT = new THREE.MeshBasicMaterial({ color: 0x6bff7a, transparent: true, opacity: 0, depthWrite: false });
+// ...and its lily pads are bone: a pale disc with crossed bones on top, laid over each pad.
+const BONE_PAD_MAT = toon({ vertexColors: true, emissive: 0x4a4436 });   // a touch of glow, so they stay bone-pale in the purple night
+let bonePadGeo = null;
+function bonePad() {
+  if (!bonePadGeo) {
+    const v = new VB(0.4), BONE = 0xeee4cf, BONE_D = 0xc9bd9f;
+    v.cyl(0.37, 0.37, 0.05, 0, 0, 0, BONE);
+    v.torus(0.34, 0.025, Math.PI * 2, 0, 0.026, 0, BONE_D, Math.PI / 2, 0, 0);
+    for (const a of [0.75, -0.75]) {
+      const dx = Math.sin(a), dz = Math.cos(a);
+      v.cap(0.035, 0.34, 0, 0.05, 0, 0xfaf4e6, Math.PI / 2, a, 0);                  // a bone...
+      for (const e of [-1, 1]) for (const p of [-1, 1]) v.ball(0.045, 0.04, 0.045, dx * e * 0.2 + dz * p * 0.03, 0.05, dz * e * 0.2 - dx * p * 0.03, 0xfaf4e6);   // ...knobbly at each end
+    }
+    bonePadGeo = v.geometry();
+  }
+  return new THREE.Mesh(bonePadGeo, BONE_PAD_MAT);
+}
 function buildLane(r) {
   const prev = lanes.get(r - 1) || null;
   const type = r < 0 ? 'forest' : r < OPEN ? 'grass' : nextType(r, prev);
@@ -2639,6 +2657,9 @@ function buildLane(r) {
       const want = Math.min(cands.length, ri(2, 4));
       while (lane.padCols.size < want) lane.padCols.add(pick(cands));
       for (const x of lane.padCols) {
+        const bp = bonePad();   // (only seen on the spooky farm)
+        bp.position.set(x, -0.165, 0);
+        lane.group.add(bp);
         vb.add(prim('pad', () => new THREE.CylinderGeometry(0.36, 0.36, 0.04, 16, 1, false, 0.5, Math.PI * 2 - 0.6)), 0x3fae49, x, -0.18, 0);   // round pad with a notch
         if (rnd() < 0.5) {   // a water lily
           for (let i = 0; i < 5; i++) { const a = i * Math.PI * 0.4; vb.ball(0.035, 0.07, 0.035, x - 0.12 + Math.cos(a) * 0.05, -0.1, -0.12 + Math.sin(a) * 0.05, 0xff8fc8, Math.sin(a) * 0.5, 0, -Math.cos(a) * 0.5); }
@@ -5670,7 +5691,7 @@ window.addEventListener('keydown', e => {
   }
   if (game.picking && bookOpen()) { if (e.code === 'Escape' || e.code === 'Enter') closeBook(); e.preventDefault(); return; }
   if (game.picking && photoOpen()) { if (e.code === 'Escape') closePhoto(); return; }
-  if (game.picking && eventOpen()) { if (e.code === 'Escape') closeEvent(); else if (e.code === 'Enter' || e.code === 'Space') tradePumpking(); e.preventDefault(); return; }
+  if (game.picking && eventOpen()) { if (e.code === 'Escape') { if (eventAsk()) { closeAsk(); refreshEvent(); } else closeEvent(); } else if ((e.code === 'Enter' || e.code === 'Space') && eventAsk()) sayYes(); e.preventDefault(); return; }
   if (game.picking && bagOpen()) { bagKey(e.code); e.preventDefault(); return; }
   if (game.picking && landOpen()) {   // More Land: Enter buys, Escape closes
     if (e.code === 'Enter' || e.code === 'Space') buyLand();
@@ -7425,42 +7446,73 @@ function markEvent() {
   $('eventCount').textContent = pumpkins || '';
   if (eventOpen()) refreshEvent();
 }
+// The three things to trade for: tap one (its price is on its tag) and say yes to the question.
+const OFFERS = {
+  king: { said: 'event.have', price: () => PUMPKING_PRICE, have: () => owned.has('pumpking'), buy: () => tradePumpking() },
+  organ: { said: 'event.organHave', price: () => ORGAN_PRICE, have: () => organOwned(), buy: () => buyOrgan() },
+  goo: { said: 'event.gooHave', price: () => GOO_PRICE, have: () => pondSkins().includes('goo'), buy: () => buyGoo() },
+};
+const PUMPKIN_TAG_SVG = $('eventBtn').querySelector('svg').outerHTML.replace('<svg ', '<svg class="flower" ');
+let eventAsking = null;   // the offer being asked about
+const eventAsk = () => !$('eventAsk').hidden;
 function refreshEvent(msg) {
-  const have = owned.has('pumpking'), i = HEROES.findIndex(h => h.id === 'pumpking');
+  const i = HEROES.findIndex(h => h.id === 'pumpking');
   $('eventSay').textContent = t('event.say', { n: PUMPKING_PRICE, m: ORGAN_PRICE, g: GOO_PRICE });
-  const gooHave = pondSkins().includes('goo');
-  $('eventGooImg').src = GOO_ICON;
-  $('eventGooLabel').textContent = t(gooHave ? 'event.gooHave' : 'event.goo');
-  $('eventGooPrice').hidden = gooHave;
-  $('eventGoo').disabled = gooHave || pumpkins < GOO_PRICE;
-  const organ = organOwned();
-  $('eventOrganLabel').textContent = t(organ ? 'event.organHave' : 'event.organ');
-  $('eventOrganPrice').hidden = organ;
-  $('eventOrgan').disabled = organ || pumpkins < ORGAN_PRICE;
   $('eventN').textContent = pumpkins;
   $('eventKing').src = shots.cards[i];
   $('eventKingName').textContent = heroName('pumpking');
-  $('eventEnds').textContent = t('event.ends', { date: new Date(EVENT_END - 60000).toLocaleString((LANGS.find(l => l.id === lang) || LANGS[0]).html, { month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles', timeZoneName: 'short' }) });
-  $('eventTradeLabel').textContent = t(have ? 'event.have' : 'event.trade');
-  $('eventPrice').hidden = have;
-  $('eventTrade').disabled = have || pumpkins < PUMPKING_PRICE;
-  $('eventNeed').textContent = msg ?? (have || pumpkins >= PUMPKING_PRICE ? '' : t('event.need', { n: PUMPKING_PRICE - pumpkins }));
   $('eventOrganImg').src = ORGAN_ICON;
+  $('eventGooImg').src = GOO_ICON;
+  document.querySelectorAll('.eventOffers [data-offer]').forEach(c => {
+    const o = OFFERS[c.dataset.offer], have = o.have(), tag = c.querySelector('.tag');
+    tag.className = 'tag ' + (have ? 'check' : 'cost');
+    tag.innerHTML = have ? CHECK_SVG : PUMPKIN_TAG_SVG + `<span>${o.price()}</span>`;
+    c.classList.toggle('short', !have && pumpkins < o.price());
+    c.classList.toggle('asking', c.dataset.offer === eventAsking);
+  });
+  $('eventEnds').textContent = t('event.ends', { date: new Date(EVENT_END - 60000).toLocaleString((LANGS.find(l => l.id === lang) || LANGS[0]).html, { month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles', timeZoneName: 'short' }) });
+  $('eventNeed').textContent = msg ?? '';
 }
+function askOffer(id) {
+  const o = OFFERS[id];
+  sfx.ensure();
+  if (o.have()) { closeAsk(); refreshEvent(t(o.said)); return; }
+  if (pumpkins < o.price()) { sfx.bump(); closeAsk(); refreshEvent(t('event.short', { n: o.price() - pumpkins, name: t('event.offer.' + id) })); return; }
+  eventAsking = id;
+  const [a, b] = t('event.ask', { name: t('event.offer.' + id), n: '' }).split('');   // "Trade [pumpkin] 300 for the Pumpking?"
+  $('eventAskText').replaceChildren(a, Object.assign(document.createElement('span'), { className: 'eventAskPrice', innerHTML: PUMPKIN_TAG_SVG + `<b>${o.price()}</b>` }), b ?? '');
+  $('eventAsk').hidden = false;
+  sfx.pick();
+  refreshEvent();
+}
+function closeAsk() {
+  eventAsking = null;
+  $('eventAsk').hidden = true;
+}
+function sayYes() {
+  const id = eventAsking;
+  closeAsk();
+  if (id) OFFERS[id].buy();
+}
+document.querySelectorAll('.eventOffers [data-offer]').forEach(c => c.addEventListener('click', () => askOffer(c.dataset.offer)));
+$('eventYes').addEventListener('click', sayYes);
+$('eventNo').addEventListener('click', () => { closeAsk(); refreshEvent(); });
 function openEvent() {
   if (GUEST || game.state !== 'farm') return;
   closeHeroes(); closePond(); closeBunk(); closeBuilds(); closeStage();
+  closeAsk();
   refreshEvent();
   $('event').classList.add('show');
   game.picking = true;
 }
 function closeEvent() {
+  closeAsk();
   $('event').classList.remove('show');
   game.picking = anyPanel();
 }
 function tradePumpking() {
   if (owned.has('pumpking')) return;
-  if (pumpkins < PUMPKING_PRICE) { sfx.bump(); refreshEvent(t('event.need', { n: PUMPKING_PRICE - pumpkins })); return; }
+  if (pumpkins < PUMPKING_PRICE) return;
   pumpkins -= PUMPKING_PRICE;
   store.set('bl-pumpkins', pumpkins);
   owned.add('pumpking');
@@ -7478,7 +7530,7 @@ function tradePumpking() {
 function buyGoo() {
   sfx.ensure();
   if (pondSkins().includes('goo')) return;
-  if (pumpkins < GOO_PRICE) { sfx.bump(); refreshEvent(t('event.need', { n: GOO_PRICE - pumpkins })); return; }
+  if (pumpkins < GOO_PRICE) return;
   pumpkins -= GOO_PRICE;
   store.set('bl-pumpkins', pumpkins);
   store.set('bl-pond-skins', [...new Set([...store.get('bl-pond-skins', []), 'goo'])]);
@@ -7490,7 +7542,7 @@ function buyGoo() {
 function buyOrgan() {
   sfx.ensure();
   if (organOwned()) return;
-  if (pumpkins < ORGAN_PRICE) { sfx.bump(); refreshEvent(t('event.need', { n: ORGAN_PRICE - pumpkins })); return; }
+  if (pumpkins < ORGAN_PRICE) return;
   pumpkins -= ORGAN_PRICE;
   store.set('bl-pumpkins', pumpkins);
   store.set('bl-organ', true);
@@ -7514,9 +7566,6 @@ function settleEvent() {
   markEvent();
 }
 $('eventBtn').addEventListener('click', () => { sfx.ensure(); openEvent(); });
-$('eventTrade').addEventListener('click', tradePumpking);
-$('eventOrgan').addEventListener('click', buyOrgan);
-$('eventGoo').addEventListener('click', buyGoo);
 $('eventClose').addEventListener('click', closeEvent);
 $('event').addEventListener('click', e => { if (e.target.id === 'event') closeEvent(); });
 $('homeNoteX').addEventListener('click', () => { $('homeNote').hidden = true; });
@@ -9220,7 +9269,7 @@ function pollPad() {
   }
   if (game.picking && bookOpen()) { if (pressed(0) || pressed(1) || pressed(9)) closeBook(); return; }
   if (game.picking && photoOpen()) { if (pressed(0)) savePhoto(); else if (pressed(1)) closePhoto(); return; }
-  if (game.picking && eventOpen()) { if (pressed(0) || pressed(9)) tradePumpking(); else if (pressed(1)) closeEvent(); return; }
+  if (game.picking && eventOpen()) { if ((pressed(0) || pressed(9)) && eventAsk()) sayYes(); else if (pressed(1)) { if (eventAsk()) { closeAsk(); refreshEvent(); } else closeEvent(); } return; }
   if (game.picking && landOpen()) { if (pressed(0) || pressed(9)) buyLand(); else if (pressed(1)) closeLand(); return; }
   if (game.picking && bagOpen()) {   // d-pad chooses a fish, A one more, X one fewer, Y all, Start sells, B closes; asked to be sure: A sells, B keeps them
     if (asking()) { if (pressed(0) || pressed(9)) sellFish(); else if (pressed(1)) showSure(false); return; }
@@ -9443,4 +9492,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad };
