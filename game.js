@@ -935,6 +935,40 @@ function buildCarla() {   // Carla: a capybara in a yellow princess dress and ye
   return finishHero(group, inner, [wobble(inner, tiara, 0, 0.95, 0.02, 1, 'x')]);
 }
 
+function buildSiracha() {   // Siracha: a cool white duck in shades, a black beanie and a black hoodie lined in red
+  const W = 0xffffff, K = 0x24222c, K2 = 0x3a3846, RED = 0xe53935, BILL = 0xffc21a, BILL_D = 0xf2a20a;
+  const group = new THREE.Group(), inner = new THREE.Group();
+  group.add(inner);
+  const b = new VB();
+  for (const s of [-1, 1]) {
+    b.ball(0.09, 0.022, 0.12, s * 0.095, 0.022, -0.06, BILL);            // yellow webbed feet...
+    for (const dx of [-0.045, 0, 0.045]) b.cap(0.012, 0.07, s * 0.095 + dx, 0.03, -0.13, BILL_D, Math.PI / 2, 0, 0);   // ...with their toes
+    b.cap(0.026, 0.09, s * 0.09, 0.12, 0, BILL);                        // thin duck legs
+    b.cap(0.045, 0.12, s * 0.19, 0.41, -0.02, K, 0, 0, s * 0.25);       // hoodie sleeves
+    b.ball(0.05, 0.026, 0.05, s * 0.212, 0.34, -0.03, RED);             // red cuffs
+    b.ball(0.045, 0.05, 0.045, s * 0.222, 0.3, -0.03, W);               // white wing tips for hands
+    b.rbox(0.12, 0.08, 0.03, s * 0.078, 0.775, -0.2, K, 0.025, 0, s * 0.35, 0);   // cool black sunglasses, wrapping round the face
+    b.rbox(0.03, 0.012, 0.01, s * 0.064, 0.795, -0.218, 0x8a8aa0, 0.004, 0, s * 0.35, 0);   // a glint on each lens
+    b.cap(0.01, 0.12, s * 0.15, 0.785, -0.1, K, Math.PI / 2, 0, 0);      // their arms back to the ears
+    b.cap(0.007, 0.07, s * 0.04, 0.45, -0.152, W);                       // hoodie drawstrings
+  }
+  b.ball(0.17, 0.18, 0.15, 0, 0.37, 0, K);                             // the black hoodie
+  b.ball(0.1, 0.05, 0.03, 0, 0.29, -0.135, K2);                        // its front pocket
+  b.ball(0.18, 0.11, 0.1, 0, 0.55, 0.12, K);                           // the hood, down at the back...
+  b.ball(0.135, 0.08, 0.07, 0, 0.58, 0.1, RED);                        // ...showing its red lining
+  b.torus(0.13, 0.024, Math.PI * 2, 0, 0.55, 0.02, RED, Math.PI / 2, 0, 0);   // the red-lined edge of the hood, round his neck
+  b.hiBall(0.21, 0.21, 0.2, 0, 0.74, 0, W);                            // white duck head
+  b.ball(0.13, 0.045, 0.1, 0, 0.665, -0.18, BILL);                     // a wide yellow bill
+  b.ball(0.11, 0.03, 0.08, 0, 0.625, -0.165, BILL_D);
+  b.rbox(0.05, 0.015, 0.02, 0, 0.79, -0.213, K, 0.006);                // the shades' bridge
+  b.ball(0.205, 0.12, 0.195, 0, 0.88, 0.01, K);                        // a black beanie
+  b.cyl(0.2, 0.21, 0.06, 0, 0.84, 0.01, K2);                           // its folded brim
+  inner.add(b.mesh());
+  const t = new VB();                                                 // a perky white tail tuft
+  t.cone(0.06, 0.12, 0, 0.03, 0.05, W, -1.1, 0, 0);
+  return finishHero(group, inner, [wobble(inner, t, 0, 0.3, 0.13, 1)]);
+}
+
 function buildRibbit() {   // DJ Ribbit: a frog in big headphones
   const FROG = 0x6fd24a, FROG_D = 0x4fae36, BELLY = 0xe9f7b0, W = 0xffffff, K = 0x2e2230, PHONE = 0x8a5cff, PHONE_D = 0x5a3cc0, PAD = 0xff7fb8;
   const group = new THREE.Group(), inner = new THREE.Group();
@@ -1021,6 +1055,7 @@ const HEROES = [
   { id: 'spider', name: 'Spicy Spider', build: buildSpicySpider, bg: '#e2e8ff', price: 20, pad: '#4f8fe6' },
   { id: 'lyla', name: 'Lyla', build: buildLyla, bg: '#e2f5dc', price: 20, pad: '#5fbf5a' },
   { id: 'carla', name: 'Carla', build: buildCarla, bg: '#fff3c4', price: 20, pad: '#ffb84a' },
+  { id: 'siracha', name: 'Siracha', build: buildSiracha, bg: '#ffe4e0', price: 20, pad: '#ff5a4a' },
   { id: 'ribbit', name: 'DJ Ribbit', build: buildRibbit, bg: '#dcf7c8', pad: '#6fd24a', supporter: true },
   { id: 'moonbun', name: 'Moonbun', build: buildMoonbun, bg: '#efe6ff', pad: '#cdb8ff', supporter: true },
 ];
@@ -1467,6 +1502,9 @@ const sfx = (() => {
         } else if (id === 'carla') {                             // a gentle little whistle
           sweep('sine', n * 2, n * 2, t, 0.22, 0.12);
           sweep('triangle', n, n, t, 0.12, 0.05);
+        } else if (id === 'siracha') {                           // a short quack on the note
+          sweep('square', n * 2, n * 2, t, 0.02, 0.012);
+          sweep('triangle', n, n, t, 0.12, 0.15);
         } else if (id === 'ribbit') {                            // the croak's click, on a round, in-tune note
           sweep('square', n * 2, n * 2, t, 0.025, 0.012);
           sweep('triangle', n, n, t, 0.16, 0.16);
@@ -1509,6 +1547,11 @@ const sfx = (() => {
         sweep('sine', n * 2 * 0.97, n * 2, t, 0.08, 0.11);
         sweep('triangle', n, n, t, 0.08, 0.05);
         sweep('sine', n * 2 * 0.97, n * 2, t + 0.12, 0.1, 0.09);
+      } else if (id === 'siracha') {                            // "qua-ack": a nasal click, the fifth, then down to the note
+        sweep('square', n * 3, n * 3, t, 0.02, 0.012);
+        sweep('triangle', n * 1.5, n * 1.5, t, 0.05, 0.12);
+        sweep('triangle', n * 0.98, n, t + 0.05, 0.09, 0.15);
+        sweep('square', n * 2, n * 2, t + 0.05, 0.02, 0.01);
       } else if (id === 'ribbit') {                             // "rib-bit": the note, then a fifth up, each with a croaky click
         // Only a tiny scoop into each (3%), so what you hear is the note itself, in key.
         sweep('square', n * 2, n * 2, t, 0.02, 0.01);
@@ -1531,7 +1574,7 @@ const sfx = (() => {
     hold(id, n, amt) {
       if (!ctx || muted || amt <= 0) return null;
       const t = ctx.currentTime, o = ctx.createOscillator(), f1 = ctx.createBiquadFilter(), g = ctx.createGain();
-      const V = { betty: ['pulse', 1, 0], axolotl: ['sine', 1, 5], catstar: ['triangle', 1, 6.5], leafwish: ['triangle', 2, 0], tuko: ['sawtooth', 2, 0], ribbit: ['triangle', 1, 3], moonbun: ['sine', 2, 4], spider: ['triangle', 2, 8], lyla: ['triangle', 0.5, 0], carla: ['sine', 2, 3] }[id] || ['triangle', 1, 0];
+      const V = { betty: ['pulse', 1, 0], axolotl: ['sine', 1, 5], catstar: ['triangle', 1, 6.5], leafwish: ['triangle', 2, 0], tuko: ['sawtooth', 2, 0], siracha: ['triangle', 1.5, 2], ribbit: ['triangle', 1, 3], moonbun: ['sine', 2, 4], spider: ['triangle', 2, 8], lyla: ['triangle', 0.5, 0], carla: ['sine', 2, 3] }[id] || ['triangle', 1, 0];
       const [wave, oct, wob] = V;
       if (wave === 'pulse') o.setPeriodicWave(pulseWave()); else o.type = wave;
       o.frequency.value = n * oct;   // octaves of the pad's note, so it stays in key
@@ -2278,6 +2321,7 @@ const PUFFS = {
   spider: [[0x3f7fe0, 0xffffff, 0x9fc4ff], false],          // blue-heart confetti
   lyla: [[0x5fbf5a, 0xc9c9d2, 0xffffff], true],             // a puff of dust
   carla: [[0xffd84a, 0xfff4b0, 0xff7fb8], false],           // princess sparkles
+  siracha: [[0xffffff, 0xe53935, 0xffc21a], true],          // a flurry of feathers
   ribbit: [[0x8a5cff, 0xff7fb8, 0x6fd24a], false],          // disco confetti
   moonbun: [[0xffd23f, 0xfff4b0, 0xcdb8ff], false],         // moon dust
 };
