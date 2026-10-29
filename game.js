@@ -820,6 +820,68 @@ function buildTuko() {
   return finishHero(group, inner, [wobble(inner, t, 0, 0.24, 0.12, 1)]);
 }
 
+// Captain Awesome: a big 55-year-old with a white beard and a stern brow who turns out
+// to be the friendliest guy on the farm. A baseball cap worn forwards, a red flannel shirt,
+// jeans and work boots, and his acoustic guitar slung on his back.
+function buildCaptain() {
+  const SKIN = 0xf5caa8, DENIM = 0x3d5f9a, DENIM_D = 0x2e4a7a, BOOT = 0x6b4226, W = 0xf6f4ef, W_D = 0xe4e0d8;
+  const HAT = 0x2f4566, HAT_D = 0x22344f, RED = 0xc8322f, RED_D = 0x6e1616, RED_L = 0xe26050, WOOD = 0xd9984e, WOOD_D = 0x8a5a2b, NECK = 0x6b4226;
+  const fr = v => ((v * 11) % 1 + 1) % 1;
+  const flannel = (x, y) => {   // red plaid: dark stripes both ways, a lighter thread between
+    const a = fr(x), c = fr(y);
+    return a < 0.24 && c < 0.24 ? 0x4a0e0e : a < 0.24 || c < 0.24 ? RED_D : (a > 0.56 && a < 0.66) || (c > 0.56 && c < 0.66) ? RED_L : RED;
+  };
+  const group = new THREE.Group(), inner = new THREE.Group();
+  group.add(inner);
+  const b = new VB();
+  for (const s of [-1, 1]) {
+    b.ball(0.085, 0.055, 0.115, s * 0.095, 0.05, -0.03, BOOT);           // work boots
+    b.cap(0.06, 0.1, s * 0.095, 0.18, 0, DENIM);                         // jeans
+    b.rbox(0.135, 0.04, 0.135, s * 0.095, 0.115, 0, DENIM_D, 0.02);      // turned-up cuffs
+    b.cap(0.05, 0.12, s * 0.22, 0.43, 0, flannel, 0, 0, s * 0.18);      // flannel sleeves
+    b.ball(0.055, 0.055, 0.055, s * 0.245, 0.31, -0.01, SKIN);           // big hands
+    b.ball(0.034, 0.03, 0.02, s * 0.085, 0.785, -0.214, 0x2a2420);       // eyes, a little narrow under the brows
+    b.ball(0.012, 0.012, 0.008, s * 0.085 + 0.01, 0.793, -0.231, 0xffffff);
+    b.rbox(0.095, 0.034, 0.034, s * 0.088, 0.832, -0.212, W, 0.014, 0, 0, s * 0.28);   // bushy white brows, set stern
+    b.ball(0.042, 0.024, 0.01, s * 0.155, 0.725, -0.188, 0xff9e9e);     // rosy cheeks: a big softie really
+    b.ball(0.07, 0.11, 0.1, s * 0.215, 0.79, 0.05, W);                   // white hair round the sides...
+    b.ball(0.075, 0.042, 0.04, s * 0.058, 0.69, -0.214, W, 0, 0, s * 0.25);   // moustache
+    b.cone(0.05, 0.07, s * 0.07, 0.635, -0.135, RED, Math.PI / 2 - 0.5, 0, s * 0.4);   // shirt collar points
+  }
+  b.ball(0.14, 0.1, 0.1, 0, 0.8, 0.165, W);                               // ...and round the back
+  b.ball(0.22, 0.14, 0.17, 0, 0.32, 0, DENIM);                           // jeans
+  b.cyl(0.205, 0.205, 0.04, 0, 0.415, 0, 0x5a3a24);                      // belt
+  b.rbox(0.07, 0.05, 0.02, 0, 0.415, -0.2, 0xd8b04a, 0.01);              // buckle
+  b.ball(0.215, 0.17, 0.17, 0, 0.51, 0, flannel);                        // red flannel shirt, a big frame
+  for (const y of [0.47, 0.53, 0.59]) b.ball(0.014, 0.014, 0.01, 0, y, -0.168, 0xf4ead8);   // buttons
+  b.hiBall(0.235, 0.225, 0.215, 0, 0.79, 0, SKIN);                       // head: mostly bald
+  b.ball(0.036, 0.032, 0.03, 0, 0.75, -0.232, 0xeeac8c);                 // nose
+  b.ball(0.19, 0.16, 0.12, 0, 0.635, -0.085, W);                         // big white beard
+  b.ball(0.13, 0.11, 0.09, 0, 0.57, -0.11, W_D);
+  b.torus(0.03, 0.008, Math.PI, 0, 0.665, -0.205, 0x8a3a3a, 0, 0, Math.PI);   // a smile peeking out of the beard
+  // a baseball cap, worn forwards, a button on top and a little patch on the front
+  b.ball(0.245, 0.165, 0.232, 0, 0.935, 0.005, HAT);                        // crown
+  b.ball(0.022, 0.014, 0.022, 0, 1.099, 0.005, HAT_D);                    // button
+  b.ball(0.175, 0.018, 0.125, 0, 0.9, -0.245, HAT_D, -0.12, 0, 0);       // bill, curved down at the front
+  b.ball(0.055, 0.045, 0.012, 0, 0.99, -0.218, 0xf4ead8, -0.35, 0, 0);    // patch
+  b.ball(0.03, 0.016, 0.01, 0, 0.99, -0.226, 0x3a7fc0, -0.35, 0, 0);     // a little fish on it
+  b.cap(0.018, 0.4, 0.005, 0.49, -0.168, 0x5a3a24, 0, 0, 0.87);          // guitar strap, shoulder to hip, under the beard
+  inner.add(b.mesh());
+  const g = new VB();                                                   // the acoustic guitar on his back
+  g.ball(0.17, 0.19, 0.06, 0, 0, 0, WOOD);                              // lower bout
+  g.ball(0.13, 0.13, 0.06, 0, 0.2, 0, WOOD);                            // upper bout
+  g.cyl(0.05, 0.05, 0.01, 0, 0.06, 0.06, 0x2a1a10, Math.PI / 2, 0, 0);  // sound hole
+  g.rbox(0.08, 0.03, 0.02, 0, -0.08, 0.06, WOOD_D, 0.008);              // bridge
+  g.rbox(0.055, 0.42, 0.04, 0, 0.5, 0.01, NECK, 0.012);                 // neck
+  g.rbox(0.085, 0.12, 0.04, 0, 0.75, 0.0, WOOD_D, 0.015);               // headstock
+  for (const s of [-1, 1]) for (const y of [0.71, 0.75, 0.79]) g.ball(0.012, 0.012, 0.012, s * 0.055, y, 0, 0xd8d8d8);   // tuning pegs
+  const gm = g.mesh();
+  gm.position.set(0.02, 0.5, 0.2);
+  gm.rotation.set(0.12, 0, -0.55);
+  inner.add(gm);
+  return finishHero(group, inner, []);
+}
+
 // A little heart, facing out from the front (for Spicy Spider's shirt).
 function heartOn(v, x, y, z, s, color) {
   for (const side of [-1, 1]) v.ball(s * 0.55, s * 0.55, s * 0.3, x + side * s * 0.42, y + s * 0.22, z, color);
@@ -1071,6 +1133,7 @@ const HEROES = [
   { id: 'siracha', name: 'Sir Racha', build: buildSiracha, bg: '#ffe4e0', price: 20, pad: '#ff5a4a' },
   { id: 'ribbit', name: 'DJ Ribbit', build: buildRibbit, bg: '#dcf7c8', pad: '#6fd24a', supporter: true },
   { id: 'moonbun', name: 'Moonbun', build: buildMoonbun, bg: '#efe6ff', pad: '#cdb8ff', supporter: true },
+  { id: 'captain', name: 'Captain Awesome', build: buildCaptain, bg: '#ffe0d6', price: 20, pad: '#d8473a' },
 ];
 const SUP_HEROES = HEROES.filter(h => h.supporter).map(h => h.id);   // live on every supporter's farm
 const STARTERS = ['betty'];   // owned from the start; everyone else is invited from the Bunkhouse
@@ -1456,6 +1519,19 @@ const sfx = (() => {
     o.connect(f1).connect(g).connect(master);
     o.start(t); o.stop(t + dur + 0.02);
   }
+  function guitar(f, t, dur, vol) {                            // an acoustic string: warm triangle with a little saw, bright at the pick, mellowing
+    const o = ctx.createOscillator(), o2 = ctx.createOscillator(), mix = ctx.createGain(), f1 = ctx.createBiquadFilter(), g = ctx.createGain();
+    o.type = 'triangle'; o2.type = 'sawtooth';
+    o.frequency.value = o2.frequency.value = f;
+    mix.gain.value = 0.3;
+    f1.type = 'lowpass';
+    f1.Q.value = 0.7;
+    f1.frequency.setValueAtTime(3600, t);
+    f1.frequency.exponentialRampToValueAtTime(450, t + dur);
+    env(g, t, vol, dur, 0.002);
+    o.connect(f1); o2.connect(mix).connect(f1); f1.connect(g).connect(master);
+    o.start(t); o2.start(t); o.stop(t + dur + 0.02); o2.stop(t + dur + 0.02);
+  }
   function boing(f, t, dur, vol, glide = true) {               // up-glide, then a wobble that dies away
     const o = ctx.createOscillator(), g = ctx.createGain(), lfo = ctx.createOscillator(), depth = ctx.createGain();
     o.type = 'sine';
@@ -1641,6 +1717,8 @@ const sfx = (() => {
         sweep('sine', n / 2, n / 2, t, 0.07, 0.09);
         sweep('sine', n * 2, n * 2, t, 0.5, 0.1);
         sweep('sine', n * 3, n * 3, t, 0.35, 0.03);
+      } else if (id === 'captain') {                            // Captain Awesome: a strum down his acoustic, root, fifth, octave, fifth
+        [[n / 2, 0.09], [n * 0.75, 0.07], [n, 0.08], [n * 1.5, 0.05]].forEach(([f, v], i) => guitar(f, t + i * 0.013, 0.6, v));
       } else {                                                  // Betty Lou: a banjo pluck
         pluck(n, t, 0.28, 0.11);
         pluck(n / 2, t, 0.2, 0.05);
@@ -1653,7 +1731,7 @@ const sfx = (() => {
     hold(id, n, amt, delay = 0, len = 0) {
       if (!ctx || muted || amt <= 0) return null;
       const t = ctx.currentTime + Math.max(0, delay), o = ctx.createOscillator(), f1 = ctx.createBiquadFilter(), g = ctx.createGain();
-      const V = { betty: ['pulse', 1, 0], axolotl: ['sine', 1, 5], catstar: ['triangle', 1, 6.5], leafwish: ['triangle', 2, 0], tuko: ['sawtooth', 2, 0], siracha: ['sawtooth', 1, 0], ribbit: ['triangle', 0.5, 14], moonbun: ['sine', 2, 4], spider: ['sine', 2, 9], lyla: ['triangle', 0.5, 0], carla: ['sine', 2, 3] }[id] || ['triangle', 1, 0];
+      const V = { captain: ['triangle', 1, 0], betty: ['pulse', 1, 0], axolotl: ['sine', 1, 5], catstar: ['triangle', 1, 6.5], leafwish: ['triangle', 2, 0], tuko: ['sawtooth', 2, 0], siracha: ['sawtooth', 1, 0], ribbit: ['triangle', 0.5, 14], moonbun: ['sine', 2, 4], spider: ['sine', 2, 9], lyla: ['triangle', 0.5, 0], carla: ['sine', 2, 3] }[id] || ['triangle', 1, 0];
       const [wave, oct, wob] = V;
       if (wave === 'pulse') o.setPeriodicWave(pulseWave()); else o.type = wave;
       o.frequency.value = n * oct;   // octaves of the pad's note, so it stays in key
@@ -4263,7 +4341,7 @@ function nextLeap(w) {
 // Sitting bends a hopper at the waist: while seated it wears a copy of its body with
 // everything below the hips swung forward, so its legs stick out over the front of
 // the seat. HIPS: where each one's legs meet its body (model units, before the 1.3 scale).
-const HIPS = { betty: 0.265, axolotl: 0.18, catstar: 0.235, leafwish: 0.2, tuko: 0.235, spider: 0.235, lyla: 0.24, carla: 0.15, siracha: 0.17, ribbit: 0.235, moonbun: 0.235 };   // (Carla's at her skirt's hem: the dress sits on the seat, legs out from under it)
+const HIPS = { captain: 0.265, betty: 0.265, axolotl: 0.18, catstar: 0.235, leafwish: 0.2, tuko: 0.235, spider: 0.235, lyla: 0.24, carla: 0.15, siracha: 0.17, ribbit: 0.235, moonbun: 0.235 };   // (Carla's at her skirt's hem: the dress sits on the seat, legs out from under it)
 const TAIL_UP = -0.95;   // a low tail tips up and back over the back of the seat while sitting
 const SIT_BEND = 1.35;   // how far forward the legs swing (radians)
 const hipOf = w => (HIPS[w.id] ?? 0.22) * 1.3;
