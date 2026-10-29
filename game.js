@@ -852,8 +852,8 @@ function buildCaptain() {
   for (const y of [0.42, 0.48, 0.54, 0.6]) b.ball(0.014, 0.014, 0.01, 0, y, -0.168, 0xf4ead8);   // buttons
   b.hiBall(0.235, 0.225, 0.215, 0, 0.79, 0, SKIN);                       // head: mostly bald
   b.ball(0.036, 0.032, 0.03, 0, 0.75, -0.232, 0xeeac8c);                 // nose
-  b.ball(0.19, 0.16, 0.12, 0, 0.635, -0.085, W);                         // big white beard
-  b.ball(0.13, 0.11, 0.09, 0, 0.57, -0.11, W_D);
+  b.ball(0.19, 0.125, 0.12, 0, 0.66, -0.085, W);                         // big white beard
+  b.ball(0.12, 0.08, 0.09, 0, 0.61, -0.11, W_D);
   b.torus(0.03, 0.008, Math.PI, 0, 0.665, -0.205, 0x8a3a3a, 0, 0, Math.PI);   // a smile peeking out of the beard
   // a baseball cap, worn forwards, a button on top and a little patch on the front
   b.ball(0.245, 0.165, 0.232, 0, 0.935, 0.005, HAT);                        // crown
