@@ -45,7 +45,7 @@ const heroName = id => t('heroes.' + id);
 // before anything reads a setting, wait for the host to send it (guest.js). The
 // farm's settings then come from the host and are only kept in memory, so this
 // device's own farm is never touched.
-const FARM_KEYS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-coins', 'bl-top', 'bl-dnb', 'bl-land', 'bl-wide', 'bl-key', 'bl-scale', 'bl-pumpkins'];
+const FARM_KEYS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-coins', 'bl-top', 'bl-dnb', 'bl-land', 'bl-wide', 'bl-key', 'bl-scale', 'bl-pumpkins', 'bl-organ'];
 const joinArgs = new URLSearchParams(location.hash.slice(1));
 const GUEST = /^[A-Za-z0-9_-]{22,64}$/.test(joinArgs.get('join') || '') ? joinArgs.get('join') : null;
 const guestNet = GUEST && window.FARMHOP_RELAY_URL
@@ -1811,6 +1811,52 @@ const sfx = (() => {
       o.start(t); trem.start(t); o.stop(t + dur + 0.02); trem.stop(t + dur + 0.02);
     }
   }
+  // The Spooky Organ: a cathedral pipe organ with every stop pulled, like the Phantom's.
+  // Each note sounds its 16', 8', 4' and mixture pipes (slightly apart, so they beat
+  // and shimmer), speaks with a breath, and rings on in a long stone-hall reverb.
+  let organWave = null, organHall = null;
+  function pipes(n, t, vol, len = 0) {
+    if (!organWave) {
+      const amp = [0, 1, 0.8, 0.6, 0.55, 0.35, 0.3, 0.15, 0.25, 0.1, 0.12];
+      organWave = ctx.createPeriodicWave(new Float32Array(amp.length), new Float32Array(amp));
+      organHall = ctx.createConvolver();
+      const L = Math.floor(ctx.sampleRate * 3.4), b = ctx.createBuffer(2, L, ctx.sampleRate);
+      for (let ch = 0; ch < 2; ch++) { const d = b.getChannelData(ch); for (let i = 0; i < L; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / L) ** 2.6; }
+      organHall.buffer = b;
+      const wet = ctx.createGain();
+      wet.gain.value = 0.5;
+      organHall.connect(wet).connect(master);
+    }
+    const g = ctx.createGain(), lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = Math.min(9000, n * 10);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.05);   // pipes take a moment to speak
+    lp.connect(g);
+    g.connect(master);
+    g.connect(organHall);
+    const oscs = [[0.5, 0.6, 0], [1, 0.9, -4], [1, 0.55, 5], [2, 0.45, 2], [3, 0.16, -1], [4, 0.13, 3]].map(([m, v, det]) => {
+      const o = ctx.createOscillator(), og = ctx.createGain();
+      o.setPeriodicWave(organWave);
+      o.frequency.value = n * m;
+      o.detune.value = det;
+      og.gain.value = v;
+      o.connect(og).connect(lp);
+      o.start(t);
+      return o;
+    });
+    noise(0.07, vol * 0.5, 'bandpass', Math.min(8000, n * 6), Math.max(0, t - ctx.currentTime));   // the chiff of air
+    let done = false;
+    const release = (at = ctx.currentTime) => {
+      if (done) return;
+      done = true;
+      if (g.gain.cancelAndHoldAtTime) g.gain.cancelAndHoldAtTime(at); else g.gain.cancelScheduledValues(at);
+      g.gain.setTargetAtTime(0.0001, at, 0.12);
+      for (const o of oscs) o.stop(at + 0.9);
+    };
+    if (len > 0) release(t + len);
+    return release;
+  }
   function noise(dur, vol, type, freq, delay = 0) {
     if (!ctx || muted) return;
     const t = ctx.currentTime + delay;
@@ -1858,6 +1904,7 @@ const sfx = (() => {
     voice(id, n, _tight, delay = 0) {
       if (!ctx || muted) return;
       const t = ctx.currentTime + Math.max(0, delay);
+      if (id === 'organ') { pipes(n, t, 0.03, 0.45); return; }   // the Spooky Organ, tapped
       if (id === 'axolotl') {                                   // a watery bloop, and a little bubble after
         sweep('sine', n * 0.94, n * 1.06, t, 0.13, 0.17);
         sweep('triangle', n * 4, n * 4, t, 0.1, 0.02);
@@ -1911,6 +1958,7 @@ const sfx = (() => {
     // sustain slider: louder and a longer fade the higher it is. Returns release().
     // With len, it's a tap of known length (a hop): let go on the audio clock, no release().
     hold(id, n, amt, delay = 0, len = 0) {
+      if (id === 'organ') return ctx && !muted ? pipes(n, ctx.currentTime + Math.max(0, delay), 0.03, len) : null;   // an organ holds for as long as the key does
       if (!ctx || muted || amt <= 0) return null;
       const t = ctx.currentTime + Math.max(0, delay), o = ctx.createOscillator(), f1 = ctx.createBiquadFilter(), g = ctx.createGain();
       const V = { pumpking: ['sine', 1, 4], captain: ['triangle', 1, 0], betty: ['pulse', 1, 0], axolotl: ['sine', 1, 5], catstar: ['triangle', 1, 6.5], leafwish: ['triangle', 2, 0], tuko: ['sawtooth', 2, 0], siracha: ['sawtooth', 1, 0], ribbit: ['triangle', 0.5, 14], moonbun: ['sine', 2, 4], spider: ['sine', 2, 9], lyla: ['triangle', 0.5, 0], carla: ['sine', 2, 3] }[id] || ['triangle', 1, 0];
@@ -2250,7 +2298,7 @@ function updateSpooky(dt) {
 // sunflowers come up as pumpkins, with more besides. 300 trade for the Pumpking; when
 // the harvest is over, any pumpkins left turn into sunflowers, one for one.
 const EVENT_END = Date.UTC(2026, 10, 8, 8);   // midnight at the end of Nov 7, PST (UTC-8)
-const PUMPKING_PRICE = 300;
+const PUMPKING_PRICE = 300, ORGAN_PRICE = 500;
 const eventOn = () => Date.now() < EVENT_END;
 let pumpkins = store.get('bl-pumpkins', 0);
 // Each one a little jack-o'-lantern: its carved face lit from inside, in a warm halo.
@@ -3790,6 +3838,29 @@ function buildMailbox(g) {
 // Glowing bits (a carved face, a bubbling brew, lanterns) are lit from inside, and light
 // up the dark around them at night like the torches.
 const PUMPKIN = (cx, cz) => (x, y, z) => (Math.floor((Math.atan2(z - cz, x - cx) + Math.PI) * 8 / Math.PI) % 2 ? 0xff8a1a : 0xe0670c);
+function buildPipeOrgan(g) {   // the Spooky Organ: a console of keys under a fan of gold pipes, candles either side
+  const v = new VB(0.6), WOOD = 0x3a2230, WOOD_L = 0x5a3448;
+  v.rbox(1.1, 0.62, 0.42, 0, 0.31, 0.1, WOOD, 0.05);                         // console
+  v.rbox(0.96, 0.06, 0.18, 0, 0.64, 0.24, 0xfff8ec, 0.015);                  // keys
+  for (let i = 0; i < 8; i++) v.rbox(0.05, 0.035, 0.1, -0.4 + i * 0.115, 0.685, 0.2, 0x2a2033, 0.01);   // black keys
+  v.rbox(1.0, 0.08, 0.2, 0, 0.78, 0.02, WOOD_L, 0.02);                       // music stand
+  v.rbox(1.3, 0.12, 0.3, 0, 0.9, -0.12, WOOD, 0.03);                         // pipe rack
+  [0.5, 0.75, 0.95, 1.15, 1.25, 1.15, 0.95, 0.75, 0.5].forEach((h, i) => {
+    const x = -0.56 + i * 0.14;
+    v.cyl(0.055, 0.055, h, x, 0.96 + h / 2, -0.14, 0xe8c45c);                // a pipe...
+    v.rbox(0.06, 0.03, 0.02, x, 1.06, -0.085, 0x2a2033, 0.005);             // ...its mouth
+  });
+  g.add(v.mesh());
+  for (const s of [-1, 1]) {                                                 // candles
+    const c = new VB(0.6);
+    c.cyl(0.035, 0.04, 0.16, s * 0.6, 0.72, 0.18, 0xf4ead8);
+    g.add(c.mesh());
+    const f = new THREE.Mesh(FLAME_GEO, FLAME_MAT);
+    f.position.set(s * 0.6, 0.86, 0.18);
+    f.scale.setScalar(0.45);
+    g.add(f);
+  }
+}
 function buildPumpkins(g) {   // three pumpkins on a bed of straw, the big one carved and lit
   const v = new VB(0.6), face = new VB(0.6);
   v.ball(0.66, 0.035, 0.46, 0, 0.018, 0, 0xd9b45a);                          // straw
@@ -5560,7 +5631,7 @@ window.addEventListener('keydown', e => {
     setJamInput('keys');
     const row = JAM_KEYS.findIndex(r => r.includes(e.code));
     const drum = jam.drums ? +Object.keys(DRUM_KEYS).find(d => DRUM_KEYS[d] === e.code) : NaN;
-    if (e.code === 'Tab') setDrums(!jam.drums);
+    if (e.code === 'Tab') setInst(nextInst());
     else if (jam.drums) { if (!isNaN(drum)) playDrum(drum); else if (e.code === 'Escape') closeJam(); }
     else if (row >= 0) { const col = JAM_KEYS[row].indexOf(e.code); if (col < padCols()) playPad(row, col, 'k' + e.code); }
     else if (e.code === 'Equal' || e.code === 'NumpadAdd' || e.code === 'BracketRight' || e.code === 'ArrowRight') setOctave(1);
@@ -7273,7 +7344,11 @@ function markEvent() {
 }
 function refreshEvent(msg) {
   const have = owned.has('pumpking'), i = HEROES.findIndex(h => h.id === 'pumpking');
-  $('eventSay').textContent = t('event.say', { n: PUMPKING_PRICE });
+  $('eventSay').textContent = t('event.say', { n: PUMPKING_PRICE, m: ORGAN_PRICE });
+  const organ = organOwned();
+  $('eventOrganLabel').textContent = t(organ ? 'event.organHave' : 'event.organ');
+  $('eventOrganPrice').hidden = organ;
+  $('eventOrgan').disabled = organ || pumpkins < ORGAN_PRICE;
   $('eventN').textContent = pumpkins;
   $('eventKing').src = shots.cards[i];
   $('eventKingName').textContent = heroName('pumpking');
@@ -7282,6 +7357,7 @@ function refreshEvent(msg) {
   $('eventPrice').hidden = have;
   $('eventTrade').disabled = have || pumpkins < PUMPKING_PRICE;
   $('eventNeed').textContent = msg ?? (have || pumpkins >= PUMPKING_PRICE ? '' : t('event.need', { n: PUMPKING_PRICE - pumpkins }));
+  $('eventOrganImg').src = ORGAN_ICON;
 }
 function openEvent() {
   if (GUEST || game.state !== 'farm') return;
@@ -7311,6 +7387,18 @@ function tradePumpking() {
   markEvent();
   refreshEvent(t('event.done'));
 }
+function buyOrgan() {
+  sfx.ensure();
+  if (organOwned()) return;
+  if (pumpkins < ORGAN_PRICE) { sfx.bump(); refreshEvent(t('event.need', { n: ORGAN_PRICE - pumpkins })); return; }
+  pumpkins -= ORGAN_PRICE;
+  store.set('bl-pumpkins', pumpkins);
+  store.set('bl-organ', true);
+  sfx.upgrade();
+  [0, 3, 7, 12].forEach((st, j) => sfx.hold('organ', scaleHz(0) * 2 ** (st / 12) / 2, 1, j * 0.12, 1.6 - j * 0.12));   // a big minor chord, Phantom-style
+  markEvent();
+  refreshEvent(t('event.organDone'));
+}
 // When the harvest is over: the pumpkins left over become sunflowers.
 function settleEvent() {
   if (eventOn() || GUEST || !pumpkins) return markEvent();
@@ -7327,6 +7415,7 @@ function settleEvent() {
 }
 $('eventBtn').addEventListener('click', () => { sfx.ensure(); openEvent(); });
 $('eventTrade').addEventListener('click', tradePumpking);
+$('eventOrgan').addEventListener('click', buyOrgan);
 $('eventClose').addEventListener('click', closeEvent);
 $('event').addEventListener('click', e => { if (e.target.id === 'event') closeEvent(); });
 $('homeNoteX').addEventListener('click', () => { $('homeNote').hidden = true; });
@@ -7487,40 +7576,56 @@ function playDrum(d) {
   setTimeout(() => note.remove(), 1400);
 }
 // Flip between the hopper's own sounds and the drum kit (once the kit is bought).
+// What the pads play: your hopper's sounds, the Spooky Organ (once it's yours) or the drum kit.
+// The instrument button shows the next one round.
+const ORGAN_PAD = '#9b6be0';
+const ORGAN_ICON = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><g stroke="#3a2442" stroke-width="2" stroke-linejoin="round"><path d="M10 30V14a3 3 0 0 1 6 0v16zM18 30V8a3 3 0 0 1 6 0v22zM26 30V4a3 3 0 0 1 6 0v26zM34 30V4a3 3 0 0 1 6 0v26zM42 30V8a3 3 0 0 1 6 0v22zM50 30V14a3 3 0 0 1 6 0v16z" fill="#e8c45c"/><path d="M11 22h4M19 18h4M27 15h4M35 15h4M43 18h4M51 22h4" stroke-width="1.6"/><rect x="6" y="30" width="52" height="26" rx="4" fill="#4a2a5a"/><rect x="10" y="38" width="44" height="10" rx="2" fill="#fff8ec"/><path d="M17 38v6M24 38v6M31 38v6M38 38v6M45 38v6" stroke-width="2.8"/><circle cx="14" cy="34" r="1.6" fill="#ff6b6b"/><circle cx="50" cy="34" r="1.6" fill="#6bd864"/></g></svg>');
+const organOwned = () => store.get('bl-organ', false);
+const jamModes = () => ['hopper', ...(organOwned() ? ['organ'] : []), ...(ownedDecor.has('drums') ? ['drums'] : [])];
+const jamMode = () => (jam.drums ? 'drums' : jam.organ ? 'organ' : 'hopper');
+const nextInst = () => { const m = jamModes(); return m[(m.indexOf(jamMode()) + 1) % m.length]; };
+function setInst(mode) {
+  jam.organ = mode === 'organ' && organOwned();
+  setDrums(mode === 'drums');
+}
 function setDrums(on) {
   jam.drums = !!on && ownedDecor.has('drums');   // a strict true/false: toggle() with undefined would flip the class instead
+  if (jam.drums) jam.organ = false;
   letGoAll();
   $('jam').classList.toggle('drums', jam.drums);
-  showInstrument(jam.banjo, !jam.drums);   // the banjo goes down while you drum
-  $('instBtn').setAttribute('aria-label', jam.drums ? t('aria.instHopper', { name: heroName(heroId) }) : t('aria.instDrums'));
-  $('instFace').src = jam.drums ? shots.cards[HEROES.indexOf(hero())] : shots.decor[DECOR.indexOf('drums')];
+  showInstrument(jam.banjo, !jam.drums && !jam.organ);   // the banjo goes down while you drum, or play the organ
+  if (jam.organKit) jam.organKit.visible = jam.organ;
+  jamPads.style.setProperty('--c', jam.organ ? ORGAN_PAD : hero().pad);
+  const nx = nextInst();
+  $('instBtn').setAttribute('aria-label', nx === 'drums' ? t('aria.instDrums') : nx === 'organ' ? t('aria.instOrgan') : t('aria.instHopper', { name: heroName(heroId) }));
+  $('instFace').src = nx === 'drums' ? shots.decor[DECOR.indexOf('drums')] : nx === 'organ' ? ORGAN_ICON : shots.cards[HEROES.indexOf(hero())];
   if (GUEST) guestNet.send({ t: 'mode', drums: jam.drums });
   else tellBand();
 }
-$('instBtn').addEventListener('click', () => { sfx.ensure(); setDrums(!jam.drums); });
+$('instBtn').addEventListener('click', () => { sfx.ensure(); setInst(nextInst()); });
 const padAt = (row, col) => jamPads.querySelector(`.pad[data-row="${row}"][data-col="${col}"]`);
 const noteFreq = (oct, row, col) => scaleHz(col) * 2 ** (oct + 1 - row);
 const padFreq = (row, col) => noteFreq(jam.oct, row, col);
 function playPad(row, col, by) {
   sfx.ensure();
-  const h = hero();
-  sfx.voice(h.id, padFreq(row, col), true);
+  const h = hero(), id = jam.organ ? 'organ' : h.id;   // your hopper's own sound, or the Spooky Organ
+  if (!(jam.organ && by)) sfx.voice(id, padFreq(row, col), true);
   if (by) {   // held: the sustain tone rings until it's let go
     letGo(by);
-    const release = sfx.hold(h.id, padFreq(row, col), jam.sustain);
+    const release = sfx.hold(id, padFreq(row, col), jam.sustain);
     if (release) jam.held.set(by, release);
   }
   // The band hears it too: a guest tells the host (who plays it in the guest's own octave);
   // the host tells its guests.
   if (GUEST) { guestNet.send({ t: 'note', r: row, c: col, on: true }); if (by) jam.byRC.set(by, [row, col]); }
-  else toGuests({ t: 'jn', k: 'h', by: by || 'x', hero: h.id, f: padFreq(row, col), sus: jam.sustain, on: true, hold: !!by });
+  else toGuests({ t: 'jn', k: 'h', by: by || 'x', hero: id, f: padFreq(row, col), sus: jam.sustain, on: true, hold: !!by });
   const pad = padAt(row, col);
   pad.classList.remove('hit'); void pad.offsetWidth; pad.classList.add('hit');
   jam.kick = 1;   // the hopper bounces to every note
   const note = document.createElement('span');   // and a note floats up off the stage
   note.className = 'jamNote';
   note.textContent = pick(['♪', '♫', '♩', '♬']);
-  note.style.color = h.pad;
+  note.style.color = jam.organ ? ORGAN_PAD : h.pad;
   note.style.left = (12 + Math.random() * 76) + '%';
   $('jamNotes').append(note);
   setTimeout(() => note.remove(), 1400);
@@ -7657,13 +7762,21 @@ function openJam() {
     jam.kit.scale.setScalar(0.72);
     jam.scene.add(jam.kit);
   }
-  $('instBtn').hidden = !ownedDecor.has('drums');
+  if (organOwned() && !jam.organKit) {   // the Spooky Organ stands behind, on the other side
+    jam.organKit = new THREE.Group();
+    buildPipeOrgan(jam.organKit);
+    jam.organKit.position.set(-0.98, 0, -0.85);
+    jam.organKit.rotation.y = 0.35;
+    jam.organKit.scale.setScalar(0.72);
+    jam.scene.add(jam.organKit);
+  }
+  $('instBtn').hidden = jamModes().length < 2;
   setDrums(jam.drums);
   $('partyBtn').hidden = !RELAY;
   layoutStage();
   jam.open = true;
   jam.row = 1;
-  jamPads.style.setProperty('--c', hero().pad);   // the pads take your hopper's colour
+  jamPads.style.setProperty('--c', jam.organ ? ORGAN_PAD : hero().pad);   // the pads take your hopper's colour (or the organ's)
   $('jam').classList.add('show');
   game.picking = true;
   setOctave(0);
@@ -9049,7 +9162,7 @@ function pollPad() {
     if (dir || down.some(Boolean)) setJamInput('pad');
     if (dir === 'up' || dir === 'down') { jam.row = clamp(jam.row + (dir === 'down' ? 1 : -1), 0, JAM_ROWS - 1); markJamHints(); }
     if (dir === 'left' || dir === 'right') setOctave(dir === 'right' ? 1 : -1);
-    if (pressed(8) && ownedDecor.has('drums')) { setDrums(!jam.drums); return; }   // Select: drums / hopper
+    if (pressed(8) && jamModes().length > 1) { setInst(nextInst()); return; }   // Select: the next instrument
     if (jam.drums) {
       for (const d in DRUM_BTNS) if (pressed(DRUM_BTNS[d])) playDrum(+d);
       if (pressed(9)) closeJam();

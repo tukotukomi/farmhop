@@ -24,7 +24,8 @@ export const STRINGS = {
     },
     event: {
       title: 'Pumpkin Harvest', trade: 'Trade for the Pumpking', have: 'The Pumpking lives on your farm!', need: '{n} more pumpkins to go', done: 'The Pumpking moved in!',
-      say: 'Find the spooky sunflower while you hop, then pick up pumpkins on the spooky farm. Trade {n} pumpkins for the Pumpking! When the harvest ends, every pumpkin left turns into a sunflower.',
+      say: 'Find the spooky sunflower while you hop, then pick up pumpkins on the spooky farm. Trade {n} for the Pumpking, or {m} for the Spooky Organ to play on the Jam Stage! When the harvest ends, every pumpkin left turns into a sunflower.',
+      organ: 'Spooky Organ', organHave: 'The organ is yours!', organDone: 'The Spooky Organ is on the Jam Stage!',
       ends: 'The harvest ends {date}.', cashed: 'The Pumpkin Harvest is over: your {n} pumpkins turned into {n} sunflowers!',
     },
     photo: {
@@ -139,7 +140,7 @@ export const STRINGS = {
       supHero: '{name}: for Hop Supporters', chooseHopper: 'Choose hopper', startDay: 'Start the day', fishPond: 'Fish Pond', bunkhouse: 'Bunkhouse', buildings: 'Farm buildings', fishBook: 'Fish Book', stopFishing: 'Stop fishing', cast: 'Cast',
       building: '{name}, level {n}', unbuilt: 'Not built yet: {n} sunflowers',
       unlock: 'Invite {name} for {n} sunflowers', lives: '{name} lives on the farm',
-      decorate: 'Decorate the farm', done: 'Done', rotate: 'Turn', shop: 'Market', photo: 'Take a photo', keyBtn: 'Song key: {k}. Change key', octUp: 'Octave up', octDown: 'Octave down', phones: 'Play with phones', instDrums: 'Play the drums', instHopper: 'Play {name}\'s sounds',
+      decorate: 'Decorate the farm', done: 'Done', rotate: 'Turn', shop: 'Market', photo: 'Take a photo', keyBtn: 'Song key: {k}. Change key', octUp: 'Octave up', octDown: 'Octave down', phones: 'Play with phones', instDrums: 'Play the drums', instOrgan: 'Play the Spooky Organ', instHopper: 'Play {name}\'s sounds',
       buyItem: 'Buy the {name} for {n} sunflowers', ownItem: 'The {name} is on your farm', keyOn: '{name}: playing now', keyHave: 'Play in {name}', keyBuy: 'Buy {name} for {n} sunflowers', backFarm: 'Back to the farm',
       close: 'Close', fullscreen: 'Full screen', sound: 'Sound on or off', settings: 'Settings', daylight: 'Daylight left',
     },
@@ -167,7 +168,8 @@ export const STRINGS = {
     },
     event: {
       title: 'Cosecha de calabazas', trade: 'Cambiar por el Rey Calabaza', have: '¡El Rey Calabaza vive en tu granja!', need: 'Faltan {n} calabazas', done: '¡El Rey Calabaza se mudó!',
-      say: 'Busca el girasol embrujado mientras saltas y recoge calabazas en la granja embrujada. ¡Cambia {n} calabazas por el Rey Calabaza! Cuando termine la cosecha, cada calabaza que te quede se convierte en un girasol.',
+      say: 'Busca el girasol embrujado mientras saltas y recoge calabazas en la granja embrujada. ¡Cambia {n} por el Rey Calabaza, o {m} por el Órgano tenebroso para tocar en el escenario! Cuando termine la cosecha, cada calabaza que te quede se convierte en un girasol.',
+      organ: 'Órgano tenebroso', organHave: '¡El órgano es tuyo!', organDone: '¡El Órgano tenebroso está en el escenario!',
       ends: 'La cosecha termina el {date}.', cashed: 'Terminó la Cosecha de calabazas: ¡tus {n} calabazas se convirtieron en {n} girasoles!',
     },
     photo: {
@@ -282,7 +284,7 @@ export const STRINGS = {
       supHero: '{name}: para Hop Supporters', chooseHopper: 'Elegir saltarín', startDay: 'Empezar el día', fishPond: 'Estanque de peces', bunkhouse: 'La cabaña', buildings: 'Edificios de la granja', fishBook: 'Libro de peces', stopFishing: 'Dejar de pescar', cast: 'Lanzar',
       building: '{name}, nivel {n}', unbuilt: 'Sin construir: {n} girasoles',
       unlock: 'Invitar a {name} por {n} girasoles', lives: '{name} vive en la granja',
-      decorate: 'Decorar la granja', done: 'Listo', rotate: 'Girar', shop: 'Mercado', photo: 'Tomar una foto', keyBtn: 'Tonalidad: {k}. Cambiar', octUp: 'Subir una octava', octDown: 'Bajar una octava', phones: 'Jugar con teléfonos', instDrums: 'Tocar la batería', instHopper: 'Tocar los sonidos de {name}',
+      decorate: 'Decorar la granja', done: 'Listo', rotate: 'Girar', shop: 'Mercado', photo: 'Tomar una foto', keyBtn: 'Tonalidad: {k}. Cambiar', octUp: 'Subir una octava', octDown: 'Bajar una octava', phones: 'Jugar con teléfonos', instDrums: 'Tocar la batería', instOrgan: 'Tocar el Órgano tenebroso', instHopper: 'Tocar los sonidos de {name}',
       buyItem: 'Comprar {name} por {n} girasoles', ownItem: '{name} ya está en tu granja', keyOn: '{name}: sonando ahora', keyHave: 'Tocar en {name}', keyBuy: 'Comprar {name} por {n} girasoles', backFarm: 'Volver a la granja',
       close: 'Cerrar', fullscreen: 'Pantalla completa', sound: 'Activar o silenciar el sonido', settings: 'Ajustes', daylight: 'Luz del día restante',
     },
@@ -310,7 +312,8 @@ export const STRINGS = {
     },
     event: {
       title: '南瓜丰收节', trade: '换南瓜王', have: '南瓜王住在你的农场啦！', need: '还差 {n} 个南瓜', done: '南瓜王搬来啦！',
-      say: '跳跃时找找闹鬼向日葵，然后在闹鬼农场上捡南瓜。用 {n} 个南瓜换南瓜王！丰收节结束时，剩下的南瓜都会变成向日葵。',
+      say: '跳跃时找找闹鬼向日葵，然后在闹鬼农场上捡南瓜。用 {n} 个换南瓜王，或者用 {m} 个换能在音乐舞台上弹的阴森管风琴！丰收节结束时，剩下的南瓜都会变成向日葵。',
+      organ: '阴森管风琴', organHave: '管风琴是你的啦！', organDone: '阴森管风琴已经放到音乐舞台上啦！',
       ends: '丰收节在 {date} 结束。', cashed: '南瓜丰收节结束啦：你的 {n} 个南瓜变成了 {n} 朵向日葵！',
     },
     photo: {
@@ -425,7 +428,7 @@ export const STRINGS = {
       supHero: '{name}：支持者专属', chooseHopper: '选择角色', startDay: '开始新的一天', fishPond: '鱼塘', bunkhouse: '小木屋', buildings: '农场建筑', fishBook: '鱼类图鉴', stopFishing: '不钓了', cast: '抛竿',
       building: '{name}，等级 {n}', unbuilt: '还没建造：需要 {n} 朵向日葵',
       unlock: '用 {n} 朵向日葵邀请{name}', lives: '{name}住在农场里',
-      decorate: '装饰农场', done: '完成', rotate: '转动', shop: '集市', photo: '拍照', keyBtn: '歌曲的调：{k}。换调', octUp: '升高八度', octDown: '降低八度', phones: '用手机一起玩', instDrums: '打架子鼓', instHopper: '演奏{name}的声音',
+      decorate: '装饰农场', done: '完成', rotate: '转动', shop: '集市', photo: '拍照', keyBtn: '歌曲的调：{k}。换调', octUp: '升高八度', octDown: '降低八度', phones: '用手机一起玩', instDrums: '打架子鼓', instOrgan: '弹阴森管风琴', instHopper: '演奏{name}的声音',
       buyItem: '用 {n} 朵向日葵买{name}', ownItem: '{name}已经在农场里了', keyOn: '{name}：正在播放', keyHave: '用{name}演奏', keyBuy: '用 {n} 朵向日葵买{name}', backFarm: '回到农场',
       close: '关闭', fullscreen: '全屏', sound: '开关声音', settings: '设置', daylight: '剩余日光',
     },

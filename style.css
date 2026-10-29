@@ -145,8 +145,16 @@ body.farm.event #eventBtn { display: grid; }
 body.farm.decor #eventBtn, body.guest #eventBtn { display: none; }
 .eventCount { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 34px; font-weight: 700; }
 .eventCount svg { width: 44px; height: 44px; }
-.eventKing { background: #ffd9b0; width: 150px; cursor: default; }
-.eventKing img { max-width: 130px; }
+.eventOffers { display: flex; gap: 8px; justify-content: center; }
+.eventKing { background: #ffd9b0; width: 118px; cursor: default; }
+.eventKing img { max-width: 100px; }
+.eventOrganCard { background: #e6dcff; }
+.eventOrganCard img { width: 78px; height: 78px; margin: 11px 0; }
+#event .pondPanel { max-width: 400px !important; }
+#event .panelBody { overflow-x: hidden; }
+#event .panelFoot .buyBtn { font-size: 17px; padding: 7px 16px 9px; }
+#event .panelFoot .buyBtn .flower { width: 22px; height: 22px; }
+#eventOrganPrice[hidden] { display: none; }
 .eventEnds { margin: 0; font-size: 13px; opacity: .75; }
 #eventPrice[hidden] { display: none; }
 body.farm.decor #phonesBtn { display: none; }
@@ -383,6 +391,10 @@ body.farm:not(.decor) #hint { display: none; }   /* on the farm, Betty Lou gives
   padding: calc(env(safe-area-inset-top) + 26px) calc(env(safe-area-inset-right) + 16px) calc(env(safe-area-inset-bottom) + 16px) calc(env(safe-area-inset-left) + 16px);
 }
 .sheet.show { display: flex; animation: pop .3s cubic-bezier(.3, 1.6, .5, 1); }
+/* Big screens (a computer): every window scales up as a whole, so it isn't a phone-sized
+   card in the middle of a monitor. Phones and tablets keep the size they have. */
+@media (min-width: 1100px) and (min-height: 760px) { .sheet .panel { zoom: 1.25; } }
+@media (min-width: 1500px) and (min-height: 950px) { .sheet .panel { zoom: 1.45; } }
 /* Every panel fits the window: its title and ✕ stay put and only the panelBody
    between them scrolls. The body takes on the panel's own layout (grid, gap, columns). */
 .sheet .panel {
