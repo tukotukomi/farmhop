@@ -245,14 +245,14 @@ body.farm #sky { visibility: hidden; }
 }
 
 /* ---------- title ---------- */
+/* the logo greets you in the middle of the screen, a quarter of its height (sized by fitLogo) */
 #title {
-  position: fixed; left: 0; right: 0;
-  top: calc(env(safe-area-inset-top) + 64px);
-  display: none; justify-content: center;
+  position: fixed; inset: 0;
+  display: none; align-items: center; justify-content: center;
   pointer-events: none;
 }
 body.farm.show-logo #title { display: flex; }
-.logo { text-align: center; transform: rotate(-5deg) scale(.72); transform-origin: 50% 0; }
+.logo { text-align: center; transform: rotate(-5deg) scale(var(--logo-s, .72)); transform-origin: 50% 50%; }
 .l1 {
   display: inline-block; font-size: 24px; font-weight: 700;
   padding: 2px 18px 4px; margin-bottom: 4px;
@@ -1106,8 +1106,6 @@ body.guest #phonesBtn, body.guest #partyBtn, body.guest #play { display: none !i
   #phonesBtn { top: calc(env(safe-area-inset-top) + 12px); left: auto; right: calc(env(safe-area-inset-right) + 260px); }
   #decorBar { bottom: calc(env(safe-area-inset-bottom) + 14px); }
   .shopBtn, .rotateBtn { width: 64px; height: 64px; }
-  #title { top: calc(env(safe-area-inset-top) + 4px); }
-  .logo { transform: rotate(-5deg) scale(.5); }
   .playBtn { width: 84px; height: 84px; }
   .playBtn svg { width: 48px; height: 48px; }
   .bunkPanel { max-width: 640px; }

@@ -5382,6 +5382,13 @@ for (const type of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'])
 // The logo greets you on the farm; the first touch, click, key or controller press
 // tucks it away to free up the screen, and the tip appears at the top instead.
 const dismissLogo = () => document.body.classList.remove('show-logo');
+function fitLogo() {   // a quarter of the screen's height, never wider than most of its width
+  const el = document.querySelector('.logo'), w = el.offsetWidth, h = el.offsetHeight;
+  if (w && h) el.style.setProperty('--logo-s', Math.min(innerHeight * 0.25 / h, innerWidth * 0.8 / w).toFixed(3));
+}
+fitLogo();
+document.fonts?.ready.then(fitLogo);
+window.addEventListener('resize', fitLogo);
 for (const type of ['pointerdown', 'keydown']) window.addEventListener(type, dismissLogo, { capture: true, passive: true });
 document.addEventListener('contextmenu', e => e.preventDefault());
 
