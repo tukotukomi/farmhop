@@ -1549,7 +1549,7 @@ let music = null;   // created with the audio context on the first tap
 const SONG_KEYS = [['C', -2], ['Db', -1], ['D', 0], ['Eb', 1], ['E', 2], ['F', 3], ['Fs', 4], ['G', 5], ['Ab', -6], ['A', -5], ['Bb', -4], ['B', -3]];
 const KEY_PRICE = 50;
 const songKey = () => { const n = store.get('bl-key', 0); return SONG_KEYS.some(k => k[1] === n) ? n : 0; };
-const songScale = () => { const sc = store.get('bl-scale', 'major'); return SCALES[sc] ? sc : 'major'; };
+const songScale = () => { const sc = store.get('bl-scale', 'major'); return SCALES[sc] && !SCALES[sc].hidden ? sc : 'major'; };
 const keyNow = () => (music ? [music.key, music.scale] : [songKey(), songScale()]);
 // Step i of the key's pentatonic (0 = the key note near D4, 5 = an octave up, ...), in Hz.
 function pentHz(i, [k, sc] = keyNow()) {
@@ -2191,6 +2191,11 @@ function updateSpooky(dt) {
   if (spooky.flower?.parent) {   // the spooky sunflower turns and bobs, so you notice it
     spooky.flower.rotation.y += dt * 2.2;
     spooky.flower.position.y = Math.abs(Math.sin(game.time * 3)) * 0.12;
+  }
+  const haunt = spooky.on && road;
+  if (music && music.haunted !== haunt) {   // the tune (and with it every hop and pad) goes to the spooky scale on the organ, and back
+    music.setHaunted(haunt);
+    music.setKey(songKey(), haunt ? 'spooky' : songScale());
   }
   const pill = $('spookyPill'), show = spooky.on && road;
   pill.hidden = !show;
@@ -6833,7 +6838,8 @@ DECOR.forEach((id, i) => {
 // bar line. Tab, Q / E or LB / RB switch tabs; [ / ] or LT / RT switch scales.
 const keyGrid = $('keyGrid'), scaleChips = $('scaleChips');
 let shopTab = 'decor', keyScale = songScale();
-for (const sc of Object.keys(SCALES)) {
+const SHOP_SCALES = Object.keys(SCALES).filter(sc => !SCALES[sc].hidden);   // (the spooky farm's scale isn't for sale)
+for (const sc of SHOP_SCALES) {
   const chip = document.createElement('button');
   chip.className = 'setTab';
   chip.dataset.scale = sc;
@@ -6872,7 +6878,7 @@ function setKeyScale(sc) {
   shopFocus = keyFocus();
   refreshShop();
 }
-const nextScale = d => { const all = Object.keys(SCALES); setKeyScale(all[(all.indexOf(keyScale) + d + all.length) % all.length]); };
+const nextScale = d => { const all = SHOP_SCALES; setKeyScale(all[(all.indexOf(keyScale) + d + all.length) % all.length]); };
 $('tabDecor').addEventListener('click', () => setShopTab('decor'));
 $('tabMusic').addEventListener('click', () => setShopTab('music'));
 const STEP_SEC = 60 / 84 / 2;   // an eighth note of the farm tune (84 BPM)
@@ -6894,9 +6900,10 @@ function useKey(n, sc) {
   store.set('bl-key', n);   // farm settings: the guests on this farm hear it too
   store.set('bl-scale', sc);
   sfx.ensure();
-  const wait = music?.setKey(n, sc) ?? 0;
+  const tuneSc = music?.haunted ? 'spooky' : sc;   // on the spooky farm the new key is spooky too
+  const wait = music?.setKey(n, tuneSc) ?? 0;
   // Right as the tune changes key, your hopper sings up its chord: the root, third, fifth and octave.
-  const deg = SCALES[sc].deg;
+  const deg = SCALES[tuneSc].deg;
   [0, 4 + deg[2], 7 + deg[4], 12].forEach((st, j) => sfx.note(heroId, 293.66 * 2 ** ((n + st) / 12), wait + j * STEP_SEC));
   showKeyBtn();
   return true;
@@ -6914,7 +6921,7 @@ function showKeyBtn() {
 }
 function openKeyMenu() {
   const owned = ownedKeys(), items = [];
-  for (const sc of Object.keys(SCALES)) SONG_KEYS.forEach((k, i) => { if (owned.has(keyId(i, sc))) items.push([i, sc]); });
+  for (const sc of SHOP_SCALES) SONG_KEYS.forEach((k, i) => { if (owned.has(keyId(i, sc))) items.push([i, sc]); });
   const now = songKey(), nowSc = songScale();
   keyMenu.replaceChildren(...items.map(([i, sc]) => {
     const b = document.createElement('button');

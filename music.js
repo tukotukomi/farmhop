@@ -77,6 +77,9 @@ const hz = m => 440 * Math.pow(2, (m - 69) / 12);
 export const SCALES = {
   major: { deg: [0, 0, 0, 0, 0, 0, 0], pent: [0, 2, 4, 7, 9] },
   minor: { deg: [0, 0, -1, 0, 0, -1, -1], pent: [0, 3, 5, 7, 10] },   // natural minor
+  // The spooky farm's: harmonic minor (a flat third and sixth under a raised seventh).
+  // Not for sale: the song only goes there while the farm is haunted.
+  spooky: { deg: [0, 0, -1, 0, 0, -1, 0], pent: [0, 3, 5, 7, 8], hidden: true },
 };
 const MAJOR = [0, 2, 4, 5, 7, 9, 11];
 // MIDI note m of the D major tune, moved into scale s and k semitones from D.
@@ -104,8 +107,8 @@ export function createMusic(ctx, out) {
   level.gain.value = 1;
   let day = 1, spook = 0;
   const shade = () => {   // daylight and the spooky farm together set the low-pass and the reverb
-    dusty.frequency.setTargetAtTime((1300 + 2900 * day) * (1 - 0.6 * spook), ctx.currentTime, 0.5);
-    verbIn.gain.setTargetAtTime(0.5 + 0.35 * (1 - day) + 0.7 * spook, ctx.currentTime, 0.5);
+    dusty.frequency.setTargetAtTime(1300 + 2900 * day, ctx.currentTime, 0.5);
+    verbIn.gain.setTargetAtTime(0.5 + 0.35 * (1 - day) + 0.45 * spook, ctx.currentTime, 0.5);
   };
   bus.connect(wobble).connect(dusty).connect(level).connect(out);
 
@@ -130,6 +133,11 @@ export function createMusic(ctx, out) {
     for (let k = 1; k < n; k++) imag[k] = (2 / (k * Math.PI)) * Math.sin(k * Math.PI * 0.125);
     return ctx.createPeriodicWave(real, imag);
   })();
+  // a drawbar organ: the fundamental with octaves and a twelfth, a little bright on top
+  const organ = (() => {
+    const amp = [0, 1, 0.65, 0.45, 0.4, 0, 0.22, 0, 0.28], real = new Float32Array(amp.length), imag = new Float32Array(amp);
+    return ctx.createPeriodicWave(real, imag);
+  })();
   const noiseBuf = (() => {
     const b = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate), d = b.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -139,7 +147,7 @@ export function createMusic(ctx, out) {
   // ---- voices ----
   function voice(wave, midi, t, dur, vol, { attack = 0.004, to = bus, cutoff = 0, detune = 0, vibrato = 0, slideFrom = 0 } = {}) {
     const o = ctx.createOscillator(), g = ctx.createGain();
-    if (wave === 'pulse') o.setPeriodicWave(pulse); else o.type = wave;
+    if (wave === 'pulse') o.setPeriodicWave(pulse); else if (wave === 'organ') o.setPeriodicWave(organ); else o.type = wave;
     o.detune.value = detune;
     if (slideFrom) {                                  // fiddle slides up into the note
       o.frequency.setValueAtTime(hz(slideFrom), t);
@@ -228,18 +236,19 @@ export function createMusic(ctx, out) {
   }
 
   // ---- the arrangement, one sixteenth at a time ----
-  let lastFiddle = 0, style = 'classic', want = 'classic', swing = SWING;
+  let lastFiddle = 0, style = 'classic', want = 'classic', swing = SWING, haunted = false;
   // The key: [semitones from D, scale]. keyAt: when (context time) it took over from lastKey.
   let key = [0, 'major'], wantKey = key, lastKey = key, keyAt = 0;
   const note = m => inScale(m, key[1], key[0]);
   function play(step, t) {
     const bar = Math.floor(step / 16) % 32, s = step % 16;
-    if (s === 0 && style !== want) { style = want; }   // switch on a bar line
+    if (s === 0 && style !== (haunted ? 'organ' : want)) { style = haunted ? 'organ' : want; }   // switch on a bar line
     if (s === 0 && key !== wantKey) { lastKey = key; key = wantKey; keyAt = t; }
-    const dnb = style === 'dnb';
+    const dnb = style === 'dnb', org = style === 'organ';
     const [prog, tune] = FORM[Math.floor(bar / 8)];
     const i = bar % 8, chord = prog[i].map(note), next = prog[(i + 1) % 8].map(note);
 
+    if (org) { playOrgan(t, s, chord, tune, i); return; }
     // vaporwave pad: the whole chord, slow swell, mostly reverb
     if (s === 0) {
       for (const m of inRange(chord, 50, 66)) {
@@ -269,6 +278,28 @@ export function createMusic(ctx, out) {
     }
     if (s === 0 || s === 8) kick(t, 0.32);
     if (s % 2 === 0) noise(t, 0.04, s % 4 === 2 ? 0.035 : 0.018, 'highpass', 7000);
+  }
+  // The spooky organ: the chord held on the organ with a slow wobble, a broken-chord run
+  // on the eighths, a pedal note under it, the tune on a lead stop, and a clock ticking.
+  function playOrgan(t, s, chord, tune, i) {
+    if (s === 0) {
+      for (const m of inRange(chord, 50, 67)) voice('organ', m, t, STEP * 16 * 1.02, 0.02, { attack: 0.08, cutoff: 2200, vibrato: 6, to: [bus, verbIn] });
+      const root = rootOf(chord);
+      voice('organ', root, t, STEP * 15.5, 0.06, { attack: 0.06, cutoff: 700 });       // pedal
+      voice('sine', root - 12, t, STEP * 15.5, 0.12, { attack: 0.06 });
+      kick(t, 0.16, 0.3);
+    }
+    if (s % 2 === 0) {
+      const tones = inRange(chord, 62, 81);
+      voice('organ', tones[ROLL[s] % tones.length], t, STEP * 1.9, 0.016, { attack: 0.01, cutoff: 2800, to: [bus, echo] });
+    }
+    if (s % 4 === 0) noise(t, 0.025, s % 8 ? 0.012 : 0.02, 'highpass', 6500);   // tick... tock
+    if (tune) {
+      for (const [at, m, len] of tune[i]) {
+        if (at !== s) continue;
+        voice('organ', note(m) + 12, t, STEP * len * 0.95, 0.024, { attack: 0.03, cutoff: 3400, to: [bus, verbIn], vibrato: len >= 4 ? 9 : 0 });
+      }
+    }
   }
   function playFiddle(t, s, tune, i) {
     // the fiddle: square wave, sliding into notes, vibrato on the long ones
@@ -320,16 +351,14 @@ export function createMusic(ctx, out) {
       day = d;
       shade();
     },
-    // The spooky farm (0..1): the tape warbles, the low-pass closes into a ringing hollow
-    // and the reverb swells, so the same tune drifts in like it's from a haunted radio.
+    // The spooky farm (0..1): the reverb swells, like the tune is echoing round an old church.
     setSpooky(k) {
       spook = k;
       shade();
-      const now = ctx.currentTime;
-      dusty.Q.setTargetAtTime(0.4 + 6 * k, now, 0.5);
-      lfo.frequency.setTargetAtTime(0.33 + 1.4 * k, now, 0.5);
-      lfoAmt.gain.setTargetAtTime(0.0022 + 0.006 * k, now, 0.5);
     },
+    // The haunted farm's arrangement: the spooky organ takes over from the band at the next bar line.
+    setHaunted(on) { haunted = !!on; },
+    get haunted() { return haunted; },
     // 'classic' or 'dnb' (Hop Supporters): changes over at the next bar line.
     setStyle(s) { want = s === 'dnb' ? 'dnb' : 'classic'; },
     get style() { return want; },
