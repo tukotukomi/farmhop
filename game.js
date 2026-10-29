@@ -1438,6 +1438,61 @@ const sfx = (() => {
     s.connect(f).connect(g).connect(master);
     s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.02);
   }
+  // A duck's quack: a buzzy sawtooth on the note through a nasal "aa" that opens and
+  // closes, with a twang on top. The pitch never moves, so it stays in tune.
+  function quack(f, t, dur, vol) {
+    const o = ctx.createOscillator(), bp = ctx.createBiquadFilter(), nose = ctx.createBiquadFilter(), g = ctx.createGain();
+    o.type = 'sawtooth';
+    o.frequency.value = f;
+    bp.type = 'bandpass';
+    bp.Q.value = 3;
+    bp.frequency.setValueAtTime(800, t);
+    bp.frequency.linearRampToValueAtTime(1500, t + dur * 0.3);
+    bp.frequency.exponentialRampToValueAtTime(650, t + dur);
+    nose.type = 'peaking';
+    nose.frequency.value = 2600;
+    nose.Q.value = 2;
+    nose.gain.value = 9;
+    env(g, t, vol, dur, 0.008);
+    o.connect(bp).connect(nose).connect(g).connect(master);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+  // A frog's croak: a low reedy pulse whose loudness rattles on and off at an eighth
+  // of the note's own frequency, so the rasp is in tune with it.
+  function croak(f, t, dur, vol) {
+    const o = ctx.createOscillator(), lp = ctx.createBiquadFilter(), am = ctx.createGain(), g = ctx.createGain();
+    const lfo = ctx.createOscillator(), depth = ctx.createGain();
+    o.setPeriodicWave(pulseWave());
+    o.frequency.value = f;
+    lp.type = 'lowpass';
+    lp.frequency.value = 1200;
+    lp.Q.value = 5;
+    lfo.type = 'square';
+    lfo.frequency.value = f / 8;
+    am.gain.value = 0.5;
+    depth.gain.value = 0.5;
+    lfo.connect(depth).connect(am.gain);
+    env(g, t, vol, dur, 0.006);
+    o.connect(lp).connect(am).connect(g).connect(master);
+    o.start(t); lfo.start(t); o.stop(t + dur + 0.02); lfo.stop(t + dur + 0.02);
+  }
+  // Something a little spooky: two glassy sines a hair apart that shimmer against each
+  // other, trembling as they ring.
+  function eerie(f, t, dur, vol) {
+    for (const cents of [-10, 10]) {
+      const o = ctx.createOscillator(), mix = ctx.createGain(), g = ctx.createGain(), trem = ctx.createOscillator(), depth = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.value = f;
+      o.detune.value = cents;
+      trem.frequency.value = 7.5;
+      depth.gain.value = 0.45;
+      mix.gain.value = 0.55;
+      trem.connect(depth).connect(mix.gain);
+      env(g, t, vol, dur, 0.012);
+      o.connect(mix).connect(g).connect(master);
+      o.start(t); trem.start(t); o.stop(t + dur + 0.02); trem.stop(t + dur + 0.02);
+    }
+  }
   function noise(dur, vol, type, freq, delay = 0) {
     if (!ctx || muted) return;
     const t = ctx.currentTime + delay;
@@ -1493,10 +1548,10 @@ const sfx = (() => {
         sweep('sine', n * 2, n * 2, t, 0.06, 0.16);
         sweep('triangle', n * 4, n * 4, t, 0.03, 0.04);
         sweep('triangle', n * 3, n * 3, t + 0.05, 0.05, 0.04);
-      } else if (id === 'spider') {                             // a plucked web string, skittering up an octave and a fifth
-        sweep('triangle', n * 2, n * 2, t, 0.06, 0.13);
-        sweep('sine', n * 4, n * 4, t, 0.05, 0.04);
-        sweep('triangle', n * 3, n * 3, t + 0.045, 0.04, 0.05);
+      } else if (id === 'spider') {                             // a little creepy: a shimmering, trembling glass note, and legs skittering
+        eerie(n * 2, t, 0.42, 0.11);
+        sweep('sine', n * 3, n * 3, t, 0.3, 0.02);
+        for (const dt of [0, 0.035, 0.07]) sweep('square', n * 4, n * 4, t + dt, 0.012, 0.008);
       } else if (id === 'lyla') {                               // a soft woof on the note, with a little "arf" a fifth up
         sweep('sine', n / 2, n / 2, t, 0.12, 0.16);
         sweep('triangle', n, n, t, 0.1, 0.13);
@@ -1505,15 +1560,12 @@ const sfx = (() => {
         sweep('sine', n * 2, n * 2, t, 0.12, 0.12);
         sweep('triangle', n, n, t, 0.12, 0.05);
         sweep('sine', n * 2, n * 2, t + 0.11, 0.09, 0.06);
-      } else if (id === 'siracha') {                            // a quack: a nasal click on the note, with its fifth
-        sweep('square', n * 2, n * 2, t, 0.02, 0.012);
-        sweep('triangle', n, n, t, 0.12, 0.15);
-        sweep('triangle', n * 1.5, n * 1.5, t, 0.05, 0.06);
-      } else if (id === 'ribbit') {                             // "rib-bit": a croaky click on the note, then the fifth
-        sweep('square', n * 2, n * 2, t, 0.025, 0.012);
-        sweep('triangle', n, n, t, 0.16, 0.16);
-        sweep('sine', n * 2, n * 2, t, 0.12, 0.04);
-        sweep('triangle', n * 1.5, n * 1.5, t + 0.08, 0.07, 0.06);
+      } else if (id === 'siracha') {                            // a proper duck's quack, on the note
+        quack(n, t, 0.17, 0.34);
+        sweep('sine', n / 2, n / 2, t, 0.1, 0.05);
+      } else if (id === 'ribbit') {                             // "rib-bit": a froggy croak an octave down, then a shorter one a fifth up
+        croak(n / 2, t, 0.13, 0.3);
+        croak(n * 0.75, t + 0.12, 0.08, 0.22);
       } else if (id === 'moonbun') {                            // a soft thump and a little moon bell
         sweep('sine', n / 2, n / 2, t, 0.07, 0.09);
         sweep('sine', n * 2, n * 2, t, 0.5, 0.1);
@@ -1529,7 +1581,7 @@ const sfx = (() => {
     hold(id, n, amt) {
       if (!ctx || muted || amt <= 0) return null;
       const t = ctx.currentTime, o = ctx.createOscillator(), f1 = ctx.createBiquadFilter(), g = ctx.createGain();
-      const V = { betty: ['pulse', 1, 0], axolotl: ['sine', 1, 5], catstar: ['triangle', 1, 6.5], leafwish: ['triangle', 2, 0], tuko: ['sawtooth', 2, 0], siracha: ['triangle', 1.5, 2], ribbit: ['triangle', 1, 3], moonbun: ['sine', 2, 4], spider: ['triangle', 2, 8], lyla: ['triangle', 0.5, 0], carla: ['sine', 2, 3] }[id] || ['triangle', 1, 0];
+      const V = { betty: ['pulse', 1, 0], axolotl: ['sine', 1, 5], catstar: ['triangle', 1, 6.5], leafwish: ['triangle', 2, 0], tuko: ['sawtooth', 2, 0], siracha: ['sawtooth', 1, 0], ribbit: ['triangle', 0.5, 14], moonbun: ['sine', 2, 4], spider: ['sine', 2, 9], lyla: ['triangle', 0.5, 0], carla: ['sine', 2, 3] }[id] || ['triangle', 1, 0];
       const [wave, oct, wob] = V;
       if (wave === 'pulse') o.setPeriodicWave(pulseWave()); else o.type = wave;
       o.frequency.value = n * oct;   // octaves of the pad's note, so it stays in key
