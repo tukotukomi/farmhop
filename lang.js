@@ -70,6 +70,14 @@ export const STRINGS = {
       thisDevice: 'This device', yourAccount: 'Your account',
       sum: '{coins} sunflowers · {hoppers} hoppers · pond level {pond} · best {top} · {fish} kinds of fish',
     },
+    lat: {
+      row: 'Rhythm latency', auto: 'Auto adjust', offOn: ['Off', 'On'],
+      note: 'If fishing taps feel early or late, slide this, or let the Latency Helper find it.',
+      helper: 'Latency Helper', tap: 'Tap!', start: 'Start', again: 'Try again', use: 'Use this',
+      say: 'Tap the big button every time {name} lands!', listen: 'Get ready… tap along with the hops!',
+      count: ['3', '2', '1', 'Go!'], early: 'Early!', late: 'Late!', good: 'Just right!',
+      retry: "Hmm, the taps were all over the place. Let's try again!", done: 'All done!', result: 'Your latency: {ms}',
+    },
     sup: {
       row: 'Hop Supporter', become: 'Become a Hop Supporter', badge: 'Hop Supporter', tag: 'Supporter',
       song: 'Farm song', songs: ['Classic', 'Drum & Bass'],
@@ -179,6 +187,14 @@ export const STRINGS = {
       thisDevice: 'Este dispositivo', yourAccount: 'Tu cuenta',
       sum: '{coins} girasoles · {hoppers} saltarines · estanque nivel {pond} · récord {top} · {fish} tipos de peces',
     },
+    lat: {
+      row: 'Latencia del ritmo', auto: 'Ajuste automático', offOn: ['No', 'Sí'],
+      note: 'Si al pescar los toques van antes o después, mueve esto o deja que el Ayudante de latencia lo encuentre.',
+      helper: 'Ayudante de latencia', tap: '¡Toca!', start: 'Empezar', again: 'Otra vez', use: 'Usar esto',
+      say: '¡Toca el botón grande cada vez que {name} aterrice!', listen: 'Prepárate… ¡toca al ritmo de los saltos!',
+      count: ['3', '2', '1', '¡Ya!'], early: '¡Antes!', late: '¡Tarde!', good: '¡Justo!',
+      retry: 'Hmm, los toques fueron muy distintos. ¡Probemos otra vez!', done: '¡Listo!', result: 'Tu latencia: {ms}',
+    },
     sup: {
       row: 'Hop Supporter', become: 'Hazte Hop Supporter', badge: 'Hop Supporter', tag: 'Supporter',
       song: 'Canción de la granja', songs: ['Clásica', 'Drum & Bass'],
@@ -287,6 +303,14 @@ export const STRINGS = {
       pickTitle: '保留哪个农场？', pickWhy: '这台设备和你的账号各有对方没有的进度。选一个保留，另一个会被替换。',
       thisDevice: '这台设备', yourAccount: '你的账号',
       sum: '{coins} 朵向日葵 · {hoppers} 个角色 · 鱼塘 {pond} 级 · 最高 {top} · {fish} 种鱼',
+    },
+    lat: {
+      row: '节奏延迟', auto: '自动调整', offOn: ['关', '开'],
+      note: '如果钓鱼时点得太早或太晚，可以拖动这里，或者让延迟助手帮你测。',
+      helper: '延迟助手', tap: '点！', start: '开始', again: '再试一次', use: '就用这个',
+      say: '{name}每次落地时，就点一下大按钮！', listen: '准备好……跟着跳跃一起点！',
+      count: ['3', '2', '1', '开始！'], early: '早了！', late: '晚了！', good: '正好！',
+      retry: '嗯，点得有点乱，我们再试一次吧！', done: '完成！', result: '你的延迟：{ms}',
     },
     sup: {
       row: '跳跳支持者', become: '成为跳跳支持者', badge: '跳跳支持者', tag: '支持者',

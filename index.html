@@ -211,7 +211,7 @@
       <div id="jamPads"></div>
       <div id="drumPads"></div>
       <label id="sustainRow" class="sustainRow"><span data-i18n="sustain">Sustain</span><input id="sustain" class="vol" type="range" min="0" max="100" step="5"></label>
-      <label id="songRow" class="sustainRow"><span data-i18n="jamSong">Song</span><input id="jamSong" class="vol" type="range" min="0" max="100" step="5"></label>
+      <label id="jamSongRow" class="sustainRow"><span data-i18n="jamSong">Song</span><input id="jamSong" class="vol" type="range" min="0" max="100" step="5"></label>
     </div>
     <div class="octave">
       <button id="instBtn" class="instBtn bubble" hidden><img id="instFace" class="cutout" alt=""></button>
@@ -264,6 +264,13 @@
       <label class="setLabel" for="volFx" data-i18n="effects">Effects</label>
       <input id="volFx" class="vol" type="range" min="0" max="100" step="5">
     </div>
+    <div class="setRow" data-row="timing">
+      <label class="setLabel latLabel" for="latency"><span data-i18n="lat.row">Rhythm latency</span><b id="latVal"></b></label>
+      <input id="latency" class="vol" type="range" min="-100" max="350" step="5">
+      <div class="latAuto"><span class="setLabel" id="latAutoLabel" data-i18n="lat.auto">Auto adjust</span><div class="seg" id="segLatAuto" role="radiogroup" aria-labelledby="latAutoLabel"></div></div>
+      <p class="setNote" data-i18n="lat.note">If fishing taps feel early or late, slide this, or let the Latency Helper find it.</p>
+      <button id="latHelp" class="segBtn latHelpBtn" data-i18n="lat.helper">Latency Helper</button>
+    </div>
     <div class="setRow" data-row="coop">
       <div class="setLabel" id="coopLabel" data-i18n="coopScreen">Co-Op screen</div>
       <div class="seg" id="segCoop" role="radiogroup" aria-labelledby="coopLabel"></div>
@@ -280,6 +287,22 @@
       <p class="setNote" data-i18n="creditsNote">Bringing fun back to the internet – Tuko</p>
     </div>
     <button id="setClose" class="closeBtn bubble" data-i18n-aria="aria.close" aria-label="Close">&#x2715;</button>
+  </div>
+</div>
+
+<div id="tapHelp" class="sheet" role="dialog" aria-modal="true" aria-labelledby="tapTitle">
+  <div class="panel tapPanel">
+    <h2 id="tapTitle" data-i18n="lat.helper">Latency Helper</h2>
+    <p id="tapSay" class="tapSay"></p>
+    <div class="tapStage"><b id="tapCount" class="tapCount"></b><img id="tapHopper" class="cutout" alt=""><i class="tapShadow"></i></div>
+    <div id="tapDots" class="tapDots"></div>
+    <button id="tapPad" class="tapPad bubble"><span data-i18n="lat.tap">Tap!</span></button>
+    <p id="tapResult" class="tapResult"></p>
+    <div class="tapBtns">
+      <button id="tapGo" class="buyBtn bubble" data-i18n="lat.start">Start</button>
+      <button id="tapUse" class="buyBtn bubble" hidden data-i18n="lat.use">Use this</button>
+    </div>
+    <button id="tapClose" class="closeBtn bubble" data-i18n-aria="aria.close" aria-label="Close">&#x2715;</button>
   </div>
 </div>
 

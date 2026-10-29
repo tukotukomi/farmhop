@@ -863,6 +863,41 @@ body.guest #phonesBtn, body.guest #partyBtn, body.guest #play { display: none !i
 }
 .setRow.focus { border-color: var(--sky); box-shadow: 0 0 0 3px rgba(143, 216, 255, .5); }
 .setLabel { font-size: 15px; font-weight: 700; letter-spacing: .02em; }
+/* Rhythm latency */
+.latLabel { display: flex; justify-content: space-between; gap: 8px; }
+.latLabel b { font-variant-numeric: tabular-nums; opacity: .8; }
+.latAuto { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.latAuto .seg { flex: 1; }
+.latHelpBtn { justify-self: start; flex: none; }
+/* the Latency Helper: a hopper hopping on the beat, a big button to tap along */
+.tapPanel { display: grid; justify-items: center; gap: 10px; text-align: center; max-width: 360px !important; }
+.tapPanel h2 { margin-bottom: 0 !important; }
+.tapSay { margin: 0; font-weight: 600; min-height: 2.6em; }
+.tapStage { position: relative; width: 160px; height: 170px; display: grid; place-items: end center; }
+.tapStage img { width: 150px; height: 150px; position: relative; z-index: 1; transform-origin: 50% 100%; }
+.tapShadow { position: absolute; bottom: 6px; width: 90px; height: 14px; border-radius: 50%; background: rgba(58, 36, 66, .18); }
+.tapStage img.hop { animation: tapHop .32s cubic-bezier(.3, .7, .4, 1); }
+@keyframes tapHop { 0% { translate: 0 0; } 45% { translate: 0 -46px; } 92% { translate: 0 0; scale: 1 1; } 100% { scale: 1.08 .9; } }
+.tapCount { position: absolute; top: 0; left: 50%; translate: -50% 0; z-index: 2; font-size: 34px; color: var(--berry); text-shadow: 0 3px 0 var(--ink-soft); }
+.tapDots { display: flex; gap: 6px; }
+.tapDots i { width: 14px; height: 14px; border-radius: 50%; border: 2.5px solid var(--ink); background: #fff; transition: background .15s, scale .15s; }
+.tapDots i.on { background: var(--sun); scale: 1.15; }
+.tapPad {
+  --c1: #ff8fc8; --c2: #e0558f; width: 130px; height: 130px; font-size: 26px; font-weight: 700; color: #fff;
+  text-shadow: 0 2px 0 rgba(58, 36, 66, .45); touch-action: manipulation;
+}
+.tapPad.pop { animation: tapPop .18s ease-out; }
+@keyframes tapPop { 40% { scale: .9; } }
+.tapWord { position: absolute; top: 34%; left: 50%; translate: -50% 0; z-index: 3; font-size: 20px; padding: 2px 12px; border-radius: 999px;
+  background: #fff; border: 2.5px solid var(--ink); animation: tapWord .7s ease-out forwards; white-space: nowrap; }
+.tapWord.good { background: #c4ff80; }
+.tapWord.early { background: #bfe9ff; }
+.tapWord.late { background: #ffd6c4; }
+@keyframes tapWord { to { translate: -50% -40px; opacity: 0; } }
+.tapResult { margin: 0; font-size: 20px; font-weight: 700; min-height: 1.2em; }
+.tapBtns { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.tapBtns .buyBtn { font-size: 18px; padding: 8px 18px 10px; }
+.tapBtns .buyBtn[hidden] { display: none; }
 .creditsRow { justify-items: center; text-align: center; }
 .creditsRow .setLabel { justify-self: start; }
 .creditsLogo { width: min(260px, 100%); height: auto; }

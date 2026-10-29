@@ -4003,6 +4003,12 @@ window.addEventListener('keydown', e => {
   if (partyOpen()) { if (e.code === 'Escape' || e.code === 'Enter') closeParty(); e.preventDefault(); return; }
   if (game.picking && supportOpen()) { if (e.code === 'Escape') closeSupport(); return; }
   if (game.picking && pickOpen()) { if (e.code === 'Escape') closePick(); return; }
+  if (game.picking && tapOpen()) {   // Latency Helper: Space or Enter taps, Escape closes
+    if (e.code === 'Escape') closeTap();
+    else if ((e.code === 'Space' || e.code === 'Enter') && !e.repeat) { if ($('tapGo').hidden) tapHit(e.timeStamp / 1000); else tapStart(); }   // tapping along, or starting
+    e.preventDefault();
+    return;
+  }
   if (game.picking && settingsOpen()) {   // Settings: arrows change things, Escape or Enter closes
     const nav = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[e.code];
     if (nav) { document.body.classList.add('keys'); settingsNav(nav); }
@@ -4597,9 +4603,17 @@ function judge(f, nt, ok, perfect) {
 // Whatever lag is left (a slow screen, Bluetooth headphones, how someone hears the
 // beat) the game learns: each reel, it looks at how early or late the taps landed and
 // moves this device's offset half way there. It stays on the device.
+// The player can set it themselves (Settings > Rhythm latency, or the Latency Helper's
+// tap-along), and switch the learning off: it gets confused by players still finding
+// the beat. It's applied wherever taps are judged against the music.
 let beatLag = clamp(store.get('bl-beat-lag', 0.02), -0.1, 0.35);
+let beatAuto = store.get('bl-beat-auto', false);
+function setBeatLag(sec) {
+  beatLag = clamp(Math.round(sec * 1000) / 1000, -0.1, 0.35);
+  store.set('bl-beat-lag', beatLag);
+}
 function learnLag(g) {
-  if (g.offs.length < 4) return;
+  if (!beatAuto || g.offs.length < 4) return;
   const o = g.offs.sort((a, b) => a - b), mid = o[o.length >> 1];
   beatLag = clamp(beatLag + (mid - beatLag) * 0.5, -0.1, 0.35);
   store.set('bl-beat-lag', Math.round(beatLag * 1000) / 1000);
@@ -6268,7 +6282,7 @@ if (RELAY && !GUEST) try { if (sessionStorage.getItem('bl-party-room')) partySta
 // Book, Hop Supporter, settings) is copied to the player's Google account, and comes
 // down again on another device. See account/tuko-account.js; the farm saves on the
 // device first, as always.
-const DEVICE_ONLY = ['bl-gfx-auto', 'bl-beat-lag', 'bl-fishcam'];   // measured on this device: not worth carrying over
+const DEVICE_ONLY = ['bl-gfx-auto', 'bl-beat-lag', 'bl-beat-auto', 'bl-fishcam'];   // measured on this device: not worth carrying over
 const savedKeys = () => Object.keys(localStorage).filter(k => k.startsWith('bl-') && !DEVICE_ONLY.includes(k));
 const account = window.TUKO_FIREBASE && !GUEST ? createAccount({
   app: 'farmhop',
@@ -6344,7 +6358,7 @@ if (account) {
 // Language, music and effects volume, the road's view angle, and the art style.
 // With a controller or arrow keys: up/down picks a row, left/right changes it.
 const settingsOpen = () => $('settings').classList.contains('show');
-const SET_ROWS = [...(account ? ['acct'] : []), ...(SUPPORT_URL ? ['sup'] : []), 'lang', 'music', 'fx', 'coop', 'gfx'];   // in the order they're shown
+const SET_ROWS = [...(account ? ['acct'] : []), ...(SUPPORT_URL ? ['sup'] : []), 'lang', 'music', 'fx', 'timing', 'coop', 'gfx'];   // in the order they're shown
 const GFX_CHOICES = ['auto', ...Q_LEVELS];
 let setFocus = 0;
 function segment(el, labels, current, pick, icons) {
@@ -6375,6 +6389,7 @@ function renderSettings() {
   const v = sfx.volumes;
   setVolSlider('volMusic', v.music);
   setVolSlider('volFx', v.fx);
+  renderLatency();
   renderAccount();
   $('supRow').hidden = !SUPPORT_URL;
   $('supBtn').hidden = supporter;
@@ -6443,7 +6458,8 @@ function settingsNav(dir) {
     sfx.setVolume(row, clamp(Math.round((sfx.volumes[row] + d * 0.1) * 10) / 10, 0, 1));
     if (row === 'fx') sfx.hop(heroId);
     renderSettings();
-  } else if (row === 'coop') setSplit(!splitPref);
+  } else if (row === 'timing') { setBeatLag(beatLag + d * 0.005); renderLatency(); }
+  else if (row === 'coop') setSplit(!splitPref);
   else if (row === 'gfx') setGfx(GFX_CHOICES[(GFX_CHOICES.indexOf(gfx) + d + GFX_CHOICES.length) % GFX_CHOICES.length]);
   else if (row === 'acct') { if (!account.state.user) account.signIn().catch(accountError); }
   else if (row === 'sup') { if (supporter && !GUEST) setSong(songStyle() !== 'dnb'); else if (!supporter) openSupport(); }
@@ -6456,6 +6472,134 @@ for (const [id, which] of [['volMusic', 'music'], ['volFx', 'fx']]) {
   });
 }
 $('volFx').addEventListener('change', () => sfx.hop(heroId));   // hear the new level
+
+// ---------- rhythm latency ----------
+// How far after the beat this player's taps land: a slider in milliseconds, the
+// auto adjust switch, and the Latency Helper, a little tap-along that measures it.
+const latMs = s => (s >= 0 ? '+' : '') + Math.round(s * 1000) + ' ms';
+function renderLatency() {
+  const el = $('latency');
+  el.value = Math.round(beatLag * 1000);
+  el.style.setProperty('--fill', ((beatLag + 0.1) / 0.45 * 100).toFixed(1) + '%');
+  $('latVal').textContent = latMs(beatLag);
+  segment($('segLatAuto'), t('lat.offOn'), beatAuto ? 1 : 0, i => { beatAuto = !!i; store.set('bl-beat-auto', beatAuto); renderLatency(); });
+}
+$('latency').addEventListener('input', e => { setBeatLag(e.target.value / 1000); renderLatency(); });
+$('latHelp').addEventListener('click', () => { sfx.ensure(); openTap(); });
+
+// The Latency Helper: your hopper hops on the beat, singing its own note, and you tap
+// the big button each time it lands. Four beats to count in, then twelve to measure.
+// Each tap is compared with when that beat came out of the speakers; the middle of
+// those differences (leaving out any wild ones) is your latency.
+const TAP_BEAT = 60 / 84, TAP_COUNT = 4, TAP_BEATS = 12;
+const tapOpen = () => $('tapHelp').classList.contains('show');
+const tap = { run: 0, beats: [], taps: [], timers: [], result: null };
+const tapNow = () => performance.now() / 1000;
+function outLag() {   // how long a sound takes to come out of the speakers
+  if (!music) return 0;
+  const h = music.heard();
+  return clamp(h.at - tapNow(), 0, 0.5);
+}
+function tapReset() {
+  for (const id of tap.timers) clearTimeout(id);
+  Object.assign(tap, { run: tap.run + 1, beats: [], taps: [], timers: [], result: null });
+  $('tapDots').innerHTML = Array.from({ length: TAP_BEATS }, () => '<i></i>').join('');
+  $('tapCount').textContent = '';
+  $('tapResult').textContent = '';
+  $('tapUse').hidden = true;
+  $('tapGo').hidden = false;
+  $('tapSay').textContent = t('lat.say', { name: heroName(heroId) });
+}
+function openTap() {
+  closeSettings();
+  const i = HEROES.findIndex(h => h.id === heroId);
+  $('tapHopper').src = shots.cards[Math.max(0, i)];
+  tapReset();
+  $('tapHelp').classList.add('show');
+  game.picking = true;
+  music?.setLevel(0.15);   // the farm tune steps back so the beat is easy to hear
+}
+function closeTap() {
+  tapReset();
+  $('tapHelp').classList.remove('show');
+  music?.setLevel(1);
+  game.picking = anyPanel();
+}
+function tapStart() {
+  sfx.ensure();
+  tapReset();
+  const run = tap.run, lag = outLag(), t0 = tapNow() + 0.6;
+  $('tapGo').hidden = true;
+  $('tapSay').textContent = t('lat.listen');
+  const later = (at, fn) => tap.timers.push(setTimeout(() => { if (tap.run === run) fn(); }, Math.max(0, (at - tapNow()) * 1000)));
+  for (let k = 0; k < TAP_COUNT + TAP_BEATS; k++) {
+    const playAt = t0 + k * TAP_BEAT;
+    later(playAt, () => {
+      sfx.hop(heroId);
+      const heard = tapNow() + lag;                      // when this beat reaches the ears
+      tap.beats[k] = heard;
+      later(heard - 0.32, () => {                        // the hop, landing right on the beat
+        const img = $('tapHopper');
+        img.classList.remove('hop'); void img.offsetWidth; img.classList.add('hop');
+      });
+      later(heard, () => {
+        if (k < TAP_COUNT) $('tapCount').textContent = t('lat.count')[k];
+        else {
+          $('tapCount').textContent = '';
+          $('tapDots').children[k - TAP_COUNT].classList.add('on');
+        }
+      });
+    });
+  }
+  later(t0 + (TAP_COUNT + TAP_BEATS) * TAP_BEAT + 0.5, tapFinish);
+}
+function tapHit(at) {   // at: when the tap happened (seconds, performance clock)
+  const pad = $('tapPad');
+  pad.classList.remove('pop'); void pad.offsetWidth; pad.classList.add('pop');
+  if (!tap.beats.length || tap.result) return;
+  tap.taps.push(at);
+  const near = tap.beats.filter(Boolean).reduce((b, x) => Math.abs(x - at) < Math.abs(b - at) ? x : b, Infinity);
+  const d = at - near - beatLag;                         // against what's set now
+  if (Math.abs(d) > 0.3) return;
+  const word = document.createElement('b');
+  word.className = 'tapWord ' + (Math.abs(d) < 0.04 ? 'good' : d < 0 ? 'early' : 'late');
+  word.textContent = t(Math.abs(d) < 0.04 ? 'lat.good' : d < 0 ? 'lat.early' : 'lat.late');
+  $('tapHelp').querySelector('.tapStage').append(word);
+  setTimeout(() => word.remove(), 700);
+}
+function tapFinish() {
+  const beats = tap.beats.slice(TAP_COUNT).filter(Boolean), offs = [];
+  for (const at of tap.taps) {
+    const near = beats.reduce((b, x) => Math.abs(x - at) < Math.abs(b - at) ? x : b, Infinity);
+    if (Math.abs(at - near) < TAP_BEAT * 0.45) offs.push(at - near);
+  }
+  offs.sort((a, b) => a - b);
+  const mid = offs[offs.length >> 1], keep = offs.filter(o => Math.abs(o - mid) < 0.09);
+  $('tapCount').textContent = '';
+  if (keep.length < 6) {   // too few taps on the beat to be sure
+    $('tapSay').textContent = t('lat.retry');
+    $('tapGo').hidden = false;
+    $('tapGo').textContent = t('lat.again');
+    return;
+  }
+  tap.result = clamp(keep.reduce((a, b) => a + b, 0) / keep.length, -0.1, 0.35);
+  $('tapSay').textContent = t('lat.done');
+  $('tapResult').textContent = t('lat.result', { ms: latMs(tap.result) });
+  $('tapUse').hidden = false;
+  $('tapGo').hidden = false;
+  $('tapGo').textContent = t('lat.again');
+  sfx.upgrade();
+}
+$('tapGo').addEventListener('click', tapStart);
+$('tapUse').addEventListener('click', () => {
+  if (tap.result == null) return;
+  setBeatLag(tap.result);
+  closeTap();
+  openSettings();
+});
+$('tapPad').addEventListener('pointerdown', e => { e.preventDefault(); sfx.ensure(); tapHit(e.timeStamp / 1000); });
+$('tapClose').addEventListener('click', closeTap);
+$('tapHelp').addEventListener('click', e => { if (e.target.id === 'tapHelp') closeTap(); });
 $('gear').addEventListener('click', () => { sfx.ensure(); openSettings(); });
 // Full screen, where the browser allows it (iPhones only do it for videos, so no button there).
 const page = document.documentElement;
@@ -6627,6 +6771,7 @@ function pollPad() {
   if (partyOpen()) { if (pressed(0) || pressed(1) || pressed(9)) closeParty(); return; }
   if (game.picking && supportOpen()) { if (pressed(1) || pressed(9)) closeSupport(); return; }
   if (game.picking && pickOpen()) { if (pressed(1)) closePick(); return; }
+  if (game.picking && tapOpen()) { if (pressed(0)) { if ($('tapGo').hidden) tapHit(performance.now() / 1000); else tapStart(); } if (pressed(1)) closeTap(); return; }
   if (game.picking && settingsOpen()) {
     if (dir) settingsNav(dir);
     if (pressed(1) || pressed(8) || pressed(9)) closeSettings();
@@ -6830,4 +6975,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; } };
