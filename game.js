@@ -845,11 +845,11 @@ function buildCaptain() {
     b.cone(0.05, 0.07, s * 0.07, 0.635, -0.135, SHIRT, Math.PI / 2 - 0.5, 0, s * 0.4);   // shirt collar points
   }
   b.ball(0.14, 0.1, 0.1, 0, 0.8, 0.165, W);                               // ...and round the back
-  b.ball(0.22, 0.14, 0.17, 0, 0.32, 0, DENIM);                           // jeans
-  b.cyl(0.205, 0.205, 0.04, 0, 0.415, 0, 0x5a3a24);                      // belt
-  b.rbox(0.07, 0.05, 0.02, 0, 0.415, -0.2, 0xd8b04a, 0.01);              // buckle
-  b.ball(0.215, 0.17, 0.17, 0, 0.51, 0, SHIRT);                          // black shirt, a big frame
-  for (const y of [0.47, 0.53, 0.59]) b.ball(0.014, 0.014, 0.01, 0, y, -0.168, 0xf4ead8);   // buttons
+  b.ball(0.22, 0.12, 0.17, 0, 0.28, 0, DENIM);                           // jeans
+  b.cyl(0.2, 0.2, 0.04, 0, 0.36, 0, 0x5a3a24);                      // belt
+  b.rbox(0.07, 0.05, 0.02, 0, 0.36, -0.195, 0xd8b04a, 0.01);              // buckle
+  b.ball(0.215, 0.19, 0.17, 0, 0.49, 0, SHIRT);                          // black shirt, a big frame
+  for (const y of [0.42, 0.48, 0.54, 0.6]) b.ball(0.014, 0.014, 0.01, 0, y, -0.168, 0xf4ead8);   // buttons
   b.hiBall(0.235, 0.225, 0.215, 0, 0.79, 0, SKIN);                       // head: mostly bald
   b.ball(0.036, 0.032, 0.03, 0, 0.75, -0.232, 0xeeac8c);                 // nose
   b.ball(0.19, 0.16, 0.12, 0, 0.635, -0.085, W);                         // big white beard
