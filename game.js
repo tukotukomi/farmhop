@@ -2131,12 +2131,14 @@ const sfx = (() => {
     // minor chord over the 16' pipe), a rush of wind with the mist, and ghosts laughing as it rolls on.
     spookyWave() {
       if (!ctx || muted) return;
-      // It changes key on the way: your key's own chord, then F7 (B-flat's dominant), landing on B-flat minor.
+      // It leads the song into its spooky key (your key, harmonic minor): your key's own chord,
+      // then the spooky key's dominant seventh, landing on its minor chord.
       const t = ctx.currentTime + 0.02, st = n => 293.66 * 2 ** (n / 12), k = songKey(), third = SCALES[songScale()].deg[2] < 0 ? 3 : 4;
       const chord = (notes, at, len) => notes.forEach((n, i) => pipes(st(n), t + at, i === 0 ? 0.03 : 0.022, len));
+      let d = k + 7; if (d > 4) d -= 12;                                                                                      // the dominant, kept near the key note
       chord([k - 12, k, k + third, k + 7, k + 12], 0, 0.32);                                                                   // from here...
-      chord([-21, -9, -5, -2, 1], 0.32, 0.32);                                                                                 // ...F7...
-      chord([-16, -4, -1, 3, 8], 0.64, 2.4);                                                                                   // ...to B-flat minor
+      chord([d - 12, d, d + 4, d + 7, d + 10], 0.32, 0.32);                                                                    // ...through its dominant seventh...
+      chord([k - 12, k, k + 3, k + 7, k + 12], 0.64, 2.4);                                                                     // ...to the spooky minor
       noise(1.5, 0.1, 'lowpass', 520, 0.5);                                                                            // the mist's rush
       ghostLaugh(t + 0.85, 640, -0.6);
       ghostLaugh(t + 1.25, 780, 0.6);
@@ -2342,7 +2344,6 @@ const SPOOKY_FLOWER_GEO = (() => {
 })();
 const SPOOKY_FLOWER_MAT = toon({ vertexColors: true, emissive: 0x24104a });
 const SPOOKY_SECS = 120;
-const SPOOKY_KEY = -4;   // B-flat (semitones from D), in the spooky scale: harmonic B-flat minor
 const spooky = { on: false, t: 0, k: 0, next: Infinity, flower: null };
 function plantSpooky(lane) {   // on a free spot of a grass lane that can be reached
   const free = [...lane.reach].filter(c => !lane.coins.some(o => o.c === c));
@@ -2456,7 +2457,7 @@ function updateSpooky(dt) {
   const haunt = spooky.on && road;
   if (music && music.haunted !== haunt) {   // the tune (and with it every hop and pad) goes to the spooky scale on the organ, and back
     music.setHaunted(haunt);
-    music.setKey(haunt ? SPOOKY_KEY : songKey(), haunt ? 'spooky' : songScale());   // the spooky farm is always in B-flat
+    music.setKey(songKey(), haunt ? 'spooky' : songScale());   // your own key, in the spooky scale
   }
   ECTO_MAT.visible = spooky.k > 0;
   BONE_PAD_MAT.visible = BLADE_MAT.visible = spooky.k > 0.5;
@@ -4203,8 +4204,8 @@ function boardLights(kind) {
     b.position.set(x, y - 0.05, -0.08);
     g.add(b);
     bulbs.push([b, i * 0.9]);
+    for (const z of [0.01, -0.17]) glowAt(g, x, y - 0.05, z, [0xff8a1a, 0xb070ff, 0xfff1c8][i % 3], 0.34);   // each bulb's own glow after dark, front and back
   });
-  lamps.push({ o: g, r: 1.6, s: 0.55, w: 0 });
   g.userData.twinkle = t => { for (const [b, ph] of bulbs) b.scale.setScalar(1.3 * (0.88 + 0.14 * (0.5 + 0.5 * Math.sin(t * 3 + ph)))); };
   g.userData.kind = kind;
   return g;
@@ -4229,7 +4230,6 @@ function buildNoticeboard(g) {
     if (back) poster.rotation.y = Math.PI;
     g.add(poster);
   }
-  lamps.push({ o: g.children[g.children.length - 1], r: 1.5, s: 0.7, w: 0 });   // the poster stays readable after dark
   const lights = boardLights('halloween');
   g.add(lights);
   farm.notice = { can, tex, at: 0, lights };
@@ -7537,8 +7537,8 @@ function useKey(n, sc) {
   store.set('bl-key', n);   // farm settings: the guests on this farm hear it too
   store.set('bl-scale', sc);
   sfx.ensure();
-  const tuneSc = music?.haunted ? 'spooky' : sc;   // on the spooky farm the tune stays in its spooky B-flat (your new key comes in after)
-  const tuneN = music?.haunted ? SPOOKY_KEY : n;
+  const tuneSc = music?.haunted ? 'spooky' : sc;   // on the spooky farm the new key is spooky too
+  const tuneN = n;
   const wait = music?.setKey(tuneN, tuneSc) ?? 0;
   // Right as the tune changes key, your hopper sings up its chord: the root, third, fifth and octave.
   const deg = SCALES[tuneSc].deg;
