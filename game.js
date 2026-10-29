@@ -2131,13 +2131,16 @@ const sfx = (() => {
     // minor chord over the 16' pipe), a rush of wind with the mist, and ghosts laughing as it rolls on.
     spookyWave() {
       if (!ctx || muted) return;
-      const t = ctx.currentTime + 0.02, r = 293.66 * 2 ** (keyNow()[0] / 12), st = n => r * 2 ** (n / 12);
-      [[7, 0, 0.1], [5, 0.1, 0.08], [7, 0.18, 0.14]].forEach(([n, at, len]) => pipes(st(n + 12), t + at, 0.026, len));   // the flourish
-      for (const n of [-12, 0, 3, 7, 12]) pipes(st(n), t + 0.34, n < 0 ? 0.03 : 0.022, 2.4);                       // the chord
-      noise(1.5, 0.1, 'lowpass', 520, 0.3);                                                                            // the mist's rush
-      ghostLaugh(t + 0.55, 640, -0.6);
-      ghostLaugh(t + 0.95, 780, 0.6);
-      ghostLaugh(t + 1.4, 560, 0.1);
+      // It changes key on the way: your key's own chord, then F7 (B-flat's dominant), landing on B-flat minor.
+      const t = ctx.currentTime + 0.02, st = n => 293.66 * 2 ** (n / 12), k = songKey(), third = SCALES[songScale()].deg[2] < 0 ? 3 : 4;
+      const chord = (notes, at, len) => notes.forEach((n, i) => pipes(st(n), t + at, i === 0 ? 0.03 : 0.022, len));
+      chord([k - 12, k, k + third, k + 7, k + 12], 0, 0.32);                                                                   // from here...
+      chord([-21, -9, -5, -2, 1], 0.32, 0.32);                                                                                 // ...F7...
+      chord([-16, -4, -1, 3, 8], 0.64, 2.4);                                                                                   // ...to B-flat minor
+      noise(1.5, 0.1, 'lowpass', 520, 0.5);                                                                            // the mist's rush
+      ghostLaugh(t + 0.85, 640, -0.6);
+      ghostLaugh(t + 1.25, 780, 0.6);
+      ghostLaugh(t + 1.7, 560, 0.1);
     },
     // these little tunes are in D too, so they move with the song's key
     pick() { tone(inKey(587), inKey(880), 0.08, 'triangle', 0.07); },
@@ -2339,6 +2342,7 @@ const SPOOKY_FLOWER_GEO = (() => {
 })();
 const SPOOKY_FLOWER_MAT = toon({ vertexColors: true, emissive: 0x24104a });
 const SPOOKY_SECS = 120;
+const SPOOKY_KEY = -4;   // B-flat (semitones from D), in the spooky scale: harmonic B-flat minor
 const spooky = { on: false, t: 0, k: 0, next: Infinity, flower: null };
 function plantSpooky(lane) {   // on a free spot of a grass lane that can be reached
   const free = [...lane.reach].filter(c => !lane.coins.some(o => o.c === c));
@@ -2452,7 +2456,7 @@ function updateSpooky(dt) {
   const haunt = spooky.on && road;
   if (music && music.haunted !== haunt) {   // the tune (and with it every hop and pad) goes to the spooky scale on the organ, and back
     music.setHaunted(haunt);
-    music.setKey(songKey(), haunt ? 'spooky' : songScale());
+    music.setKey(haunt ? SPOOKY_KEY : songKey(), haunt ? 'spooky' : songScale());   // the spooky farm is always in B-flat
   }
   ECTO_MAT.visible = spooky.k > 0;
   BONE_PAD_MAT.visible = BLADE_MAT.visible = spooky.k > 0.5;
@@ -7491,11 +7495,12 @@ function useKey(n, sc) {
   store.set('bl-key', n);   // farm settings: the guests on this farm hear it too
   store.set('bl-scale', sc);
   sfx.ensure();
-  const tuneSc = music?.haunted ? 'spooky' : sc;   // on the spooky farm the new key is spooky too
-  const wait = music?.setKey(n, tuneSc) ?? 0;
+  const tuneSc = music?.haunted ? 'spooky' : sc;   // on the spooky farm the tune stays in its spooky B-flat (your new key comes in after)
+  const tuneN = music?.haunted ? SPOOKY_KEY : n;
+  const wait = music?.setKey(tuneN, tuneSc) ?? 0;
   // Right as the tune changes key, your hopper sings up its chord: the root, third, fifth and octave.
   const deg = SCALES[tuneSc].deg;
-  [0, 4 + deg[2], 7 + deg[4], 12].forEach((st, j) => sfx.note(heroId, 293.66 * 2 ** ((n + st) / 12), wait + j * STEP_SEC));
+  [0, 4 + deg[2], 7 + deg[4], 12].forEach((st, j) => sfx.note(heroId, 293.66 * 2 ** ((tuneN + st) / 12), wait + j * STEP_SEC));
   showKeyBtn();
   return true;
 }
