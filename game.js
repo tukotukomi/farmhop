@@ -1515,6 +1515,8 @@ function buildSpooky(kind) {
   if (kind === 'plane') return buildPlane(true);
   return buildLog(LEN[kind], true);
 }
+// What got you, on the spooky farm (for the sign): ghosts, mummies, a vampire, bats, a haunted tractor...
+const spookyCulprit = m => { const k = spookKind(m).slice(3); return k.startsWith('tractor') ? 'tractor' : k.startsWith('wagon') ? 'wagon' : k === 'plane' ? 'witch' : k; };
 // Which stand-in a mover wears: its own skin roll mixes ghosts in with the tractors, mummies with vampires.
 function spookKind(m) {
   if (m.kind.startsWith('tractor')) return m.skin < 0.45 ? 'sp:ghosts' : 'sp:' + m.kind;
@@ -2905,6 +2907,7 @@ function die(kind, mover, lane, h = P) {
   if (!h.remote) roadSend({ t: 'rd', k: h.key, kind, x: h.x, r: h.r, dir: lane?.dir || 1, type: lane?.type || 'grass' });
   h.alive = false;
   h.death = kind;
+  h.deathSay = mover && spooky.on ? 'sp_' + spookyCulprit(mover) : kind;   // what the sign says: the spooky farm's creature, if that's what it was
   h.deathT = 0;
   h.hop = null;
   h.queue = null;
@@ -5383,7 +5386,8 @@ function gameOver() {
   game.state = 'over';
   document.body.classList.add('over');
   const last = game.lastDeath || P;
-  $('overMsg').textContent = t('death.' + (last.death in STRINGS.en.death ? last.death : 'other'), { name: heroName(last.hero) });
+  const say = last.deathSay in STRINGS.en.death ? last.deathSay : last.death;
+  $('overMsg').textContent = t('death.' + (say in STRINGS.en.death ? say : 'other'), { name: heroName(last.hero) });
   tellView();
   $('overGain').textContent = game.today === 0 ? t('gainNone') : game.today === 1 ? t('gain1') : t('gainN', { n: game.today });
   const over = $('over');
