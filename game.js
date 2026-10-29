@@ -1397,6 +1397,7 @@ const sfx = (() => {
   }
   // ---- hop voices ----
   // Two octaves of D pentatonic: climbs from the low D up to the high B, then walks back down.
+  const TAP_LEN = 0.12;   // how long a quick tap on a Jam Stage pad is held
   const HOP_TUNE = [293.7, 329.6, 370, 440, 493.9, 587.3, 659.3, 740, 880, 987.8, 880, 740, 659.3, 587.3, 493.9, 440, 370, 329.6];
   let hopStep = 0, pulse = null;
   function env(g, t, vol, dur, attack = 0.004) {
@@ -1563,9 +1564,16 @@ const sfx = (() => {
       const bus = which === 'music' ? musicBus : master;
       if (bus) bus.gain.setTargetAtTime(v, ctx.currentTime, 0.05);
     },
-    // A hop plays the hopper's own voice (their Jam Stage instrument). The notes walk a
-    // D-major pentatonic line (the soundtrack's key), so a run of hops plays a little tune.
-    hop(id, delay = 0) { this.voice(id, HOP_TUNE[hopStep++ % HOP_TUNE.length], false, delay); },   // delay: seconds from now, for sounds that must land exactly on a beat
+    // A hop sounds exactly like a quick tap on that hopper's Jam Stage pad: its voice,
+    // and the sustain tone at the Jam Stage's sustain setting, let go as a tap would be.
+    // The notes walk a D-major pentatonic line (the soundtrack's key), so a run of hops
+    // plays a little tune. delay: seconds from now, for sounds that must land on a beat.
+    sustain: store.get('bl-sustain', 0.35),
+    hop(id, delay = 0) { this.note(id, HOP_TUNE[hopStep++ % HOP_TUNE.length], delay); },
+    note(id, n, delay = 0) {
+      this.voice(id, n, false, delay);
+      this.hold(id, n, this.sustain, delay, TAP_LEN);
+    },
     // One hopper's voice at pitch n: the same sound for a hop on the farm and a pad on
     // the Jam Stage, so each hopper sounds like itself everywhere. Every layer starts
     // right on the note (a little echo of the old hop may follow it), and only
@@ -1618,9 +1626,10 @@ const sfx = (() => {
     // A soft tone in the hopper's own colour that rings under the hop sound while a
     // Jam Stage pad is held, then fades out once it's let go. amt (0..1) is the
     // sustain slider: louder and a longer fade the higher it is. Returns release().
-    hold(id, n, amt) {
+    // With len, it's a tap of known length (a hop): let go on the audio clock, no release().
+    hold(id, n, amt, delay = 0, len = 0) {
       if (!ctx || muted || amt <= 0) return null;
-      const t = ctx.currentTime, o = ctx.createOscillator(), f1 = ctx.createBiquadFilter(), g = ctx.createGain();
+      const t = ctx.currentTime + Math.max(0, delay), o = ctx.createOscillator(), f1 = ctx.createBiquadFilter(), g = ctx.createGain();
       const V = { betty: ['pulse', 1, 0], axolotl: ['sine', 1, 5], catstar: ['triangle', 1, 6.5], leafwish: ['triangle', 2, 0], tuko: ['sawtooth', 2, 0], siracha: ['sawtooth', 1, 0], ribbit: ['triangle', 0.5, 14], moonbun: ['sine', 2, 4], spider: ['sine', 2, 9], lyla: ['triangle', 0.5, 0], carla: ['sine', 2, 3] }[id] || ['triangle', 1, 0];
       const [wave, oct, wob] = V;
       if (wave === 'pulse') o.setPeriodicWave(pulseWave()); else o.type = wave;
@@ -1642,6 +1651,14 @@ const sfx = (() => {
       g.gain.setTargetAtTime(lvl * 0.7, t + 0.012, 0.4);   // settles a touch below the attack
       o.connect(f1).connect(g).connect(master);
       o.start(t);
+      if (len > 0) {
+        const r = t + len, rel = 0.08 + amt * 1.2;
+        g.gain.setValueAtTime(lvl * 0.9, r);   // about where it has settled by then
+        g.gain.exponentialRampToValueAtTime(0.0001, r + rel);
+        o.stop(r + rel + 0.05);
+        lfo?.stop(r + rel + 0.05);
+        return null;
+      }
       let done = false;
       const release = () => {
         if (done) return;
@@ -4883,7 +4900,7 @@ function judge(f, nt, ok, perfect) {
   const g = f.g;
   nt.done = ok ? 1 : -1;
   nt.el.classList.add(ok ? 'hit' : 'missed');
-  if (ok) { g.hits++; sfx.voice(f.w.id, padFreq(1, g.sung++ % SCALE.length), true); }
+  if (ok) { g.hits++; sfx.note(f.w.id, padFreq(1, g.sung++ % SCALE.length)); }
   else g.miss++;
   say(f, ok ? (perfect ? 'perfect' : 'good') : 'miss');
   f.msgT = 0.5;
@@ -5885,6 +5902,7 @@ function letGo(by) {
 function letGoAll() { for (const by of [...jam.held.keys()]) letGo(by); }
 function setSustain(v) {
   jam.sustain = clamp(Math.round(v * 20) / 20, 0, 1);
+  sfx.sustain = jam.sustain;   // hops ring the same way
   store.set('bl-sustain', jam.sustain);
   if (GUEST) guestNet.send({ t: 'sus', v: jam.sustain });
   setVolSlider('sustain', jam.sustain);
