@@ -6724,7 +6724,7 @@ async function sharePhoto() {
   try { await navigator.share({ files: [photoFile()], title: "Betty Lou's Farm Hop", text: t('photo.text') + ' ' + SITE }); } catch {}   // (cancelled: nothing to do)
 }
 const SHARE_TO = {
-  x: () => 'https://x.com/intent/post?text=' + encodeURIComponent(t('photo.text')) + '&url=' + encodeURIComponent(SITE),
+  sms: () => 'sms:?&body=' + encodeURIComponent(t('photo.text') + ' ' + SITE),   // ('?&' suits both iPhone and Android)
   fb: () => 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(SITE),
 };
 function flashLabel(btn, text) {   // a button says what just happened, for a moment
@@ -6748,7 +6748,8 @@ function shareApp(net, btn) {
   window.open('https://www.instagram.com/', '_blank', 'noopener');
 }
 document.querySelectorAll('.photoSocial [data-net]').forEach(b => b.addEventListener('click', () => {
-  if (SHARE_TO[b.dataset.net]) window.open(SHARE_TO[b.dataset.net](), '_blank', 'noopener');
+  if (b.dataset.net === 'sms') location.href = SHARE_TO.sms();   // hands over to the messages app
+  else if (SHARE_TO[b.dataset.net]) window.open(SHARE_TO[b.dataset.net](), '_blank', 'noopener');
   else shareApp(b.dataset.net, b);
 }));
 $('photoCopy').addEventListener('click', () => { navigator.clipboard.writeText(SITE).then(() => flashLabel($('photoCopy'), t('photo.copied')), () => {}); });

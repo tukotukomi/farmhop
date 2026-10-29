@@ -24,7 +24,7 @@ export const STRINGS = {
     },
     photo: {
       title: 'Say cheese!', save: 'Save', share: 'Share', copy: 'Copy link', copied: 'Link copied!',
-      note: 'X and Facebook share a link to the game; save your photo to add it to the post.',
+      note: 'SMS and Facebook share a link to the game; save your photo to add it to the post.',
       pasted: 'Copied! Paste it in Discord', saved: 'Photo saved!', igSaved: 'Saved! Post it on Instagram',
       text: "Hopping around on Betty Lou's Farm Hop!", alt: 'Your photo from the farm',
     },
@@ -164,7 +164,7 @@ export const STRINGS = {
     },
     photo: {
       title: '¡Sonríe!', save: 'Guardar', share: 'Compartir', copy: 'Copiar enlace', copied: '¡Enlace copiado!',
-      note: 'X y Facebook comparten un enlace al juego; guarda tu foto para añadirla a la publicación.',
+      note: 'SMS y Facebook comparten un enlace al juego; guarda tu foto para añadirla a la publicación.',
       pasted: '¡Copiada! Pégala en Discord', saved: '¡Foto guardada!', igSaved: '¡Guardada! Publícala en Instagram',
       text: "¡Saltando por Betty Lou's Farm Hop!", alt: 'Tu foto de la granja',
     },
@@ -304,7 +304,7 @@ export const STRINGS = {
     },
     photo: {
       title: '笑一个！', save: '保存', share: '分享', copy: '复制链接', copied: '链接已复制！',
-      note: 'X 和 Facebook 会分享游戏的链接；保存照片后可以加到帖子里。',
+      note: '短信和 Facebook 会分享游戏的链接；保存照片后可以加到帖子里。',
       pasted: '已复制！粘贴到 Discord 吧', saved: '照片已保存！', igSaved: '已保存！发到 Instagram 吧',
       text: "在 Betty Lou's Farm Hop 里蹦蹦跳跳！", alt: '你在农场拍的照片',
     },
