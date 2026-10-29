@@ -250,6 +250,14 @@ body.farm.show-logo #title { display: flex; }
 .l3 span:nth-child(2) { color: #ffd84a; }
 .l3 span:nth-child(3) { color: #5bb4ff; }
 .l3 span:nth-child(4) { color: #6bd864; }
+.l4 {   /* still in early development */
+  display: inline-block; font-size: 16px; font-weight: 700; letter-spacing: .06em;
+  padding: 1px 12px 2px; margin-top: 8px;
+  background: var(--cream); color: var(--berry-d);
+  border: 2px solid var(--ink); border-radius: 999px;
+  box-shadow: 0 3px 0 var(--ink-soft);
+  transform: rotate(-2deg);
+}
 @keyframes bob { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-7px) } }
 
 #hint {
