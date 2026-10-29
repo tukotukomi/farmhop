@@ -2329,7 +2329,7 @@ function swapCoins(lane, toPumpkins) {
 // The spooky farm doesn't arrive (or leave) all at once: it spreads out row by row from
 // where the spooky sunflower was picked, a shimmer of sparks running along each row as
 // it turns.
-const WAVE_SPEED = 14;   // rows a second
+const WAVE_SPEED = 42;   // rows a second
 function flipLane(lane, on, near) {
   lane.spooked = on;
   spookGround(lane, on);
