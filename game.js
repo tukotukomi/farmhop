@@ -127,7 +127,7 @@ const canvas = document.getElementById('game');
 // No antialias on the canvas itself: it only ever shows the finished picture; the scene is smoothed in rtColor.
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;   // soft-edged shadows, so they blend rather than step
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x2f6e3a);
@@ -4787,7 +4787,7 @@ function updateFishing(dt) {
 // or a controller's right stick or shoulder buttons.
 // Drag up and down (or W / S, the right stick) to tilt it; zoom with the mouse wheel,
 // a pinch, Q / E or the triggers. Tilt and zoom are remembered on this device.
-const FISH_PITCH = [0.18, 1.25], FISH_ZOOM = [0.55, 1.8];
+const FISH_PITCH = [0.18, 1.25], FISH_ZOOM = [0.55, 1.8], FISH_SHADOW = 5;
 const fishView = { pitch: 0.62, zoom: 1, ...store.get('bl-fishcam', {}) };
 const fishCam = { on: false, yaw: 0, shown: 0, spin: 0, tilt: 0, zoomSpin: 0, swoop: 1, pitch: fishView.pitch, look: new THREE.Vector3() };
 let fishViewTimer = null;
@@ -4826,6 +4826,11 @@ fishCamHook = dt => {
   camera.lookAt(fishCam.look);
   sun.position.copy(fishCam.look).add(SUN_OFF);
   sun.target.position.copy(fishCam.look);
+  const sc = sun.shadow.camera;   // close up, shadows only need to cover the pond side: far finer detail on the hoppers
+  if (sc.right !== FISH_SHADOW) {
+    Object.assign(sc, { left: -FISH_SHADOW, right: FISH_SHADOW, top: FISH_SHADOW, bottom: -FISH_SHADOW });
+    sc.updateProjectionMatrix();
+  }
   sun.updateMatrixWorld();
   sun.target.updateMatrixWorld();
   camera.updateMatrixWorld();
