@@ -2253,19 +2253,29 @@ const EVENT_END = Date.UTC(2026, 10, 8, 8);   // midnight at the end of Nov 7, P
 const PUMPKING_PRICE = 300;
 const eventOn = () => Date.now() < EVENT_END;
 let pumpkins = store.get('bl-pumpkins', 0);
-let pumpkinGeo = null;
-const PUMPKIN_COIN_MAT = toon({ vertexColors: true, emissive: 0x3a1a00 });
+// Each one a little jack-o'-lantern: its carved face lit from inside, in a warm halo.
+let pumpkinGeo = null, pumpkinFace = null;
+const PUMPKIN_COIN_MAT = toon({ vertexColors: true, emissive: 0x7a3200 });
+const PUMPKIN_HALO_GEO = new THREE.SphereGeometry(0.36, 16, 12);
+const PUMPKIN_HALO_MAT = new THREE.MeshBasicMaterial({ color: 0xff9a2a, transparent: true, opacity: 0.32, depthWrite: false, blending: THREE.AdditiveBlending });
 function addPumpkin(lane, c) {
   if (!pumpkinGeo) {
-    const v = new VB(0.6);
-    v.ball(0.2, 0.16, 0.2, 0, 0.17, 0, PUMPKIN(0, 0));
-    v.cyl(0.025, 0.035, 0.08, 0, 0.36, 0, 0x5a7a2a, 0, 0, 0.25);
-    v.ball(0.07, 0.015, 0.045, 0.07, 0.35, 0, 0x4f8a2f, 0, 0.3, 0.3);
+    const v = new VB(0.6), f = new VB(0.6);
+    v.ball(0.21, 0.17, 0.21, 0, 0.18, 0, PUMPKIN(0, 0));
+    v.cyl(0.025, 0.035, 0.08, 0, 0.38, 0, 0x5a7a2a, 0, 0, 0.25);
+    v.ball(0.07, 0.015, 0.045, 0.07, 0.37, 0, 0x4f8a2f, 0, 0.3, 0.3);
+    for (const s of [-1, 1]) f.ball(0.065, 0.055, 0.02, s * 0.08, 0.225, 0.212, 0xffe07a, 0, 0, -s * 0.45);   // carved eyes (facing the camera)
+    f.ball(0.025, 0.022, 0.015, 0, 0.17, 0.218, 0xffe07a);                                                  // nose
+    f.torus(0.1, 0.03, Math.PI, 0, 0.14, 0.205, 0xffc23a, 0, 0, Math.PI);                                 // grin
     pumpkinGeo = v.geometry();
+    pumpkinFace = f.geometry();
   }
   const m = new THREE.Mesh(pumpkinGeo, PUMPKIN_COIN_MAT);
   m.position.set(c, LANE_Y[lane.type], 0);
   m.castShadow = true;
+  const face = new THREE.Mesh(pumpkinFace, GLOW_VMAT), halo = new THREE.Mesh(PUMPKIN_HALO_GEO, PUMPKIN_HALO_MAT);
+  halo.position.y = 0.2;
+  for (const o of [face, halo]) { o.layers.set(GLOW_LAYER); m.add(o); }
   lane.group.add(m);
   lane.coins.push({ c, m, pumpkin: true });
 }
@@ -2431,9 +2441,11 @@ function buildLane(r) {
       }
       if (r > 3 && rnd() < 0.16 && reach.size) addSunflower(lane, pick([...reach]));
       if (r >= spooky.next && !spooky.on && reach.size) plantSpooky(lane);
-      if (spooky.on && eventOn() && reach.size && Math.random() < 0.5) {   // more pumpkins besides (off the row's own dice, so the rest stays the same)
-        const free = [...reach].filter(c => !lane.coins.some(o => o.c === c));
-        if (free.length) addPumpkin(lane, free[Math.floor(Math.random() * free.length)]);
+      if (spooky.on && eventOn() && reach.size) {   // more pumpkins besides: one, and often a second (off the row's own dice, so the rest stays the same)
+        for (let k = Math.random() < 0.5 ? 2 : 1; k > 0; k--) {
+          const free = [...reach].filter(c => !lane.coins.some(o => o.c === c));
+          if (free.length) addPumpkin(lane, free[Math.floor(Math.random() * free.length)]);
+        }
       }
     }
   } else if (type === 'road') {
@@ -2447,6 +2459,7 @@ function buildLane(r) {
     const color = ri(0, TRACTORS.length - 1);
     addMovers(lane, () => (r >= UNLOCK.wagon && rnd() < 0.25 ? 'wagon' : 'tractor') + (rnd() < 0.5 ? color : ri(0, TRACTORS.length - 1)), 3, 7.5 - 2 * d);
     if (rnd() < 0.1) addSunflower(lane, ri(-COLS, COLS));
+    if (spooky.on && eventOn() && Math.random() < 0.25) { const c = Math.floor(Math.random() * (2 * COLS + 1)) - COLS; if (!lane.coins.some(o => o.c === c)) addPumpkin(lane, c); }   // and some on the roads
   } else if (type === 'pasture') {
     strip(vb, 0, 0xcfa66b, shade(0xcfa66b, 0.72));
     for (let i = 0; i < 14; i++) {
@@ -9216,4 +9229,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin };
