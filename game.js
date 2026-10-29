@@ -4144,10 +4144,11 @@ const crewList = () => farm.walkers.map(w => ({ k: w.key, hero: w.id, hidden: !!
 const FARM_STEP = 1, STEER_IDLE = 25;
 const walkerOf = key => farm.walkers?.find(w => w.key === key);
 const myKey = () => GUEST ? guestKey : heroId;   // the hopper this screen steers
-const roomAt = (w, x, z) => x > YARD.x0 && x < YARD.x1 && z > YARD.z0 && z < YARD.z1 && !blockedAt(x, z)
-  && farm.walkers.every(o => o === w || o.hidden || Math.hypot(x - o.x, z - o.z) > 0.7);
-function leapTo(w, x, z) {   // false (and a little bump in place) when a wall or a friend is in the way
-  const ok = roomAt(w, x, z);
+// crowd false: never mind other hoppers (squeezing up to the swing past someone in the way)
+const roomAt = (w, x, z, crowd = true) => x > YARD.x0 && x < YARD.x1 && z > YARD.z0 && z < YARD.z1 && !blockedAt(x, z)
+  && (!crowd || farm.walkers.every(o => o === w || o.hidden || Math.hypot(x - o.x, z - o.z) > 0.7));
+function leapTo(w, x, z, crowd = true) {   // false (and a little bump in place) when a wall or a friend is in the way
+  const ok = roomAt(w, x, z, crowd);
   if (x !== w.x || z !== w.z) w.face = Math.atan2(-(x - w.x), -(z - w.z));
   if (!ok) { x = w.x; z = w.z; }
   const up = ok ? 0.4 : 0.15;
@@ -4173,22 +4174,72 @@ function farmHop(id, dx, dr) {
   w.goal = null;
   leapTo(w, w.x + dx * FARM_STEP, w.z - dr * FARM_STEP);
 }
-function hopToward(id, x, z) {   // a tap on the grass: hop over there
+function hopToward(id, x, z) {   // a tap on the grass: hop over there, the long way round if need be
   const w = walkerOf(id);
   if (!w) return;
   w.swingGo = false;
   w.goal = { x, z };
+  w.path = findPath(w.x, w.z, x, z);
   if (!w.leap) nextLeap(w);
 }
-function nextLeap(w) {
-  const dx = w.goal.x - w.x, dz = w.goal.z - w.z, d = Math.hypot(dx, dz);
-  if (d < 0.35) { w.goal = null; return; }
-  const s = Math.min(FARM_STEP, d), a = Math.atan2(dz, dx);
-  for (const turn of [0, 0.6, -0.6, 1.2, -1.2]) {   // something in the way: try stepping round it
-    const x = w.x + Math.cos(a + turn) * s, z = w.z + Math.sin(a + turn) * s;
-    if (roomAt(w, x, z) && (!turn || Math.hypot(w.goal.x - x, w.goal.z - z) < d)) { leapTo(w, x, z); return; }
+// The way from here to there round the pond, the buildings and the decorations: A* over
+// a half-unit grid of the yard, then pulled taut into as few straight stretches as can
+// see each other. null when there's no way (the spot itself is inside something).
+const PATH_STEP = 0.5;
+function findPath(x0, z0, x1, z1) {
+  const S = PATH_STEP, X0 = YARD.x0, Z0 = YARD.z0, nx = Math.floor((YARD.x1 - X0) / S) + 1, nz = Math.floor((YARD.z1 - Z0) / S) + 1;
+  const cx = i => X0 + i * S, cz = j => Z0 + j * S;
+  const ci = x => clamp(Math.round((x - X0) / S), 0, nx - 1), cj = z => clamp(Math.round((z - Z0) / S), 0, nz - 1);
+  if (blockedAt(x1, z1) || pathClear(x0, z0, x1, z1)) return pathClear(x0, z0, x1, z1) ? [] : null;
+  const wall = new Int8Array(nx * nz).fill(-1), isWall = (i, j) => { const k = j * nx + i; if (wall[k] < 0) wall[k] = blockedAt(cx(i), cz(j)) ? 1 : 0; return wall[k] === 1; };
+  const start = cj(z0) * nx + ci(x0), goal = cj(z1) * nx + ci(x1);
+  const g = new Float32Array(nx * nz).fill(Infinity), from = new Int32Array(nx * nz).fill(-1), done = new Uint8Array(nx * nz);
+  const h = k => Math.hypot(k % nx - goal % nx, Math.floor(k / nx) - Math.floor(goal / nx));
+  const open = [start];
+  g[start] = 0;
+  while (open.length) {
+    let bi = 0;
+    for (let i = 1; i < open.length; i++) if (g[open[i]] + h(open[i]) < g[open[bi]] + h(open[bi])) bi = i;
+    const k = open[bi];
+    open[bi] = open[open.length - 1]; open.pop();
+    if (k === goal) break;
+    if (done[k]) continue;
+    done[k] = 1;
+    const i = k % nx, j = Math.floor(k / nx);
+    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+      const a = i + di, b = j + dj;
+      if (a < 0 || b < 0 || a >= nx || b >= nz || isWall(a, b)) continue;
+      if (di && dj && (isWall(i + di, j) || isWall(i, j + dj))) continue;   // no cutting corners
+      const n = b * nx + a, cost = g[k] + (di && dj ? Math.SQRT2 : 1);
+      if (cost < g[n]) { g[n] = cost; from[n] = k; open.push(n); }
+    }
   }
-  w.goal = null;
+  if (from[goal] < 0 && goal !== start) return null;
+  const cells = [];
+  for (let k = goal; k !== start && k >= 0; k = from[k]) cells.unshift([cx(k % nx), cz(Math.floor(k / nx))]);
+  cells.push([x1, z1]);
+  const out = [];   // pulled taut: from each corner, straight on to the furthest point in sight
+  let at = [x0, z0];
+  for (let i = 0; i < cells.length;) {
+    let j = cells.length - 1;
+    while (j > i && !pathClear(at[0], at[1], cells[j][0], cells[j][1])) j--;
+    out.push(cells[j]);
+    at = cells[j];
+    i = j + 1;
+  }
+  return out;
+}
+function nextLeap(w) {
+  while (w.path?.length > 1 && Math.hypot(w.path[0][0] - w.x, w.path[0][1] - w.z) < 0.35) w.path.shift();   // reached a corner: on to the next
+  const [gx, gz] = w.path?.length ? w.path[0] : [w.goal.x, w.goal.z], last = !(w.path?.length > 1);
+  const dx = gx - w.x, dz = gz - w.z, d = Math.hypot(dx, dz);
+  if (d < 0.35 && last) { w.goal = w.path = null; return; }
+  const s = Math.min(FARM_STEP, d), a = Math.atan2(dz, dx), crowd = !(w.swingGo && last);   // the last hop up to the swing squeezes past anyone there
+  for (const turn of [0, 0.6, -0.6, 1.2, -1.2]) {   // someone in the way: try stepping round them
+    const x = w.x + Math.cos(a + turn) * s, z = w.z + Math.sin(a + turn) * s;
+    if (roomAt(w, x, z, crowd) && (!turn || Math.hypot(gx - x, gz - z) < d)) { leapTo(w, x, z, crowd); return; }
+  }
+  w.goal = w.path = null;
   leapTo(w, w.x, w.z);
 }
 // The TV's own hopper, from the keyboard or a controller
@@ -4200,13 +4251,18 @@ function nextLeap(w) {
 // Sitting bends a hopper at the waist: while seated it wears a copy of its body with
 // everything below the hips swung forward, so its legs stick out over the front of
 // the seat. HIPS: where each one's legs meet its body (model units, before the 1.3 scale).
-const HIPS = { betty: 0.265, axolotl: 0.18, catstar: 0.235, leafwish: 0.2, tuko: 0.235, spider: 0.235, lyla: 0.24, carla: 0.2, siracha: 0.17, ribbit: 0.235, moonbun: 0.235 };
+const HIPS = { betty: 0.265, axolotl: 0.18, catstar: 0.235, leafwish: 0.2, tuko: 0.235, spider: 0.235, lyla: 0.24, carla: 0.15, siracha: 0.17, ribbit: 0.235, moonbun: 0.235 };   // (Carla's at her skirt's hem: the dress sits on the seat, legs out from under it)
+const TAIL_UP = -0.95;   // a low tail tips up and back over the back of the seat while sitting
 const SIT_BEND = 1.35;   // how far forward the legs swing (radians)
 const hipOf = w => (HIPS[w.id] ?? 0.22) * 1.3;
 function bendBody(w, on) {
   const hip = HIPS[w.id] ?? 0.22;
   for (const m of [...w.m.inner.children]) {
     if (!m.isMesh) continue;
+    if (w.m.tails.includes(m)) {   // tails don't bend with the legs; a low one lifts clear of the seat instead
+      if (m.position.y < 0.45 && (m.userData.axis || 'z') !== 'x') m.rotation.x = on ? TAIL_UP : 0;
+      continue;
+    }
     if (!on) {   // back to standing
       if (m.userData.stand) { m.geometry.dispose(); m.geometry = m.userData.stand; m.userData.stand = null; }
       continue;
@@ -4243,7 +4299,16 @@ function goSwing(w, mine = false) {   // head for the front of the swing; false 
   const [x, z] = swingFront();
   if (blockedAt(x, z)) return false;
   farm.swingSitter = w;
-  if (mine) { hopToward(w.key, x, z); w.swingGo = true; return true; }
+  if (mine) {
+    for (const o of farm.walkers) {   // anyone loitering in front of the swing wanders off
+      if (o === w || o.sit || o.fishing || o.show || playerMarks().some(([p]) => p === o) || Math.hypot(o.x - x, o.z - z) > 1.1) continue;
+      [o.tx, o.tz] = nextSpot(o);
+      toGuests({ t: 'walk', k: o.key, x: o.x, z: o.z, tx: o.tx, tz: o.tz });
+    }
+    hopToward(w.key, x, z);
+    w.swingGo = true;
+    return true;
+  }
   if (!pathClear(w.x, w.z, x, z)) { farm.swingSitter = null; return false; }
   w.swingGo = true;
   w.tx = x; w.tz = z;
@@ -8274,4 +8339,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyK, songKey, buyKey, setShopTab, noteFreq };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyK, songKey, buyKey, setShopTab, noteFreq };
