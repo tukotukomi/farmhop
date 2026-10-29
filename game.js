@@ -6726,12 +6726,32 @@ async function sharePhoto() {
 const SHARE_TO = {
   x: () => 'https://x.com/intent/post?text=' + encodeURIComponent(t('photo.text')) + '&url=' + encodeURIComponent(SITE),
   fb: () => 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(SITE),
-  bsky: () => 'https://bsky.app/intent/compose?text=' + encodeURIComponent(t('photo.text') + ' ' + SITE),
 };
-document.querySelectorAll('.photoSocial [data-net]').forEach(b => b.addEventListener('click', () => window.open(SHARE_TO[b.dataset.net](), '_blank', 'noopener')));
-$('photoCopy').addEventListener('click', async () => {
-  try { await navigator.clipboard.writeText(SITE); $('photoCopy').textContent = t('photo.copied'); setTimeout(() => { $('photoCopy').textContent = t('photo.copy'); }, 1600); } catch {}
-});
+function flashLabel(btn, text) {   // a button says what just happened, for a moment
+  clearTimeout(btn._back);
+  btn._label ??= btn.textContent;
+  btn.textContent = text;
+  btn._back = setTimeout(() => { btn.textContent = btn._label; btn._label = null; }, 2200);
+}
+// Instagram and Discord have no share links, so they get the photo itself: through the
+// device's share sheet where there is one; otherwise copied for pasting into Discord, or
+// saved and Instagram opened.
+function shareApp(net, btn) {
+  if (navigator.canShare?.({ files: [photoFile()] })) { sharePhoto(); return; }
+  if (net === 'dc') {
+    navigator.clipboard.write([new ClipboardItem({ 'image/png': photoBlob })])
+      .then(() => flashLabel(btn, t('photo.pasted')), () => { savePhoto(); flashLabel(btn, t('photo.saved')); });
+    return;
+  }
+  savePhoto();
+  flashLabel(btn, t('photo.igSaved'));
+  window.open('https://www.instagram.com/', '_blank', 'noopener');
+}
+document.querySelectorAll('.photoSocial [data-net]').forEach(b => b.addEventListener('click', () => {
+  if (SHARE_TO[b.dataset.net]) window.open(SHARE_TO[b.dataset.net](), '_blank', 'noopener');
+  else shareApp(b.dataset.net, b);
+}));
+$('photoCopy').addEventListener('click', () => { navigator.clipboard.writeText(SITE).then(() => flashLabel($('photoCopy'), t('photo.copied')), () => {}); });
 $('camBtn').addEventListener('click', takePhoto);
 $('photoSave').addEventListener('click', savePhoto);
 $('photoShare').addEventListener('click', sharePhoto);
