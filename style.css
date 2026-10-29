@@ -86,6 +86,31 @@ button { font: inherit; color: inherit; }
 #gear { right: calc(env(safe-area-inset-right) + 76px); --c1: var(--lilac); --c2: var(--lilac-d); }
 body.farm #sound, body.over #sound, body.farm #gear { display: grid; }
 body.farm.decor #sound, body.farm.decor #gear { display: none; }
+/* the song's key: beside full screen (or the settings), a tap opens the keys you have */
+#keyBtn {
+  position: fixed; top: calc(env(safe-area-inset-top) + 64px); right: calc(env(safe-area-inset-right) + 196px);
+  width: 50px; height: 50px; display: none; --c1: #ffd86a; --c2: #e0a82a;
+  align-content: center; gap: 1px; line-height: 1; color: var(--ink);
+}
+body.noFull #keyBtn { right: calc(env(safe-area-inset-right) + 136px); }
+body.farm #keyBtn { display: grid; }
+body.farm.decor #keyBtn, body.guest #keyBtn { display: none; }
+#keyBtnName { font-size: 18px; font-weight: 700; }
+#keyBtnScale { font-size: 9px; font-weight: 700; opacity: .75; }
+.keyMenu {
+  position: fixed; z-index: 9; min-width: 150px; max-height: calc(100dvh - 140px); overflow-y: auto; box-sizing: border-box;
+  display: grid; gap: 2px; padding: 6px;
+  background: var(--cream); border: 3px solid var(--ink); border-radius: 18px; box-shadow: 0 5px 0 var(--ink-soft);
+  animation: pop .25s cubic-bezier(.3, 1.6, .5, 1);
+}
+.keyMenu[hidden] { display: none; }
+.keyMenu button {
+  font: inherit; font-size: 16px; font-weight: 600; color: var(--ink); text-align: start; white-space: nowrap;
+  background: none; border: 0; border-radius: 12px; padding: 8px 12px; cursor: pointer;
+}
+.keyMenu button:hover, .keyMenu button:focus-visible { background: var(--cream-d); outline: none; }
+.keyMenu button.on { background: var(--sun); font-weight: 700; }
+.keyMenu button.more { font-size: 13px; color: var(--berry-d); text-decoration: underline; }
 /* full screen: beside the settings, wherever the browser can do it */
 #fullBtn {
   position: fixed; top: calc(env(safe-area-inset-top) + 64px); right: calc(env(safe-area-inset-right) + 136px);
@@ -1068,6 +1093,8 @@ body.guest #phonesBtn, body.guest #partyBtn, body.guest #play { display: none !i
   #sound { right: calc(env(safe-area-inset-right) + 140px); }
   #gear { right: calc(env(safe-area-inset-right) + 200px); }
   #fullBtn { top: calc(env(safe-area-inset-top) + 12px); right: calc(env(safe-area-inset-right) + 320px); }
+  #keyBtn { top: calc(env(safe-area-inset-top) + 12px); right: calc(env(safe-area-inset-right) + 380px); }
+  body.noFull #keyBtn { right: calc(env(safe-area-inset-right) + 320px); }
   #phonesBtn { top: calc(env(safe-area-inset-top) + 12px); left: auto; right: calc(env(safe-area-inset-right) + 260px); }
   #decorBar { bottom: calc(env(safe-area-inset-bottom) + 14px); }
   .shopBtn, .rotateBtn { width: 64px; height: 64px; }

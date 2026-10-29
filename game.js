@@ -6531,7 +6531,12 @@ function buyKey(i) {
     store.set('bl-keys', [...owned].filter(k => k !== 'D').concat(id));
     hud();
   }
-  if (n === songKey() && sc === songScale()) { refreshShop(); return; }
+  if (!useKey(n, sc)) { refreshShop(); return; }
+  refreshShop(t('keyHere', { k: keyLabel(i, sc) }));
+}
+// Switch the song to a key (n semitones from D) and scale; false if it's already playing.
+function useKey(n, sc) {
+  if (n === songKey() && sc === songScale()) return false;
   store.set('bl-key', n);   // farm settings: the guests on this farm hear it too
   store.set('bl-scale', sc);
   sfx.ensure();
@@ -6539,11 +6544,63 @@ function buyKey(i) {
   // Right as the tune changes key, your hopper sings up its chord: the root, third, fifth and octave.
   const deg = SCALES[sc].deg;
   [0, 4 + deg[2], 7 + deg[4], 12].forEach((st, j) => sfx.note(heroId, 293.66 * 2 ** ((n + st) / 12), wait + j * STEP_SEC));
-  refreshShop(t('keyHere', { k: keyLabel(i, sc) }));
+  showKeyBtn();
+  return true;
 }
 // Key names: a scale can spell some differently (C# minor, not Db minor).
 const keyGlyph = (i, sc) => STRINGS.en.keyNamesBy?.[sc] ? t('keyNamesBy.' + sc + '.' + i) : t('keyNames.' + i);
 const keyLabel = (i, sc) => t('scaleKey.' + sc, { k: keyGlyph(i, sc) });
+// The key button by the settings: the song's key now; a tap drops down the keys you have
+// (major first, then minor, each C to B) and a way to the Market for more.
+const keyMenu = $('keyMenu');
+function showKeyBtn() {
+  const sc = songScale(), i = SONG_KEYS.findIndex(k => k[1] === songKey());
+  $('keyBtnName').textContent = keyGlyph(i, sc);
+  $('keyBtnScale').textContent = t('scaleShort.' + sc);
+  $('keyBtn').setAttribute('aria-label', t('aria.keyBtn', { k: keyLabel(i, sc) }));
+}
+function openKeyMenu() {
+  const owned = ownedKeys(), items = [];
+  for (const sc of Object.keys(SCALES)) SONG_KEYS.forEach((k, i) => { if (owned.has(keyId(i, sc))) items.push([i, sc]); });
+  const now = songKey(), nowSc = songScale();
+  keyMenu.replaceChildren(...items.map(([i, sc]) => {
+    const b = document.createElement('button');
+    b.setAttribute('role', 'menuitemradio');
+    const on = SONG_KEYS[i][1] === now && sc === nowSc;
+    b.setAttribute('aria-checked', String(on));
+    b.classList.toggle('on', on);
+    b.textContent = keyLabel(i, sc);
+    b.addEventListener('click', () => { closeKeyMenu(); useKey(SONG_KEYS[i][1], sc); });
+    return b;
+  }));
+  const more = document.createElement('button');
+  more.className = 'more';
+  more.setAttribute('role', 'menuitem');
+  more.textContent = t('keyMenuMore');
+  more.addEventListener('click', () => { closeKeyMenu(); openShop(); setShopTab('music'); });
+  keyMenu.append(more);
+  const r = $('keyBtn').getBoundingClientRect();
+  keyMenu.style.top = r.bottom + 10 + 'px';
+  keyMenu.style.right = Math.max(8, innerWidth - r.right) + 'px';
+  keyMenu.hidden = false;
+  $('keyBtn').setAttribute('aria-expanded', 'true');
+  (keyMenu.querySelector('.on') || keyMenu.firstChild).focus({ preventScroll: true });
+}
+function closeKeyMenu() {
+  keyMenu.hidden = true;
+  $('keyBtn').setAttribute('aria-expanded', 'false');
+}
+$('keyBtn').addEventListener('click', () => { sfx.ensure(); if (keyMenu.hidden) openKeyMenu(); else closeKeyMenu(); });
+document.addEventListener('pointerdown', e => { if (!keyMenu.hidden && !e.target.closest('#keyMenu, #keyBtn')) closeKeyMenu(); }, true);
+keyMenu.addEventListener('keydown', e => {
+  const items = [...keyMenu.children], at = items.indexOf(document.activeElement);
+  if (e.code === 'Escape') { closeKeyMenu(); $('keyBtn').focus(); }
+  else if (e.code === 'ArrowDown' || e.code === 'ArrowUp') items[(at + (e.code === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus();
+  else return;
+  e.preventDefault();
+  e.stopPropagation();
+});
+showKeyBtn();
 function refreshShop(msg) {
   const nav = document.body.classList.contains('pad') || document.body.classList.contains('keys');
   $('shopWho').textContent = t(shopTab === 'music' ? 'shopKeyWho' : 'shopWho');
@@ -7971,6 +8028,7 @@ function applyLang() {
   document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
   document.querySelectorAll('[data-i18n-aria]').forEach(el => el.setAttribute('aria-label', t(el.dataset.i18nAria)));
   document.querySelectorAll('#heroGrid .heroCard, #bunkGrid .heroCard').forEach(c => { c.querySelector('.heroName').textContent = heroName(c.dataset.id); });
+  showKeyBtn();
   hud();
   setHint();
   if (pondOpen()) refreshPond();
