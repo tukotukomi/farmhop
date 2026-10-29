@@ -825,7 +825,7 @@ function buildTuko() {
 // jeans and work boots, and his acoustic guitar slung on his back.
 function buildCaptain() {
   const SKIN = 0xf5caa8, DENIM = 0x3d5f9a, DENIM_D = 0x2e4a7a, BOOT = 0x6b4226, W = 0xf6f4ef, W_D = 0xe4e0d8;
-  const HAT = 0x2f4566, HAT_D = 0x22344f, SHIRT = 0x2a2a30, WOOD = 0xd9984e, WOOD_D = 0x8a5a2b, NECK = 0x6b4226;
+  const HAT = 0x2f4566, HAT_D = 0x22344f, SHIRT = 0x2a2a30;
   const group = new THREE.Group(), inner = new THREE.Group();
   group.add(inner);
   const b = new VB();
@@ -863,7 +863,17 @@ function buildCaptain() {
   b.ball(0.03, 0.016, 0.01, 0, 0.99, -0.226, 0x3a7fc0, -0.35, 0, 0);     // a little fish on it
   b.cap(0.018, 0.4, 0.005, 0.49, -0.168, 0x5a3a24, 0, 0, 0.87);          // guitar strap, shoulder to hip, under the beard
   inner.add(b.mesh());
-  const g = new VB();                                                   // the acoustic guitar on his back
+  const gm = guitarMesh();                                              // the acoustic guitar on his back
+  gm.name = 'backGuitar';                                               // (swung round to his front on the Jam Stage)
+  gm.position.set(0.02, 0.5, 0.2);
+  gm.rotation.set(0.12, 0, -0.55);
+  inner.add(gm);
+  return finishHero(group, inner, []);
+}
+
+// Captain Awesome's acoustic guitar: the sound hole faces +z, the neck points up.
+function guitarMesh() {
+  const WOOD = 0xd9984e, WOOD_D = 0x8a5a2b, NECK = 0x6b4226, g = new VB();
   g.ball(0.17, 0.19, 0.06, 0, 0, 0, WOOD);                              // lower bout
   g.ball(0.13, 0.13, 0.06, 0, 0.2, 0, WOOD);                            // upper bout
   g.cyl(0.05, 0.05, 0.01, 0, 0.06, 0.06, 0x2a1a10, Math.PI / 2, 0, 0);  // sound hole
@@ -871,11 +881,8 @@ function buildCaptain() {
   g.rbox(0.055, 0.42, 0.04, 0, 0.5, 0.01, NECK, 0.012);                 // neck
   g.rbox(0.085, 0.12, 0.04, 0, 0.75, 0.0, WOOD_D, 0.015);               // headstock
   for (const s of [-1, 1]) for (const y of [0.71, 0.75, 0.79]) g.ball(0.012, 0.012, 0.012, s * 0.055, y, 0, 0xd8d8d8);   // tuning pegs
-  const gm = g.mesh();
-  gm.position.set(0.02, 0.5, 0.2);
-  gm.rotation.set(0.12, 0, -0.55);
-  inner.add(gm);
-  return finishHero(group, inner, []);
+  for (const x of [-0.015, -0.005, 0.005, 0.015]) g.cyl(0.003, 0.003, 0.74, x, 0.29, 0.045, 0xe8e8f0);   // strings
+  return g.mesh();
 }
 
 // A little heart, facing out from the front (for Spicy Spider's shirt).
@@ -6742,7 +6749,7 @@ function setDrums(on) {
   jam.drums = !!on && ownedDecor.has('drums');   // a strict true/false: toggle() with undefined would flip the class instead
   letGoAll();
   $('jam').classList.toggle('drums', jam.drums);
-  if (jam.banjo) jam.banjo.visible = !jam.drums;   // the banjo goes down while you drum
+  showInstrument(jam.banjo, !jam.drums);   // the banjo goes down while you drum
   $('instBtn').setAttribute('aria-label', jam.drums ? t('aria.instHopper', { name: heroName(heroId) }) : t('aria.instDrums'));
   $('instFace').src = jam.drums ? shots.cards[HEROES.indexOf(hero())] : shots.decor[DECOR.indexOf('drums')];
   if (GUEST) guestNet.send({ t: 'mode', drums: jam.drums });
@@ -6846,6 +6853,25 @@ function banjoMesh() {
   m.rotation.z = -0.85;
   return m;
 }
+// What a hopper plays on stage: the banjo, or a guitar they carry (Captain Awesome's), swung round from their back.
+function holdInstrument(m) {
+  const back = m.inner.getObjectByName('backGuitar');
+  let inst;
+  if (back) {
+    inst = guitarMesh();
+    inst.position.set(-0.04, 0.34, -0.27);   // across the chest, the sound hole out front
+    inst.rotation.set(0, Math.PI, 0.85);
+    inst.userData.back = back;
+    back.visible = false;
+  } else inst = banjoMesh();
+  m.inner.add(inst);
+  return inst;
+}
+function showInstrument(inst, on) {   // in hand, or put down (a guitar goes back over the shoulder) while they drum
+  if (!inst) return;
+  inst.visible = on;
+  if (inst.userData.back) inst.userData.back.visible = !on;
+}
 function jamSetup() {
   if (jam.r) return;
   jam.r = new THREE.WebGLRenderer({ canvas: $('jamCanvas'), alpha: true, antialias: true });
@@ -6877,8 +6903,7 @@ function openJam() {
   jamSetup();
   if (jam.model) { jam.scene.remove(jam.model.group); disposeHero(jam.model); }
   jam.model = hero().build();
-  jam.banjo = banjoMesh();
-  jam.model.inner.add(jam.banjo);
+  jam.banjo = holdInstrument(jam.model);
   jam.scene.add(jam.model.group);
   if (ownedDecor.has('drums') && !jam.kit) {   // the drum kit stands behind, beside the hopper
     jam.kit = new THREE.Group();
@@ -7206,7 +7231,7 @@ function onPlayer(slot, m, direct = false) {
   const others = pl.guest ? slot : undefined, k = 'p' + slot;
   if (m.t === 'oct') pl.oct = clamp(+m.v || 0, -1, 1);
   else if (m.t === 'sus') pl.sus = clamp(+m.v || 0, 0, 1);
-  else if (m.t === 'mode') { pl.drums = !!m.drums && ownedDecor.has('drums'); if (pl.banjo) pl.banjo.visible = !pl.drums; tellBand(); }
+  else if (m.t === 'mode') { pl.drums = !!m.drums && ownedDecor.has('drums'); showInstrument(pl.banjo, !pl.drums); tellBand(); }
   else if (!jam.open) return;   // notes only sound while the Jam Stage is open
   else if (m.t === 'note') {
     const r = clamp(m.r | 0, 0, JAM_ROWS - 1), c = clamp(m.c | 0, 0, SCALE.length - 1), key = 'r' + slot + '-' + r + '-' + c;
@@ -7327,7 +7352,7 @@ function applyBand(list) {   // guest: the rest of the band, as the host lists i
   for (const b of list) {
     const pl = jam.band.get(b.k) || { hero: b.hero, n: b.n, kick: 0, m: null, banjo: null };
     pl.drums = !!b.drums;
-    if (pl.banjo) pl.banjo.visible = !pl.drums;
+    showInstrument(pl.banjo, !pl.drums);
     jam.band.set(b.k, pl);
   }
   layoutStage();
@@ -7478,9 +7503,8 @@ function assign(slot, hero) {
 }
 function addPlayerModel(pl) {
   pl.m = HEROES.find(h => h.id === pl.hero).build();
-  pl.banjo = banjoMesh();
-  pl.banjo.visible = !pl.drums;
-  pl.m.inner.add(pl.banjo);
+  pl.banjo = holdInstrument(pl.m);
+  showInstrument(pl.banjo, !pl.drums);
   jam.scene.add(pl.m.group);
 }
 function dropPlayer(slot) {
