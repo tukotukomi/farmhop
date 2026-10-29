@@ -4097,9 +4097,11 @@ window.addEventListener('keydown', e => {
     return;
   }
   if (game.picking && bookOpen()) { if (e.code === 'Escape' || e.code === 'Enter') closeBook(); e.preventDefault(); return; }
-  if (game.picking && pondOpen()) {   // Fish Pond panel: Enter buys, F goes fishing, Escape closes
+  if (game.picking && bagOpen()) { bagKey(e.code); e.preventDefault(); return; }
+  if (game.picking && pondOpen()) {   // Fish Pond panel: Enter buys, F goes fishing, B opens the backpack, Escape closes
     if (e.code === 'Enter' || e.code === 'Space') buyPond();
     else if (e.code === 'KeyF') goFish(myKey(), 'keys');
+    else if (e.code === 'KeyB') openBag();
     else if (e.code === 'Escape') closePond();
     e.preventDefault();
     return;
@@ -4361,6 +4363,7 @@ function refreshPond() {
   $('pondCost').textContent = cost;
   $('pondBuy').disabled = short > 0;
   $('pondNeed').textContent = needText(short);
+  $('bagN').textContent = bagCount() || '';
 }
 function openPond() {
   if (GUEST) { goFish(myKey(), document.body.classList.contains('pad') ? 'pad' : 'tap'); return; }   // a guest can't buy, but can fish
@@ -4388,7 +4391,7 @@ $('pond').addEventListener('click', e => { if (e.target.id === 'pond') closePond
 // the pond. Your hopper hops to the dock, or to a free spot on the bank, and gets
 // a rod out. Cast, wait for the bobber to dip, then hook it in time, and reel it
 // in by tapping along with the music (see startReel). Everything caught goes in
-// the Fish Book and is sold for sunflowers straight away.
+// the Fish Book, and every fish (not the boots) into your Fish Backpack.
 // Everyone can fish at once: you, friends on this screen (X to fish, A to reel,
 // B to stop; the keyboard friend Right Shift and the up arrow), and guests on
 // their own devices, who each see everyone else's rod and bobber and catches.
@@ -4721,12 +4724,7 @@ function logFish(id, cm) {   // into this device's Fish Book: is it a new kind, 
 function landFish(f) {
   const sp = f.sp, cm = Math.round(sp.cm[0] + (sp.cm[1] - sp.cm[0]) * Math.random() ** 1.6);
   const rec = logFish(sp.id, cm);
-  if (sp.price) {   // sold on the spot
-    game.coins += sp.price;
-    if (GUEST) guestNet.send({ t: 'fsell', sp: sp.id });   // the sunflowers go to the farm we're on
-    else store.set('bl-coins', game.coins);
-    hud();
-  }
+  if (sp.price) addToBag(sp.id);   // to sell from the Fish Pond, or craft with
   showCatch(f.w, sp, cm, rec);
   burst(f.rig.bx, 0.1, FARM_Z + f.rig.bz, [0xffffff, 0xbfe9ff, 0xffd23f], 14, 1.2, 3.5, 0.07, 0.6);
   sfx.splash();
@@ -4735,12 +4733,12 @@ function landFish(f) {
   if (GUEST) guestNet.send(msg); else toGuests(msg);
   setSt(f, 'show', 3);
 }
-// A card over the hopper's head: the fish, its size, what it sold for, and New! or Best!
+// A card over the hopper's head: the fish, its size, into the backpack, and New! or Best!
 function showCatch(w, sp, cm, rec) {
   const el = document.createElement('div');
   el.className = 'fishCatch';
   const badge = rec?.isNew ? t('fish.new') : rec?.isBest ? t('fish.best') : '';
-  el.innerHTML = `<div class="card"><img alt="" src="${shots.fish[FISH.indexOf(sp)]}"><b></b><span class="cm"></span>${sp.price ? `<span class="gain">+${sp.price} ${FLOWER_SVG}</span>` : ''}${badge ? '<i class="badge"></i>' : ''}</div>`;
+  el.innerHTML = `<div class="card"><img alt="" src="${shots.fish[FISH.indexOf(sp)]}"><b></b><span class="cm"></span>${sp.price ? `<span class="gain">+1 ${BAG_SVG}</span>` : ''}${badge ? '<i class="badge"></i>' : ''}</div>`;
   el.querySelector('b').textContent = fishName(sp.id);
   el.querySelector('.cm').textContent = t('fish.cm', { n: cm });
   if (badge) el.querySelector('.badge').textContent = badge;
@@ -4787,18 +4785,9 @@ function remoteCatch(m) {
   const sp = FISH.find(s => s.id === m.sp), w = walkerOf(m.k);
   if (sp && w) showCatch(w, sp, clamp(m.cm | 0, 1, 999), null);
 }
-// The host hears from a guest: their rod, a catch, or a fish sold for the farm.
-const lastSell = new Map();
+// The host hears from a guest: their rod or a catch.
 function guestFish(slot, m) {
-  if (m.t === 'fsell') {
-    const sp = FISH.find(s => s.id === m.sp), now = performance.now();
-    if (!sp || !sp.price || now - (lastSell.get(slot) || 0) < 1500) return;   // nobody lands two fish that fast
-    lastSell.set(slot, now);
-    game.coins += sp.price;
-    store.set('bl-coins', game.coins);
-    hud();
-    return;
-  }
+  if (m.t === 'fsell') return;   // from before the backpack: a guest's fish now go home with them
   const msg = { ...m, k: 'p' + slot };
   if (m.t === 'fv') applyFishView(msg); else remoteCatch(msg);
   toGuests(msg, slot);
@@ -4984,6 +4973,154 @@ $('fishCast').addEventListener('pointerdown', e => {
 });
 $('bookClose').addEventListener('click', closeBook);
 $('book').addEventListener('click', e => { if (e.target.id === 'book') closeBook(); });
+
+// ---------- Fish Backpack ----------
+// Every fish you catch (not the boots) waits in here, to sell for sunflowers or,
+// later on, to craft with. It's yours rather than the farm's, so a guest's catch
+// goes home with them. Tap fish (or + and −) to choose how many to sell, then
+// Sell asks once more before they go.
+const BAG_KEY = 'bl-bag';
+let fishBag = store.get(BAG_KEY, {});              // id -> how many
+const bagPick = {};                                // id -> how many chosen to sell
+const bagOpen = () => $('bag').classList.contains('show');
+const bagGrid = $('bagGrid');
+const BAG_SVG = $('bagBtn').querySelector('svg').outerHTML;
+const bagKinds = () => FISH.filter(sp => fishBag[sp.id] > 0);
+const bagCount = () => FISH.reduce((n, sp) => n + (fishBag[sp.id] || 0), 0);
+const pickCount = () => FISH.reduce((n, sp) => n + (bagPick[sp.id] || 0), 0);
+const pickTotal = () => FISH.reduce((n, sp) => n + (bagPick[sp.id] || 0) * sp.price, 0);
+const bagCards = () => [...bagGrid.children];
+const asking = () => !$('bagSure').hidden;
+let bagFocus = 0;
+function addToBag(id) {
+  fishBag[id] = (fishBag[id] || 0) + 1;
+  store.set(BAG_KEY, fishBag);
+}
+function refreshBag() {
+  const kinds = bagKinds();
+  for (const id in bagPick) bagPick[id] = clamp(bagPick[id], 0, fishBag[id] || 0);
+  bagGrid.replaceChildren(...kinds.map(sp => {
+    const k = bagPick[sp.id] || 0, card = document.createElement('div');
+    card.className = 'heroCard' + (k ? ' on' : '');
+    card.dataset.id = sp.id;
+    card.innerHTML = `<img class="cutout" alt="" src="${shots.fish[FISH.indexOf(sp)]}"><span class="heroName"></span><span class="lvl">${FLOWER_SVG}${sp.price}</span><i class="tag"></i>`
+      + '<div class="pick"><button class="less bubble">−</button><b></b><button class="more bubble">+</button></div>';
+    card.querySelector('.heroName').textContent = fishName(sp.id);
+    card.querySelector('.tag').textContent = t('fish.count', { n: fishBag[sp.id] });
+    card.querySelector('.pick b').textContent = k;
+    card.querySelector('.less').setAttribute('aria-label', t('bag.less'));
+    card.querySelector('.more').setAttribute('aria-label', t('bag.more'));
+    card.querySelector('.less').disabled = !k;
+    card.querySelector('.more').disabled = k >= fishBag[sp.id];
+    return card;
+  }));
+  bagFocus = clamp(bagFocus, 0, Math.max(0, kinds.length - 1));
+  bagCards().forEach((c, i) => c.classList.toggle('focus', i === bagFocus));
+  $('bagWho').textContent = kinds.length ? t('bag.who') : t('bag.empty');
+  $('bagBar').hidden = !kinds.length;
+  $('bagAll').querySelector('span').textContent = kinds.length && kinds.every(sp => bagPick[sp.id] === fishBag[sp.id]) ? t('bag.none') : t('bag.all');
+  $('bagTotal').textContent = pickTotal();
+  $('bagSell').disabled = !pickCount();
+}
+function pickFish(id, d) {
+  const was = bagPick[id] || 0, k = clamp(was + d, 0, fishBag[id] || 0);
+  if (k === was) { sfx.bump(); return; }
+  bagPick[id] = k;
+  sfx.pick();
+  refreshBag();
+}
+function pickAll() {   // everything, or (with everything chosen already) nothing
+  const kinds = bagKinds();
+  if (!kinds.length) return;
+  const all = kinds.every(sp => bagPick[sp.id] === fishBag[sp.id]);
+  for (const sp of kinds) bagPick[sp.id] = all ? 0 : fishBag[sp.id];
+  sfx.pick();
+  refreshBag();
+}
+function bagNav(dir) {
+  bagFocus = gridStep(bagCards(), bagFocus, dir);
+  bagCards().forEach((c, i) => c.classList.toggle('focus', i === bagFocus));
+  bagCards()[bagFocus]?.scrollIntoView({ block: 'nearest' });
+}
+function showSure(on) {
+  $('bagSure').hidden = !on;
+  $('bagGrid').hidden = $('bagWho').hidden = on;
+  if (on) $('bagBar').hidden = true;
+  else refreshBag();
+}
+function askSell() {   // what's going, and for how much, before anything is sold
+  const n = pickCount();
+  if (!n) { sfx.bump(); return; }
+  $('bagSureText').textContent = n === 1 ? t('bag.sure1') : t('bag.sureN', { n });
+  $('bagSureList').replaceChildren(...bagKinds().filter(sp => bagPick[sp.id]).map(sp => {
+    const li = document.createElement('li');
+    li.innerHTML = `<img alt="" src="${shots.fish[FISH.indexOf(sp)]}"><span></span><b>${FLOWER_SVG}${sp.price * bagPick[sp.id]}</b>`;
+    li.querySelector('span').textContent = fishName(sp.id) + ' ' + t('fish.count', { n: bagPick[sp.id] });
+    return li;
+  }));
+  $('bagSureTotal').textContent = pickTotal();
+  showSure(true);
+}
+function sellFish() {
+  const total = pickTotal();
+  if (GUEST || !total) { showSure(false); return; }
+  for (const sp of FISH) {
+    const k = bagPick[sp.id] || 0;
+    if (!k) continue;
+    fishBag[sp.id] -= k;
+    if (fishBag[sp.id] <= 0) delete fishBag[sp.id];
+    delete bagPick[sp.id];
+  }
+  store.set(BAG_KEY, fishBag);
+  game.coins += total;
+  store.set('bl-coins', game.coins);
+  hud();
+  sfx.coin();
+  showSure(false);
+}
+function openBag() {
+  if (GUEST || game.state !== 'farm') return;
+  closePond();
+  for (const id in bagPick) delete bagPick[id];
+  bagFocus = 0;
+  showSure(false);
+  $('bag').classList.add('show');
+  game.picking = true;
+}
+function closeBag() {
+  $('bag').classList.remove('show');
+  game.picking = anyPanel();
+}
+// Keys: arrows choose a fish, Enter or + one more, Backspace or − one fewer, A all,
+// S sells. Asked to be sure: Enter sells, Escape keeps them.
+function bagKey(code) {
+  if (asking()) {
+    if (code === 'Enter' || code === 'Space') sellFish();
+    else if (code === 'Escape' || code === 'Backspace') showSure(false);
+    return;
+  }
+  const dir = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' }[code];
+  const id = bagCards()[bagFocus]?.dataset.id;
+  if (dir) bagNav(dir);
+  else if (/^(Enter|Space|Equal|NumpadAdd)$/.test(code)) { if (id) pickFish(id, 1); }
+  else if (/^(Backspace|Minus|NumpadSubtract)$/.test(code)) { if (id) pickFish(id, -1); }
+  else if (code === 'KeyA') pickAll();
+  else if (code === 'KeyS') askSell();
+  else if (code === 'Escape') closeBag();
+}
+bagGrid.addEventListener('click', e => {
+  const card = e.target.closest('.heroCard');
+  if (!card) return;
+  bagFocus = bagCards().indexOf(card);
+  pickFish(card.dataset.id, e.target.closest('.less') ? -1 : 1);
+});
+$('bagBtn').addEventListener('click', () => { sfx.ensure(); openBag(); });
+$('bagAll').addEventListener('click', pickAll);
+$('bagSell').addEventListener('click', askSell);
+$('bagYes').addEventListener('click', sellFish);
+$('bagNo').addEventListener('click', () => showSure(false));
+$('bagClose').addEventListener('click', closeBag);
+$('bag').addEventListener('click', e => { if (e.target.id === 'bag') closeBag(); });
 
 
 // ---------- Bunkhouse panel ----------
@@ -6373,7 +6510,7 @@ const account = window.TUKO_FIREBASE && !GUEST ? createAccount({
     for (const [k, v] of Object.entries(data)) if (k.startsWith('bl-') && typeof v === 'string') localStorage.setItem(k, v);
     location.reload();
   },
-  fresh: data => !['bl-coins', 'bl-top', 'bl-owned', 'bl-pond', 'bl-fish', 'bl-supporter', 'bl-bunk', 'bl-stage'].some(k => k in data),
+  fresh: data => !['bl-coins', 'bl-top', 'bl-owned', 'bl-pond', 'bl-fish', 'bl-bag', 'bl-supporter', 'bl-bunk', 'bl-stage'].some(k => k in data),
 }) : null;
 if (account) onLocalSave = () => account.changed();
 function farmSummary(data) {   // "12 sunflowers · 3 hoppers · pond level 4 · best 57"
@@ -6508,6 +6645,7 @@ function applyLang() {
   if (bunkOpen()) refreshBunk();
   if (buildsOpen()) refreshBuilds();
   if (bookOpen()) refreshBook();
+  if (bagOpen() && !asking()) refreshBag();
   if (shopOpen()) refreshShop();
   if (stageOpen()) refreshStage();
   if (settingsOpen()) renderSettings();
@@ -6858,10 +6996,22 @@ function pollPad() {
     return;
   }
   if (game.picking && bookOpen()) { if (pressed(0) || pressed(1) || pressed(9)) closeBook(); return; }
-  if (game.picking && pondOpen()) {   // A buys, Y goes fishing, B closes
+  if (game.picking && bagOpen()) {   // d-pad chooses a fish, A one more, X one fewer, Y all, Start sells, B closes; asked to be sure: A sells, B keeps them
+    if (asking()) { if (pressed(0) || pressed(9)) sellFish(); else if (pressed(1)) showSure(false); return; }
+    const id = bagCards()[bagFocus]?.dataset.id;
+    if (dir) bagNav(dir);
+    if (pressed(0) && id) pickFish(id, 1);
+    if (pressed(2) && id) pickFish(id, -1);
+    if (pressed(3)) pickAll();
+    if (pressed(9)) askSell();
+    if (pressed(1)) closeBag();
+    return;
+  }
+  if (game.picking && pondOpen()) {   // A buys, Y goes fishing, X opens the backpack, B closes
     if (pressed(0) || pressed(9)) buyPond();
     if (pressed(3)) { goFish(myKey(), 'pad'); return; }
-    if (pressed(1) || pressed(2)) closePond();
+    if (pressed(2)) { openBag(); return; }
+    if (pressed(1)) closePond();
     return;
   }
   const meF = game.state === 'farm' && !game.picking && fishers.get(myKey());
@@ -7055,4 +7205,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; } };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; } };

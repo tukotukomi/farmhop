@@ -455,6 +455,45 @@ body.pad .heroCard.focus, body.keys .heroCard.focus, .heroCard:focus-visible { o
 #arrangeBtn { --c1: var(--leaf); --c2: var(--leaf-d); }
 #fishGo { --c1: #8fd8ff; --c2: #3f9fd8; }
 #fishBookBtn { --c1: var(--berry); --c2: var(--berry-d); }
+#bagBtn { --c1: #ffc06b; --c2: #e07f2a; position: relative; }
+.bagN {   /* how many fish are waiting */
+  position: absolute; top: -10px; right: -8px; min-width: 26px; padding: 1px 7px 2px; box-sizing: border-box;
+  font-size: 15px; color: var(--ink); text-shadow: none; background: var(--cream);
+  border: 2.5px solid var(--ink); border-radius: 999px;
+}
+.bagN:empty { display: none; }
+/* ---------- Fish Backpack ---------- */
+#bagGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 14px 12px; width: 100%; }
+#bagGrid[hidden], #bagBar[hidden], #bagWho[hidden] { display: none; }
+#bagGrid .heroCard { background: #d8f1ff; padding-bottom: 8px; }
+#bagGrid .heroCard img { max-width: 104px; }
+#bagGrid .lvl { display: inline-flex; align-items: center; gap: 2px; font-size: 14px; margin-top: 4px; padding: 0; background: none; border: 0; }
+#bagGrid .lvl .flower { width: 20px; height: 20px; }
+#bagGrid .heroCard .tag {
+  position: absolute; top: 6px; left: 6px; padding: 0 8px; font-style: normal; font-size: 14px; font-weight: 700;
+  background: var(--cream); border: 2.5px solid var(--ink); border-radius: 999px;
+}
+#bagGrid .pick { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+#bagGrid .pick b { min-width: 22px; font-size: 18px; }
+#bagGrid .pick button { width: 34px; height: 34px; padding: 0; font-size: 20px; font-weight: 700; color: #fff; --c1: var(--leaf); --c2: var(--leaf-d); }
+#bagGrid .pick .less { --c1: var(--berry); --c2: var(--berry-d); }
+#bagGrid .pick button:disabled { --c1: #c9c1cf; --c2: #a49aab; }
+#bagGrid .heroCard.on { background: #fff1b8; }
+#bagAll { --c1: var(--sky, #8fd8ff); --c2: #3f9fd8; padding: 8px 18px 10px; }
+.bagSure { display: grid; justify-items: center; gap: 10px; width: 100%; }
+.bagSure[hidden] { display: none; }
+.bagSureText { margin: 0; font-size: 20px; font-weight: 700; }
+.bagSureList { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; width: min(100%, 300px); }
+.bagSureList li {
+  display: flex; align-items: center; gap: 8px; padding: 2px 12px 2px 4px; text-align: left;
+  background: #d8f1ff; border: 2.5px solid var(--ink); border-radius: 999px; font-weight: 700;
+}
+.bagSureList img { width: 40px; height: 40px; }
+.bagSureList span { flex: 1; }
+.bagSureList b { display: inline-flex; align-items: center; gap: 2px; }
+.bagSureList .flower { width: 20px; height: 20px; }
+#bagNo { --c1: var(--berry); --c2: var(--berry-d); padding: 8px 18px 10px; }
+.fishCatch .gain svg:not(.flower) { width: 22px; height: 22px; }
 /* ---------- Fishing ---------- */
 /* Fishing buttons. Portrait: a row with the Fish Book dead centre, ✕ to its left and
    the cast button to its right. Landscape: a stack down the right edge, ✕ on top and

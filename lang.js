@@ -22,6 +22,11 @@ export const STRINGS = {
       hopperPad: 'Press Y to switch hoppers!',
       fish: 'Go fishing at the Fish Pond!', fishPad: 'Press X, then Y to go fishing!', fishGuest: 'Tap the pond to go fishing!', fishGuestPad: 'Press X to go fishing!',
     },
+    bag: {
+      title: 'Fish Backpack', who: 'Tap a fish to choose it for selling.', empty: 'No fish yet! Everything you catch goes in here.',
+      all: 'Choose all', none: 'Choose none', sell: 'Sell', keep: 'Keep them', sure1: 'Sell this fish?', sureN: 'Sell these {n} fish?',
+      more: 'One more', less: 'One fewer',
+    },
     fish: {
       go: 'Go fishing', book: 'Fish Book', cast: 'Tap to cast! Drag to look around, pinch to zoom.', castPad: 'Press A to cast! The right stick looks around, the triggers zoom.', castKeys: 'Press Space to cast! WASD looks around, Q and E zoom.', castArrows: 'Press ↑ to cast!',
       reel: 'Tap on the beat!', reelPad: 'Press A on the beat!', reelKeys: 'Press Space on the beat!', reelArrows: 'Press ↑ on the beat!',
@@ -139,6 +144,11 @@ export const STRINGS = {
       hopperPad: '¡Pulsa Y para cambiar de saltarín!',
       fish: '¡Ve a pescar al estanque!', fishPad: '¡Pulsa X y luego Y para pescar!', fishGuest: '¡Toca el estanque para pescar!', fishGuestPad: '¡Pulsa X para pescar!',
     },
+    bag: {
+      title: 'Mochila de peces', who: 'Toca un pez para elegirlo y venderlo.', empty: '¡Aún no hay peces! Todo lo que pesques se guarda aquí.',
+      all: 'Elegir todos', none: 'Ninguno', sell: 'Vender', keep: 'Quedármelos', sure1: '¿Vender este pez?', sureN: '¿Vender estos {n} peces?',
+      more: 'Uno más', less: 'Uno menos',
+    },
     fish: {
       go: 'Ir a pescar', book: 'Libro de peces', cast: '¡Toca para lanzar! Arrastra para mirar alrededor y pellizca para acercar.', castPad: '¡Pulsa A para lanzar! La palanca derecha mira alrededor y los gatillos acercan.', castKeys: '¡Pulsa Espacio para lanzar! WASD mira alrededor; Q y E acercan.', castArrows: '¡Pulsa ↑ para lanzar!',
       reel: '¡Toca al ritmo!', reelPad: '¡Pulsa A al ritmo!', reelKeys: '¡Pulsa Espacio al ritmo!', reelArrows: '¡Pulsa ↑ al ritmo!',
@@ -255,6 +265,11 @@ export const STRINGS = {
       bunkPad: '按 B 打开农场建筑！', stagePad: '按 LB 打开舞台！', decorPad: '按 RB 装饰农场！',
       hopperPad: '按 Y 换个伙伴！',
       fish: '去鱼塘钓鱼吧！', fishPad: '按 X 再按 Y 去钓鱼！', fishGuest: '点鱼塘去钓鱼吧！', fishGuestPad: '按 X 去钓鱼！',
+    },
+    bag: {
+      title: '鱼背包', who: '点一条鱼，选它来卖。', empty: '还没有鱼！钓到的鱼都会放在这里。',
+      all: '全选', none: '全不选', sell: '卖出', keep: '先留着', sure1: '卖掉这条鱼吗？', sureN: '卖掉这 {n} 条鱼吗？',
+      more: '多选一条', less: '少选一条',
     },
     fish: {
       go: '去钓鱼', book: '鱼类图鉴', cast: '点一下抛竿！拖动转视角，双指缩放。', castPad: '按 A 抛竿！右摇杆转视角，扳机键缩放。', castKeys: '按空格抛竿！WASD 转视角，Q 和 E 缩放。', castArrows: '按 ↑ 抛竿！',
