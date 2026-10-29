@@ -2905,7 +2905,10 @@ function updateTorches(t) {
   }
 }
 // What each Fish Pond level adds. Level n costs n sunflowers (1, 2, 3, ...).
-const pondNext = lvl => t('pondSteps')[lvl] || t('pondMore');
+const pondNext = lvl => {   // what the next level brings: its new look, or after those the new fish it lets in
+  const step = t('pondSteps')[lvl], sp = FISH.find(f => f.lvl === lvl + 1);
+  return step || (sp ? t('pondNewFish', { name: fishName(sp.id) }) : t('pondMore'));
+};
 const pondCost = lvl => lvl + 1;
 
 const farm = { group: new THREE.Group(), pieces: {}, fish: [], ducks: [], spray: 0, hero: null, level: store.get('bl-pond', 0) };
@@ -3764,21 +3767,34 @@ function duckMesh(s) {
 
 // Rebuild the pond for its current level. Everything up to that level is there.
 // ---------- fish you can catch ----------
-// Each Fish Pond level lets new kinds in (lvl). w = how often it bites compared
-// with the others, cm = smallest and biggest, price = sunflowers it sells for,
-// wiggle = how hard it fights on the line.
+// Each Fish Pond level lets new kinds in (lvl). rhy = how tricky its rhythm is to
+// reel in, 1 (taps right on the beat) to 9 (runs of sixteenths): a new pond level can
+// bring an easy fish as well as a hard one. w = how often it bites compared with the
+// others, cm = smallest and biggest, price = sunflowers it sells for, wiggle = how
+// hard it fights on the line, night = only bites after dark.
 const FISH = [
-  { id: 'minnow', lvl: 1, w: 10, cm: [4, 9], price: 1, wiggle: 0.6, col: [0xa9b8c4, 0xe8eef2], shape: { long: 0.85, tall: 0.75 } },
-  { id: 'bluegill', lvl: 1, w: 8, cm: [10, 22], price: 2, wiggle: 0.9, col: [0x4f7fc4, 0xffb347], shape: { tall: 1.25 } },
-  { id: 'boot', lvl: 1, w: 3, cm: [24, 30], price: 0, wiggle: 0.3 },
-  { id: 'goldfish', lvl: 2, w: 6, cm: [6, 15], price: 3, wiggle: 1.1, col: [0xff9a2a, 0xffd23f] },
-  { id: 'perch', lvl: 3, w: 5, cm: [15, 30], price: 4, wiggle: 1.3, col: [0xb8d050, 0xf2e6b0], shape: { stripes: 0x4a6a24 } },
-  { id: 'koi', lvl: 4, w: 4, cm: [30, 60], price: 6, wiggle: 1.5, col: [0xffffff, 0xff6a2a], shape: { koi: true, long: 1.1 } },
-  { id: 'catfish', lvl: 5, w: 3, cm: [40, 90], price: 8, wiggle: 1.7, col: [0x6e6258, 0xd8c8a8], shape: { long: 1.15, tall: 0.8, whiskers: true } },
-  { id: 'trout', lvl: 6, w: 3, cm: [25, 55], price: 10, wiggle: 2, col: [0x7fa8a0, 0xff7fb8], shape: { trout: true, long: 1.1 } },
-  { id: 'pike', lvl: 7, w: 2, cm: [50, 100], price: 14, wiggle: 2.3, col: [0x6f8a3a, 0xece4b0], shape: { long: 1.4, tall: 0.65 } },
-  { id: 'goldkoi', lvl: 8, w: 1.2, cm: [40, 70], price: 20, wiggle: 2.6, col: [0xffd23f, 0xfff4e0], shape: { koi: true, long: 1.1 } },
-  { id: 'moonfish', lvl: 9, w: 0.8, cm: [20, 40], price: 30, wiggle: 2.9, col: [0xbd96ff, 0xdff3ff], shape: { long: 0.8, tall: 1.5 } },
+  { id: 'minnow', lvl: 1, rhy: 1, w: 10, cm: [4, 9], price: 1, wiggle: 0.6, col: [0xa9b8c4, 0xe8eef2], shape: { long: 0.85, tall: 0.75 } },
+  { id: 'guppy', lvl: 1, rhy: 1, w: 8, cm: [2, 5], price: 1, wiggle: 0.5, col: [0x7fd0ff, 0xff7fb8], shape: { long: 0.7, tall: 0.85, fan: true } },
+  { id: 'bluegill', lvl: 1, rhy: 2, w: 8, cm: [10, 22], price: 2, wiggle: 0.9, col: [0x4f7fc4, 0xffb347], shape: { tall: 1.25 } },
+  { id: 'boot', lvl: 1, rhy: 1, w: 3, cm: [24, 30], price: 0, wiggle: 0.3 },
+  { id: 'pumpkinseed', lvl: 2, rhy: 1, w: 6, cm: [8, 18], price: 2, wiggle: 0.8, col: [0x5fb89a, 0xff9a3c], shape: { tall: 1.35, long: 0.9 } },
+  { id: 'goldfish', lvl: 2, rhy: 3, w: 6, cm: [6, 15], price: 3, wiggle: 1.1, col: [0xff9a2a, 0xffd23f] },
+  { id: 'crappie', lvl: 3, rhy: 2, w: 5, cm: [12, 28], price: 3, wiggle: 1, col: [0x9aa6b4, 0xeef0f2], shape: { tall: 1.15, stripes: 0x5a6470 } },
+  { id: 'perch', lvl: 3, rhy: 4, w: 5, cm: [15, 30], price: 4, wiggle: 1.3, col: [0xb8d050, 0xf2e6b0], shape: { stripes: 0x4a6a24 } },
+  { id: 'glowfin', lvl: 3, rhy: 3, w: 4, cm: [8, 16], price: 6, wiggle: 1.2, col: [0x3fe0d0, 0xc8fff4], shape: { long: 0.85, glow: true }, night: true },
+  { id: 'carp', lvl: 4, rhy: 2, w: 4, cm: [30, 70], price: 5, wiggle: 1.2, col: [0xb08a3c, 0xe8d49a], shape: { long: 1.2, tall: 0.95, whiskers: true } },
+  { id: 'koi', lvl: 4, rhy: 5, w: 4, cm: [30, 60], price: 6, wiggle: 1.5, col: [0xffffff, 0xff6a2a], shape: { koi: true, long: 1.1 } },
+  { id: 'bass', lvl: 5, rhy: 4, w: 3, cm: [25, 55], price: 7, wiggle: 1.6, col: [0x6f9a4a, 0xe6eac8], shape: { long: 1.1, stripes: 0x3f5a2a } },
+  { id: 'catfish', lvl: 5, rhy: 6, w: 3, cm: [40, 90], price: 8, wiggle: 1.7, col: [0x6e6258, 0xd8c8a8], shape: { long: 1.15, tall: 0.8, whiskers: true } },
+  { id: 'eel', lvl: 6, rhy: 5, w: 2.5, cm: [40, 100], price: 12, wiggle: 2.1, col: [0x4a5a3a, 0xc8c89a], shape: { long: 1.9, tall: 0.42 }, night: true },
+  { id: 'trout', lvl: 6, rhy: 7, w: 3, cm: [25, 55], price: 10, wiggle: 2, col: [0x7fa8a0, 0xff7fb8], shape: { trout: true, long: 1.1 } },
+  { id: 'lanternfish', lvl: 7, rhy: 6, w: 2, cm: [10, 25], price: 16, wiggle: 2.2, col: [0x2f3f7a, 0x8fa8e6], shape: { tall: 1.1, lure: true }, night: true },
+  { id: 'pike', lvl: 7, rhy: 7, w: 2, cm: [50, 100], price: 14, wiggle: 2.3, col: [0x6f8a3a, 0xece4b0], shape: { long: 1.4, tall: 0.65 } },
+  { id: 'goldkoi', lvl: 8, rhy: 8, w: 1.2, cm: [40, 70], price: 20, wiggle: 2.6, col: [0xffd23f, 0xfff4e0], shape: { koi: true, long: 1.1 } },
+  { id: 'moonfish', lvl: 9, rhy: 9, w: 0.8, cm: [20, 40], price: 30, wiggle: 2.9, col: [0xbd96ff, 0xdff3ff], shape: { long: 0.8, tall: 1.5 } },
+  { id: 'sturgeon', lvl: 10, rhy: 7, w: 1, cm: [80, 180], price: 24, wiggle: 2.7, col: [0x7a8590, 0xd8dde2], shape: { long: 1.6, tall: 0.7, whiskers: true, stripes: 0xe8ecef } },
+  { id: 'rainbowkoi', lvl: 11, rhy: 8, w: 0.8, cm: [40, 75], price: 28, wiggle: 2.8, col: [0xff7fb8, 0x7fd0ff], shape: { koi: true, long: 1.1 } },
+  { id: 'ghostfish', lvl: 12, rhy: 9, w: 0.6, cm: [20, 45], price: 36, wiggle: 3, col: [0xe6e0ff, 0xffffff], shape: { long: 1.05, tall: 1.1, glow: true }, night: true },
 ];
 // A fish side on, nose toward +x, about a unit long and centred half a unit up
 // (for the Fish Book's pictures and the catch cards).
@@ -3803,7 +3819,7 @@ function fishModel(sp) {
   };
   v.ball(0.42 * L, 0.24 * H, 0.13, 0, 0.5, 0, skin);
   const fin = (x, y, rz, sx, sy) => v.add(prim('fin', () => new THREE.ConeGeometry(1, 1, 12)), a, x, y, 0, 0, 0, rz, sx, sy, 0.035);
-  fin(-0.48 * L, 0.5, -Math.PI / 2, 0.2 * H, 0.3);                           // tail
+  fin(-0.48 * L, 0.5, -Math.PI / 2, (s.fan ? 0.34 : 0.2) * H, s.fan ? 0.38 : 0.3);   // tail (a guppy's is a big fan)
   fin(-0.04 * L, 0.5 + 0.24 * H, 0.2, 0.15, 0.16);                           // back fin
   fin(0.02, 0.38, Math.PI - 0.6, 0.06, 0.12);                                // a little side fin
   for (const z of [-1, 1]) {
@@ -3811,6 +3827,11 @@ function fishModel(sp) {
     v.ball(0.026, 0.026, 0.02, 0.3 * L, 0.55, z * 0.12, 0x111111);
   }
   if (s.whiskers) for (const z of [-1, 1]) v.cyl(0.008, 0.008, 0.3, 0.46 * L, 0.42, z * 0.08, 0x3a2442, 0, 0, -1.1);
+  if (s.lure) {                                                                // a lanternfish's little light on a stalk
+    v.cyl(0.01, 0.01, 0.26, 0.24 * L, 0.84, 0, a, 0, 0, -0.6);
+    v.ball(0.055, 0.055, 0.055, 0.34 * L, 0.95, 0, 0xfff27a);
+  }
+  if (s.glow) for (const [x, y] of [[-0.15, 0.6], [0.05, 0.56], [0.18, 0.47], [-0.25, 0.47]]) v.ball(0.03, 0.03, 0.02, x * L, y, 0.12, 0xffffff);   // glowing spots
   return { group: v.mesh() };
 }
 
@@ -5137,9 +5158,10 @@ function drawRig(rig, st, t) {
 }
 
 // What's biting: any kind whose level the pond has reached (a level 3 pond has
-// level 1, 2 and 3 fish), the common ones more often.
+// level 1, 2 and 3 fish), the common ones more often; the night fish only after dark.
 function rollFish() {
-  const can = FISH.filter(sp => sp.lvl <= farm.level);
+  const dark = nightK() > 0.25;
+  const can = FISH.filter(sp => sp.lvl <= farm.level && (!sp.night || dark));
   let r = Math.random() * can.reduce((n, sp) => n + sp.w, 0);
   for (const sp of can) if ((r -= sp.w) <= 0) return sp;
   return can[0];
@@ -5213,17 +5235,17 @@ const songNow = () => performance.now() / 1000;
 // One beat's worth of rhythm each: which sixteenths of the beat have a note (0 is
 // on the beat, 2 the "and", 1 and 3 the sixteenths between), and the fish level
 // that first uses it.
-const RHYTHMS = [
-  { at: [0], lvl: 1 },             // quarter
+const RHYTHMS = [   // lvl here is the fish's rhy: the first two only ever land right on the beat
+  { at: [0], lvl: 1 },             // quarter, on the beat
   { at: [], lvl: 2 },              // a rest
-  { at: [0, 2], lvl: 2 },          // two eighths
-  { at: [2], lvl: 3 },             // off the beat
-  { at: [0, 3], lvl: 4 },          // dotted eighth, sixteenth
-  { at: [0, 1], lvl: 5 },          // sixteenth, dotted eighth
-  { at: [0, 2, 3], lvl: 6 },       // eighth, two sixteenths
-  { at: [0, 1, 2], lvl: 6 },       // two sixteenths, eighth
-  { at: [1, 2, 3], lvl: 7 },       // a sixteenth rest, then three
-  { at: [0, 1, 2, 3], lvl: 8 },    // four sixteenths
+  { at: [0, 2], lvl: 3 },          // two eighths
+  { at: [2], lvl: 4 },             // off the beat
+  { at: [0, 3], lvl: 5 },          // dotted eighth, sixteenth
+  { at: [0, 1], lvl: 6 },          // sixteenth, dotted eighth
+  { at: [0, 2, 3], lvl: 7 },       // eighth, two sixteenths
+  { at: [0, 1, 2], lvl: 7 },       // two sixteenths, eighth
+  { at: [1, 2, 3], lvl: 8 },       // a sixteenth rest, then three
+  { at: [0, 1, 2, 3], lvl: 9 },    // four sixteenths
 ];
 function fishRhythm(lvl) {   // [sixteenths from the start, ...]: a phrase a few beats long
   const can = RHYTHMS.filter(r => r.lvl <= lvl);
@@ -5248,7 +5270,7 @@ function breakRhythm(lvl, from) {
   return out;
 }
 function startReel(f) {
-  const lvl = Math.min(f.sp.lvl, 9);
+  const lvl = Math.min(f.sp.rhy || f.sp.lvl, 9);   // how tricky its rhythm is, not the pond level it came with
   const h = music ? music.heard() : { pos: 0, at: songNow(), swing: 0 };   // the beat as it comes out of the speakers
   const start = h.at + (BEAT - h.pos % BEAT) + 2 * BEAT;   // on the beat, a couple of beats from now
   const dnb = music?.style === 'dnb';
@@ -5570,7 +5592,7 @@ function refreshBook() {
     const sp = FISH[i], rec = fishBook[sp.id];
     c.classList.toggle('unbuilt', !rec);
     c.querySelector('.heroName').textContent = rec ? fishName(sp.id) : t('notBuilt');
-    c.querySelector('.lvl').textContent = rec ? t('fish.bestCm', { n: rec.best }) : sp.lvl > farm.level ? t('fish.locked', { n: sp.lvl }) : '';
+    c.querySelector('.lvl').textContent = rec ? t('fish.bestCm', { n: rec.best }) : sp.lvl > farm.level ? t(sp.night ? 'fish.lockedNight' : 'fish.locked', { n: sp.lvl }) : sp.night ? t('fish.night') : '';
     c.querySelector('.tag').textContent = rec ? t('fish.count', { n: rec.n }) : '';
   });
   $('bookCount').textContent = t('fish.caught', { n: FISH.filter(sp => fishBook[sp.id]).length, all: FISH.length });
@@ -7947,4 +7969,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; } };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; } };
