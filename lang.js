@@ -115,8 +115,9 @@ export const STRINGS = {
       hopHint: 'Tap to hop · swipe to turn & go back', back: 'Back in {n}…', over: 'Round over! The team reached row {n}.', full: 'This jam is full: four phones are already playing.', ended: 'The jam ended on the TV.',
     },
     jamStage: 'Jam Stage', stagePlan: 'Build a little stage so your hoppers can jam.', octave: 'Octave', sustain: 'Sustain', credits: 'Credits', creditsNote: 'Bringing fun back to the internet – Tuko', jamSong: 'Song',
-    shop: 'Decorations', shopWho: 'Tap something to put it on your farm.', decor: { scarecrow: 'Scarecrow', swing: 'Swing', drums: 'Drum set', disco: 'Disco ball' },
+    shop: 'Decorations', shopWho: 'Tap something to put it on your farm.', decor: { scarecrow: 'Scarecrow', swing: 'Swing', drums: 'Drum set', disco: 'Disco ball', bigstage: 'Big Jam Stage' },
     drumsHere: 'The drums are on the Jam Stage!', discoHere: 'The disco ball is up over the Jam Stage!',
+    bigHere: 'The Jam Stage is bigger now. Room for a whole band!', bigNeedsStage: 'Build the Jam Stage first!',
     drumNames: ['Kick', 'Snare', 'Hi-hat', 'Open hat', 'Clap', 'Low tom', 'High tom', 'Cowbell'],
     aria: {
       supHero: '{name}: for Hop Supporters', chooseHopper: 'Choose hopper', startDay: 'Start the day', fishPond: 'Fish Pond', bunkhouse: 'Bunkhouse', buildings: 'Farm buildings', fishBook: 'Fish Book', stopFishing: 'Stop fishing', cast: 'Cast',
@@ -239,8 +240,9 @@ export const STRINGS = {
       hopHint: 'Toca para saltar · desliza para girar y retroceder', back: 'Vuelves en {n}…', over: '¡Se acabó! El equipo llegó a la fila {n}.', full: 'Esta sesión está llena: ya hay cuatro teléfonos tocando.', ended: 'La sesión terminó en la tele.',
     },
     jamStage: 'Escenario', stagePlan: 'Construye un pequeño escenario para que tus saltarines toquen música.', octave: 'Octava', sustain: 'Sostenido', credits: 'Créditos', creditsNote: 'Devolviendo la diversión a internet – Tuko', jamSong: 'Canción',
-    shop: 'Decoraciones', shopWho: 'Toca algo para ponerlo en tu granja.', decor: { scarecrow: 'Espantapájaros', swing: 'Columpio', drums: 'Batería', disco: 'Bola de discoteca' },
+    shop: 'Decoraciones', shopWho: 'Toca algo para ponerlo en tu granja.', decor: { scarecrow: 'Espantapájaros', swing: 'Columpio', drums: 'Batería', disco: 'Bola de discoteca', bigstage: 'Gran escenario' },
     drumsHere: '¡La batería está en el escenario!', discoHere: '¡La bola de discoteca ya brilla sobre el escenario!',
+    bigHere: '¡El escenario ahora es más grande! ¡Cabe toda una banda!', bigNeedsStage: '¡Primero construye el escenario!',
     drumNames: ['Bombo', 'Caja', 'Charles', 'Charles abierto', 'Palmada', 'Tom grave', 'Tom agudo', 'Cencerro'],
     aria: {
       supHero: '{name}: para Hop Supporters', chooseHopper: 'Elegir saltarín', startDay: 'Empezar el día', fishPond: 'Estanque de peces', bunkhouse: 'La cabaña', buildings: 'Edificios de la granja', fishBook: 'Libro de peces', stopFishing: 'Dejar de pescar', cast: 'Lanzar',
@@ -363,8 +365,9 @@ export const STRINGS = {
       hopHint: '轻点跳跃 · 滑动转向或后退', back: '{n} 秒后回来…', over: '本轮结束！队伍到达了第 {n} 行。', full: '合奏已满：已经有四部手机在演奏了。', ended: '电视上的合奏结束了。',
     },
     jamStage: '音乐舞台', stagePlan: '搭一个小舞台，让伙伴们一起演奏。', octave: '八度', sustain: '延音', credits: '制作', creditsNote: '让互联网重新好玩起来 —— Tuko', jamSong: '音乐',
-    shop: '装饰品', shopWho: '点一样东西，把它放到农场里。', decor: { scarecrow: '稻草人', swing: '秋千', drums: '架子鼓', disco: '迪斯科球' },
+    shop: '装饰品', shopWho: '点一样东西，把它放到农场里。', decor: { scarecrow: '稻草人', swing: '秋千', drums: '架子鼓', disco: '迪斯科球', bigstage: '大音乐舞台' },
     drumsHere: '架子鼓已经放到音乐舞台上了！', discoHere: '迪斯科球已经挂到音乐舞台上了！',
+    bigHere: '音乐舞台变大了，整个乐队都站得下！', bigNeedsStage: '先建好音乐舞台吧！',
     drumNames: ['底鼓', '军鼓', '闭镲', '开镲', '拍手', '低音桶鼓', '高音桶鼓', '牛铃'],
     aria: {
       supHero: '{name}：支持者专属', chooseHopper: '选择角色', startDay: '开始新的一天', fishPond: '鱼塘', bunkhouse: '小木屋', buildings: '农场建筑', fishBook: '鱼类图鉴', stopFishing: '不钓了', cast: '抛竿',

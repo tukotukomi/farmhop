@@ -2934,13 +2934,18 @@ const PIECES = {
   barn: { build: buildBarn, foot: [-2.05, 1.6, -1.6, 1.95], at: [4, -8.5, 0] },
   pond: { build: g => { farm.pond = g; buildPond(); }, foot: [-2.8, 2.8, -2.1, 2.1], at: [2, 2, 0], pond: true },   // room for its biggest size
   bunk: { build: g => { farm.bunk = g; buildBunk(); }, foot: [-1.3, 1.3, -1.1, 1.45], block: [-1.3, 1.3, -1.1, 1.0], at: [0.5, -3.5, 0] },
-  stage: { build: g => { farm.stage = g; buildStage(); return stageTick; }, foot: [-1.3, 1.3, -1.0, 1.25], block: [-1.3, 1.3, -1.0, 1.0], at: [-4.5, -1.5, 0] },
+  stage: {
+    build: g => { farm.stage = g; buildStage(); return stageTick; }, at: [-4.5, -1.5, 0],
+    get foot() { const k = stageK(); return [-1.3 * k, 1.3 * k, -1.0 * k, 1.25 * k]; },   // the Big Jam Stage takes more room
+    get block() { const k = stageK(); return [-1.3 * k, 1.3 * k, -1.0 * k, 1.0 * k]; },
+  },
   flowers: { build: buildFlowers, foot: [-0.75, 0.75, -0.75, 0.75], at: [-4.5, 2.5, 0] },
   mailbox: { build: buildMailbox, foot: [-0.35, 0.35, -0.35, 0.35], at: [-3, 6, 0] },
   scarecrow: { build: buildScarecrow, foot: [-0.75, 0.75, -0.45, 0.45], decor: true, price: 10, bg: '#fff1b8' },
   swing: { build: buildSwing, foot: [-1.05, 1.05, -0.9, 0.9], decor: true, price: 10, bg: '#d9f2ff' },
   drums: { build: buildDrumKit, decor: true, onStage: true, price: 1, bg: '#ffd6ec' },   // sits on the Jam Stage, not in the yard
-  disco: { build: buildDiscoBall, decor: true, onStage: true, price: 100, bg: '#e6dcff' },   // hangs over the Jam Stage
+  disco: { build: buildDiscoBall, decor: true, onStage: true, price: 100, bg: '#e6dcff' },   // turns on top of the Jam Stage's sign
+  bigstage: { build: buildBigStageIcon, decor: true, onStage: true, needsStage: true, price: 200, bg: '#ffe0b8' },   // the Jam Stage, a third bigger
 };
 const DECOR = Object.keys(PIECES).filter(id => PIECES[id].decor);
 const ownedDecor = new Set(store.get('bl-decor', []).filter(id => DECOR.includes(id)));
@@ -3358,10 +3363,15 @@ function clearPiece(g) {
   }
 }
 
+// The Big Jam Stage is the same stage a third bigger (everything on it too), with
+// footlights along the front, speaker stacks and a gold edge.
+const BIG_STAGE = 1.35;
+function stageK() { return farm.stageBuilt && ownedDecor.has('bigstage') ? BIG_STAGE : 1; }
 function buildStage() {
   const g = farm.stage;
   if (!g) return;
   clearPiece(g);
+  g.scale.setScalar(stageK());
   const v = new VB(0.6), WOOD = 0x9c6b3c, WOOD_D = 0x7a4f2c, CURTAIN = 0x7d58d6, CURTAIN_L = 0x9b74ee;
   if (!farm.stageBuilt) {                                                     // a plot with a sign that has a music note on it
     v.rbox(2.3, 0.05, 1.8, 0, 0, 0, 0xc9a06a, 0.2);
@@ -3422,12 +3432,31 @@ function buildStage() {
     const o = new THREE.Object3D();
     o.position.copy(to);
     g.add(o);
-    lamps.push({ o, r: 0.9, s: 1, w: -1, y: 0.4 });
+    lamps.push({ o, r: 0.9 * stageK(), s: 1, w: -1, y: 0.4 * stageK() });
   }
   const back = new THREE.Object3D();
   back.position.set(0, 1, -0.7);
   g.add(back);
-  lamps.push({ o: back, r: 1.25, s: 0.55, w: -1, y: 1 });
+  lamps.push({ o: back, r: 1.25 * stageK(), s: 0.55, w: -1, y: stageK() });
+  if (stageK() > 1) {
+    const x = new VB(0.6), foot = new VB(0.6);
+    x.rbox(2.44, 0.05, 0.05, 0, 0.29, 0.9, 0xe8c45c, 0.02);                    // a gold edge along the front
+    for (const s of [-1, 1]) {
+      x.rbox(0.36, 0.45, 0.3, s * 0.82, 1.08, -0.4, 0x3a2f45, 0.05);           // a second speaker on each
+      x.cyl(0.1, 0.1, 0.03, s * 0.82, 1.08, -0.24, 0x1d1626, Math.PI / 2, 0, 0);
+    }
+    for (let i = 0; i < 7; i++) {                                               // footlights
+      const fx = -0.9 + i * 0.3;
+      x.rbox(0.12, 0.06, 0.08, fx, 0.33, 0.84, 0x2b2233, 0.02);
+      foot.ball(0.035, 0.03, 0.02, fx, 0.35, 0.885, 0xfff1c4);
+      glowAt(g, fx, 0.36, 0.9, 0xfff1c4, 0.22);
+    }
+    g.add(x.mesh());
+    const fm = foot.mesh(MARKER_MAT);
+    fm.castShadow = false;
+    fm.layers.set(GLOW_LAYER);
+    g.add(fm);
+  }
   v.cyl(0.015, 0.015, 0.9, 0.4, 0.75, 0.35, 0x9aa0a6);                        // a mic on a stand
   v.cyl(0.12, 0.14, 0.03, 0.4, 0.31, 0.35, 0x9aa0a6);
   v.ball(0.05, 0.065, 0.05, 0.4, 1.23, 0.35, 0x3a2f45);
@@ -3456,6 +3485,21 @@ function buildStage() {
       return m;
     });
   }
+}
+// For the shop: a little Big Jam Stage, with its sign, footlights and speaker stacks.
+function buildBigStageIcon(g) {
+  const v = new VB(0.6), WOOD = 0x9c6b3c;
+  v.rbox(2.6, 0.3, 1.6, 0, 0.15, 0, WOOD, 0.05);
+  v.rbox(2.64, 0.05, 0.05, 0, 0.29, 0.8, 0xe8c45c, 0.02);
+  v.rbox(2.6, 1.4, 0.12, 0, 1.0, -0.74, 0x7d58d6, 0.04);
+  for (let i = 0; i < 9; i++) v.cyl(0.1, 0.1, 1.35, -1.15 + i * 0.29, 0.98, -0.66, i % 2 ? 0x7d58d6 : 0x9b74ee);
+  v.rbox(1.6, 0.36, 0.08, 0, 1.85, -0.64, 0xfff1d8, 0.08);
+  [[-0.5, 0xff7fb8], [-0.17, 0x7fd0ff], [0.17, 0xffd24a], [0.5, 0x7ad653]].forEach(([x, c]) => v.ball(0.07, 0.07, 0.03, x, 1.85, -0.59, c));
+  for (const s of [-1, 1]) for (const y of [0.55, 1.0]) v.rbox(0.36, 0.42, 0.3, s * 0.9, y, -0.3, 0x3a2f45, 0.05);
+  for (let i = 0; i < 7; i++) v.ball(0.04, 0.035, 0.03, -0.9 + i * 0.3, 0.34, 0.78, 0xfff1c4);
+  const m = v.mesh();
+  m.scale.setScalar(0.78);
+  g.add(m);
 }
 // A mirrored disco ball: little silver tiles all over, a few catching colour, on a stand.
 function buildDiscoBall(g) {
@@ -3771,9 +3815,9 @@ function updateFarm(dt) {
 // Now and then a farm hopper (or two) wanders up onto the Jam Stage and puts on a
 // show, bouncing to the beat with notes flying off, and a couple of others come and
 // watch from the front. The host runs it; friends' screens see the climb up and down.
-const STAGE_Y = 0.3;
+const stageY = () => 0.3 * stageK();
 const show = { next: rand(20, 40), until: 0, cast: [] };
-const stageAt = (lx, lz) => pieceToFarm(farm.pieces.stage, lx, lz);
+const stageAt = (lx, lz) => pieceToFarm(farm.pieces.stage, lx * stageK(), lz * stageK());
 function stageOut() {   // which way a hopper faces to look out from the stage
   const [x0, z0] = stageAt(0, 0), [x1, z1] = stageAt(0, 1);
   return Math.atan2(-(x1 - x0), -(z1 - z0));
@@ -3793,7 +3837,8 @@ function stageShows(dt) {
   show.next = rand(35, 75);
   const idle = farm.walkers.filter(w => !w.hidden && !players.has(w) && !w.fishing && !w.leap && !w.goal && !w.show).sort(() => rnd() - 0.5);
   if (idle.length < 2) return;
-  const perf = idle.length >= 4 && rnd() < 0.4 ? [[-0.45, 0.15], [0.2, 0.05]] : [[-0.15, 0.1]];
+  const band = stageK() > 1 && idle.length >= 5 && rnd() < 0.5 ? 3 : idle.length >= 4 && rnd() < 0.4 ? 2 : 1;
+  const perf = [[[-0.15, 0.1]], [[-0.45, 0.15], [0.2, 0.05]], [[-0.6, 0.15], [-0.05, 0.05], [0.55, 0.12]]][band - 1];
   const watch = [[-0.75, 2.05 + rand(0, 0.4)], [0.75, 2.05 + rand(0, 0.4)]].slice(0, ri(1, 2));
   // Someone free goes to their spot: waddling if the way is clear, else hopping round
   // whatever's in the way.
@@ -3836,8 +3881,8 @@ function showAct(w, t) {
     if (s.role === 'perform') {
       const [x, z] = stageAt(s.lx, s.lz);
       s.st = 'on';
-      landLeap(w, x, z, 0.35, STAGE_Y);
-      toGuests({ t: 'leap', k: w.key, x, z, up: 0.35, y: STAGE_Y });
+      landLeap(w, x, z, 0.35, stageY());
+      toGuests({ t: 'leap', k: w.key, x, z, up: 0.35, y: stageY() });
     } else s.st = 'on';
     return;
   }
@@ -3848,7 +3893,7 @@ function showAct(w, t) {
   if (s.role === 'perform') {   // bounce on every beat, turning to one side then the other; notes fly off now and then
     w.hop = 0.42;
     w.face = out + (beat % 2 ? 0.35 : -0.35);
-    if (beat % 4 === 0) burst(farm.group.position.x + w.x, STAGE_Y + 1, farm.group.position.z + w.z, RAINBOW, 4, 0.6, 2, 0.05, 0.6, true);
+    if (beat % 4 === 0) burst(farm.group.position.x + w.x, stageY() + 1, farm.group.position.z + w.z, RAINBOW, 4, 0.6, 2, 0.05, 0.6, true);
   } else {                      // the audience faces the stage and hops along every so often
     w.face = out + Math.PI;
     if ((beat + s.ph) % 3 === 0) w.hop = 0.35;
@@ -5890,7 +5935,7 @@ function refreshShop(msg) {
   const nav = document.body.classList.contains('pad') || document.body.classList.contains('keys');
   [...shopGrid.children].forEach((c, i) => {
     const id = DECOR[i], have = ownedDecor.has(id), price = PIECES[id].price, name = t('decor.' + id);
-    c.classList.toggle('short', !have && game.coins < price);
+    c.classList.toggle('short', !have && (game.coins < price || (PIECES[id].needsStage && !farm.stageBuilt)));
     c.classList.toggle('focus', nav && i === shopFocus);
     c.querySelector('.heroName').textContent = name;
     const tag = c.querySelector('.tag');
@@ -5921,18 +5966,26 @@ function buyDecor(id) {
     return;
   }
   const price = PIECES[id].price;
+  if (PIECES[id].needsStage && !farm.stageBuilt) { sfx.bump(); refreshShop(t('bigNeedsStage')); return; }
   if (game.coins < price) { sfx.bump(); refreshShop(needText(price - game.coins)); return; }
   game.coins -= price;
   store.set('bl-coins', game.coins);
   ownedDecor.add(id);
   store.set('bl-decor', [...ownedDecor]);
   if (PIECES[id].onStage) {   // the drum kit goes straight onto the Jam Stage
+    if (id === 'bigstage') {   // the stage grows where it stands, or moves to the nearest place with room
+      endShow();
+      const sp = farm.pieces.stage;
+      if (!placeOk('stage', sp.x, sp.z, sp.r)) { const at = findSpot('stage', sp.x, sp.z, sp.r); if (at) setPiece(sp, at[0], at[1], sp.r); }
+      saveLayout();
+    }
     buildStage();
+    settleWalkers();
     hud();
     sfx.upgrade();
     const sp = farm.pieces.stage;
     cheer(sp.x, sp.z);
-    refreshShop(t(id === 'disco' ? 'discoHere' : 'drumsHere'));
+    refreshShop(t({ disco: 'discoHere', bigstage: 'bigHere' }[id] || 'drumsHere'));
     return;
   }
   const p = addPiece(id, [snap(farmCam.x), snap(farmCam.z - 1.4), 0]);   // the nearest free spot to the middle of the view
