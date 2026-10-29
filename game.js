@@ -258,7 +258,7 @@ const postMat = new THREE.ShaderMaterial({
     // (centre and radii, in uv) where the night tint gives way to warm light.
     lamps: { value: Array.from({ length: 24 }, () => new THREE.Vector4()) },
     lampS: { value: new Array(24).fill(0) },
-    lampW: { value: new Array(24).fill(1) },   // 1: warm torchlight; 0: white, so a glowing thing keeps its own colour
+    lampW: { value: new Array(24).fill(1) },   // 1: warm torchlight; 0: white, so a glowing thing keeps its own colour; -1: plain white light, no halo (stage lighting)
     lampN: { value: 0 },
     lampK: { value: 0 },   // how dark it is: 0 in the day, 1 at night
     lampCol: { value: new THREE.Color(1, 0.8, 0.5) },
@@ -295,8 +295,8 @@ const postMat = new THREE.ShaderMaterial({
         vec2 q = (vUv - lamps[i].xy) / lamps[i].zw;
         float f = max(0., 1. - dot(q, q));
         lit += f * f * lampS[i];
-        warm += f * f * lampS[i] * lampW[i];
-        halo += f * lampS[i] * (1. - lampW[i]);   // things that glow themselves (the players' sunflowers): a soft halo
+        warm += f * f * lampS[i] * max(lampW[i], 0.);
+        halo += f * lampS[i] * (lampW[i] < 0. ? 0. : 1. - lampW[i]);   // things that glow themselves (the players' sunflowers): a soft halo
       }
       vec3 tint = mix(vec3(1.), lampCol, warm / max(lit, 1e-4));
       lit = min(lit, 1.) * lampK;
@@ -3404,6 +3404,30 @@ function buildStage() {
   glow.layers.set(GLOW_LAYER);
   g.add(glow);
   for (const [x, y, z, c, size] of lit) glowAt(g, x, y, z, c, size);
+  // Stage lighting: a spotlight on top of each front post, crossing to light the middle
+  // of the stage. After dark their beams show and plain white light falls where they
+  // land, and softly over the curtain, so a performer stands in the light.
+  for (const sx of [-1, 1]) {
+    const from = new THREE.Vector3(sx * 1.13, 2.05, 0.82), to = new THREE.Vector3(-sx * 0.3, 0.3, 0.05);
+    const dir = from.clone().sub(to).normalize(), can = new THREE.Mesh(CAN_GEO, CAN_MAT);
+    can.position.copy(from).addScaledVector(dir, -0.06);
+    can.quaternion.setFromUnitVectors(_up, dir);
+    can.castShadow = true;
+    g.add(can);
+    const len = from.distanceTo(to), b = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.42, len, 18, 1, true), BEAM_MAT);
+    b.position.copy(from).add(to).multiplyScalar(0.5);
+    b.quaternion.setFromUnitVectors(_up, dir);   // the narrow end at the light
+    b.layers.set(GLOW_LAYER);
+    g.add(b);
+    const o = new THREE.Object3D();
+    o.position.copy(to);
+    g.add(o);
+    lamps.push({ o, r: 0.9, s: 1, w: -1, y: 0.4 });
+  }
+  const back = new THREE.Object3D();
+  back.position.set(0, 1, -0.7);
+  g.add(back);
+  lamps.push({ o: back, r: 1.25, s: 0.55, w: -1, y: 1 });
   v.cyl(0.015, 0.015, 0.9, 0.4, 0.75, 0.35, 0x9aa0a6);                        // a mic on a stand
   v.cyl(0.12, 0.14, 0.03, 0.4, 0.31, 0.35, 0x9aa0a6);
   v.ball(0.05, 0.065, 0.05, 0.4, 1.23, 0.35, 0x3a2f45);
@@ -3464,6 +3488,22 @@ const GLOW_TEX = (() => {
   return new THREE.CanvasTexture(c);
 })();
 const GLOW_MATS = new Map();
+const _up = new THREE.Vector3(0, 1, 0);
+const CAN_GEO = new THREE.CylinderGeometry(0.07, 0.1, 0.16, 12), CAN_MAT = new THREE.MeshLambertMaterial({ color: 0x2b2233 });
+// A spotlight's beam: brightest at the light, fading toward the boards.
+const BEAM_MAT = new THREE.MeshBasicMaterial({
+  map: (() => {
+    const c = document.createElement('canvas');
+    c.width = 4; c.height = 64;
+    const k = c.getContext('2d'), gr = k.createLinearGradient(0, 0, 0, 64);
+    gr.addColorStop(0, 'rgba(255,255,255,1)');
+    gr.addColorStop(1, 'rgba(255,255,255,0.12)');
+    k.fillStyle = gr;
+    k.fillRect(0, 0, 4, 64);
+    return new THREE.CanvasTexture(c);
+  })(),
+  color: 0xfff6e6, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+});
 function glowAt(g, x, y, z, color, size) {
   if (!GLOW_MATS.has(color)) GLOW_MATS.set(color, new THREE.SpriteMaterial({ map: GLOW_TEX, color, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, opacity: 0 }));
   const sp = new THREE.Sprite(GLOW_MATS.get(color));
@@ -3477,6 +3517,8 @@ function glowAt(g, x, y, z, color, size) {
 function stageTick(t) {
   const k = nightK();
   for (const m of GLOW_MATS.values()) { m.opacity = k; m.visible = k > 0.02; }
+  BEAM_MAT.opacity = 0.16 * k;
+  BEAM_MAT.visible = k > 0.02;
   if (!farm.disco) return;
   farm.disco.rotation.y = t * 0.8;
   const on = nightK() > 0.05;
