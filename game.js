@@ -5080,10 +5080,39 @@ function setFishView(pitch, zoom) {
 let fishDrag = null;                                 // a drag that turns the camera, or a tap that casts
 const _fcLook = new THREE.Vector3();
 const camFisher = () => { const f = fishers.get(myKey()); return f && f.st !== 'walk' && f.st !== 'settle' && !decor.on ? f : null; };
+// Only the fishing camera looks up at the sky, so only it has clouds: puffy heaps in a
+// ring out past the fog (which they ignore), white on top and a little blue beneath,
+// drifting slowly round and taking on the sky's colour as it gets dark.
+const clouds = (() => {
+  const vb = new VB(0.6), was = rnd;
+  rnd = seeded(20261029);   // the same sky every time
+  for (let i = 0; i < 16; i++) {
+    const a = i / 16 * Math.PI * 2 + rand(-0.15, 0.15), r = rand(44, 60), y = rand(5.5, 11), s = rand(1.4, 2.6);
+    const cx = Math.cos(a) * r, cz = Math.sin(a) * r, tx = -Math.sin(a), tz = Math.cos(a);   // puffs strung out across the view
+    const tone = (_x, py) => py < y + s * 0.15 ? 0xdbe8f6 : 0xffffff;
+    for (let k = 0, n = ri(3, 5); k < n; k++) {
+      const u = (k - (n - 1) / 2) * s * 0.9 + rand(-0.3, 0.3), big = s * (k === n >> 1 ? 1.25 : rand(0.75, 1));
+      vb.ball(big * 1.2, big * 0.85, big, cx + tx * u, y + big * 0.3, cz + tz * u, tone);
+    }
+    vb.ball(s * 2.2, s * 0.45, s * 1.1, cx, y, cz, tone, 0, -a + Math.PI / 2, 0);   // a flat underside to sit on
+  }
+  rnd = was;
+  const m = vb.mesh(new THREE.MeshBasicMaterial({ vertexColors: true, fog: false }));
+  m.castShadow = m.receiveShadow = false;
+  m.visible = false;
+  scene.add(m);
+  return m;
+})();
+const _white = new THREE.Color(0xffffff);
 fishCamHook = dt => {
   const f = camFisher();
+  clouds.visible = !!f;
   if (!f) { Object.assign(fishCam, { on: false, yaw: 0, shown: 0, spin: 0, tilt: 0, zoomSpin: 0, swoop: 1, pitch: fishView.pitch }); return false; }
   useCamera(perspCam);
+  clouds.position.set(fishCam.look.x, 0, fishCam.look.z);
+  clouds.rotation.y += dt * 0.006;
+  const lum = 0.2126 * skyCol.r + 0.7152 * skyCol.g + 0.0722 * skyCol.b;
+  clouds.material.color.copy(skyCol).lerp(_white, clamp(lum * 1.3, 0, 1));
   const w = f.w, base = farm.group.position, [ax, az] = pieceToFarm(pondPiece(), ...f.spot.aim);
   const dx = ax - w.x, dz = az - w.z, len = Math.hypot(dx, dz) || 1;
   let sx = -dz / len, sz = dx / len;                 // square on to the line
