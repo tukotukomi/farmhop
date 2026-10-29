@@ -8,8 +8,9 @@
 // Hop Supporters can switch to a drum and bass version: the same chords, banjo
 // and fiddle over a two-step break at double time (168), a reese bass, and no swing.
 //
-// Players can buy other keys: setKey(n) moves every note n semitones (-6..5) from D,
-// on a bar line, and the game's hopper sounds follow the same key (see `key`).
+// Players can buy other keys and scales: setKey(n, scale) moves every note n semitones
+// (-6..5) from D and into the scale (see SCALES), on a bar line, and the game's hopper
+// sounds follow the same key (see `key` and `scale`).
 
 const BPM = 84;
 const STEP = 60 / BPM / 4;          // one sixteenth note, in seconds
@@ -69,6 +70,21 @@ export function breakHit(step) {
 
 const hz = m => 440 * Math.pow(2, (m - 69) / 12);
 
+// Scales the tune can be played in. The tune is written in D major; deg moves each of
+// its seven notes (D E F# G A B C#) by that many semitones, so every part keeps its
+// shape. pent is the scale's own five-note (pentatonic) set, in semitones above the
+// key note, that the hoppers sing in. More scales (Dorian, Mixolydian...) are one line each.
+export const SCALES = {
+  major: { deg: [0, 0, 0, 0, 0, 0, 0], pent: [0, 2, 4, 7, 9] },
+  minor: { deg: [0, 0, -1, 0, 0, -1, -1], pent: [0, 3, 5, 7, 10] },   // natural minor
+};
+const MAJOR = [0, 2, 4, 5, 7, 9, 11];
+// MIDI note m of the D major tune, moved into scale s and k semitones from D.
+export function inScale(m, s, k) {
+  const d = MAJOR.indexOf((((m - 62) % 12) + 12) % 12);
+  return m + k + (d < 0 ? 0 : (SCALES[s] || SCALES.major).deg[d]);
+}
+
 export function createMusic(ctx, out) {
   // ---- signal chain: voices -> bus -> tape wobble -> dusty low-pass -> out, plus reverb ----
   const bus = ctx.createGain();
@@ -121,9 +137,9 @@ export function createMusic(ctx, out) {
     if (wave === 'pulse') o.setPeriodicWave(pulse); else o.type = wave;
     o.detune.value = detune;
     if (slideFrom) {                                  // fiddle slides up into the note
-      o.frequency.setValueAtTime(hz(slideFrom + key), t);
-      o.frequency.exponentialRampToValueAtTime(hz(midi + key), t + 0.06);
-    } else o.frequency.setValueAtTime(hz(midi + key), t);
+      o.frequency.setValueAtTime(hz(slideFrom), t);
+      o.frequency.exponentialRampToValueAtTime(hz(midi), t + 0.06);
+    } else o.frequency.setValueAtTime(hz(midi), t);
     if (vibrato) {
       const v = ctx.createOscillator(), vg = ctx.createGain();
       v.frequency.value = 5.5;
@@ -170,6 +186,8 @@ export function createMusic(ctx, out) {
     for (const m of chord) for (let o = -24; o <= 36; o += 12) if (m + o >= lo && m + o <= hi) out.add(m + o);
     return [...out].sort((a, b) => a - b);
   };
+  // the bass's fifth: a chord's own (diminished in a minor key's ii chord), else a plain fifth
+  const fifthOf = (chord, r) => chord.some(m => (m - r - 7) % 12 === 0) || !chord.some(m => (m - r - 6) % 12 === 0) ? r + 7 : r + 6;
   const rootOf = chord => { let r = chord[0]; while (r > 45) r -= 12; while (r < 33) r += 12; return r; };
 
   function snare(t, vol) {   // a crack of noise over a short tone
@@ -200,20 +218,22 @@ export function createMusic(ctx, out) {
     };
     if (s === 0) bass(root, t, STEP * 4.6, 0.17);
     if (s === 5) bass(root, t, STEP * 2.6, 0.14);
-    if (s === 8) bass(root + 7, t, STEP * 3.6, 0.14);
+    if (s === 8) bass(fifthOf(chord, root), t, STEP * 3.6, 0.14);
     if (s === 13) bass(nr !== root ? nr : root + 12, t, STEP * 2.6, 0.13);
   }
 
   // ---- the arrangement, one sixteenth at a time ----
   let lastFiddle = 0, style = 'classic', want = 'classic', swing = SWING;
-  let key = 0, wantKey = 0, lastKey = 0, keyAt = 0;   // semitones from D; keyAt: when (context time) key took over from lastKey
+  // The key: [semitones from D, scale]. keyAt: when (context time) it took over from lastKey.
+  let key = [0, 'major'], wantKey = key, lastKey = key, keyAt = 0;
+  const note = m => inScale(m, key[1], key[0]);
   function play(step, t) {
     const bar = Math.floor(step / 16) % 32, s = step % 16;
     if (s === 0 && style !== want) { style = want; }   // switch on a bar line
     if (s === 0 && key !== wantKey) { lastKey = key; key = wantKey; keyAt = t; }
     const dnb = style === 'dnb';
     const [prog, tune] = FORM[Math.floor(bar / 8)];
-    const i = bar % 8, chord = prog[i], next = prog[(i + 1) % 8];
+    const i = bar % 8, chord = prog[i].map(note), next = prog[(i + 1) % 8].map(note);
 
     // vaporwave pad: the whole chord, slow swell, mostly reverb
     if (s === 0) {
@@ -233,7 +253,7 @@ export function createMusic(ctx, out) {
     // boom-chick bass on a triangle, walking up into the next chord
     const root = rootOf(chord), nr = rootOf(next);
     if (s === 0) voice('triangle', root, t, STEP * 7, 0.2);
-    if (s === 8) voice('triangle', root + 7, t, STEP * 3.5, 0.17);
+    if (s === 8) voice('triangle', fifthOf(chord, root), t, STEP * 3.5, 0.17);
     if (s === 12 && nr !== root) voice('triangle', nr + (nr > root ? -2 : 2), t, STEP * 1.8, 0.15);
     if (s === 14 && nr !== root) voice('triangle', nr + (nr > root ? -1 : 1), t, STEP * 1.8, 0.15);
 
@@ -251,9 +271,9 @@ export function createMusic(ctx, out) {
       for (const [at, m, len] of tune[i]) {
         if (at !== s) continue;
         const dur = STEP * len * 0.95;
-        voice('square', m, t, dur, 0.04, {
+        voice('square', note(m), t, dur, 0.04, {
           attack: 0.03, cutoff: 2400, to: [bus, verbIn],
-          vibrato: len >= 4 ? 14 : 0, slideFrom: lastFiddle && Math.abs(m - lastFiddle) <= 4 ? m - 1 : 0,
+          vibrato: len >= 4 ? 14 : 0, slideFrom: lastFiddle && Math.abs(m - lastFiddle) <= 4 ? note(m) - 1 : 0,
         });
         lastFiddle = m;
       }
@@ -298,16 +318,18 @@ export function createMusic(ctx, out) {
     // 'classic' or 'dnb' (Hop Supporters): changes over at the next bar line.
     setStyle(s) { want = s === 'dnb' ? 'dnb' : 'classic'; },
     get style() { return want; },
-    // Bought keys: n semitones from D. Changes over at the next bar line, like the style;
-    // returns how many seconds from now that is (0 when the tune isn't playing).
-    setKey(n) {
-      wantKey = n;
-      if (!playing) { lastKey = key = n; return 0; }
+    // Bought keys: n semitones from D, in a scale from SCALES. Changes over at the next bar
+    // line, like the style; returns how many seconds from now that is (0 when the tune isn't playing).
+    setKey(n, scale = 'major') {
+      const same = key[0] === n && key[1] === scale;
+      wantKey = same ? key : [n, SCALES[scale] ? scale : 'major'];
+      if (!playing) { lastKey = key = wantKey; return 0; }
       const bar = Math.ceil(step / 16) * 16;
-      return key === n ? 0 : Math.max(0, t0 + at(bar) - ctx.currentTime);
+      return same ? 0 : Math.max(0, t0 + at(bar) - ctx.currentTime);
     },
-    // The key sounding right now, so the hopper sounds are always in tune with the tune.
-    get key() { return ctx.currentTime < keyAt ? lastKey : key; },
+    // The key and scale sounding right now, so the hopper sounds are always in tune with the tune.
+    get key() { return (ctx.currentTime < keyAt ? lastKey : key)[0]; },
+    get scale() { return (ctx.currentTime < keyAt ? lastKey : key)[1]; },
     // The song's sixteenth (counted from the top of the loop) playing at position pos.
     stepAt(pos) { return Math.round(pos / STEP); },
     // Duck under menus (e.g. 0.45 on the game-over sign), back to 1 in play.

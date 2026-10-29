@@ -428,6 +428,8 @@ body.pad .heroCard.focus, body.keys .heroCard.focus, .heroCard:focus-visible { o
 .keyCard { padding-top: 16px; }
 .keyGlyph { font-size: 34px; font-weight: 800; line-height: 1.15; margin-bottom: 6px; white-space: nowrap; }   /* the key: C, D♭, Re♭... */
 #shop .setTabs { margin-bottom: 2px; }
+.scaleChips { flex-wrap: wrap; margin-bottom: 4px; }   /* one chip per scale: Major, Minor, and more to come */
+.scaleChips[hidden] { display: none; }
 #bunkGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 12px; width: 100%; }
 #bunkGrid .heroCard { cursor: default; }
 #bunkGrid .heroCard.locked { cursor: pointer; }

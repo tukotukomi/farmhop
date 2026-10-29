@@ -4,7 +4,7 @@
 // the cells outside the playable strip are shaded darker, like Crossy Road.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { createMusic, breakHit } from './music.js';
+import { createMusic, breakHit, SCALES, inScale } from './music.js';
 import { STRINGS, LANGS } from './lang.js';
 import { joinFarm } from './guest.js';
 import { createAccount } from './account/tuko-account.js';
@@ -45,7 +45,7 @@ const heroName = id => t('heroes.' + id);
 // before anything reads a setting, wait for the host to send it (guest.js). The
 // farm's settings then come from the host and are only kept in memory, so this
 // device's own farm is never touched.
-const FARM_KEYS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-coins', 'bl-top', 'bl-dnb', 'bl-land', 'bl-wide', 'bl-key'];
+const FARM_KEYS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-coins', 'bl-top', 'bl-dnb', 'bl-land', 'bl-wide', 'bl-key', 'bl-scale'];
 const joinArgs = new URLSearchParams(location.hash.slice(1));
 const GUEST = /^[A-Za-z0-9_-]{22,64}$/.test(joinArgs.get('join') || '') ? joinArgs.get('join') : null;
 const guestNet = GUEST && window.FARMHOP_RELAY_URL
@@ -1349,14 +1349,26 @@ const GATE_GEO = (() => {
 
 // ---------- audio (tiny synth, no files) ----------
 let music = null;   // created with the audio context on the first tap
-// The song's key, bought in the shop's Music tab: semitones from D (the tune's own key),
-// kept within -6..5 so nothing goes too low or shrill. A farm setting: guests hear the
-// host's key. Every hopper sound is pitched by keyK(), the key the tune is playing now,
-// so hops, pads and fishing notes never clash with the music while it changes over.
+// The song's key and scale, bought in the shop's Music tab: semitones from D (the tune's
+// own key), kept within -6..5 so nothing goes too low or shrill, and a scale from SCALES
+// (music.js). Farm settings: guests hear the host's key. Every hopper sound follows
+// keyNow(), the key the tune is playing right now, so hops, pads and fishing notes
+// never clash with the music while it changes over.
 const SONG_KEYS = [['C', -2], ['Db', -1], ['D', 0], ['Eb', 1], ['E', 2], ['F', 3], ['Fs', 4], ['G', 5], ['Ab', -6], ['A', -5], ['Bb', -4], ['B', -3]];
 const KEY_PRICE = 50;
 const songKey = () => { const n = store.get('bl-key', 0); return SONG_KEYS.some(k => k[1] === n) ? n : 0; };
-const keyK = () => 2 ** ((music ? music.key : songKey()) / 12);
+const songScale = () => { const sc = store.get('bl-scale', 'major'); return SCALES[sc] ? sc : 'major'; };
+const keyNow = () => (music ? [music.key, music.scale] : [songKey(), songScale()]);
+// Step i of the key's pentatonic (0 = the key note near D4, 5 = an octave up, ...), in Hz.
+function pentHz(i, [k, sc] = keyNow()) {
+  const p = SCALES[sc].pent, o = Math.floor(i / p.length);
+  return 293.66 * 2 ** ((k + p[i - o * p.length] + 12 * o) / 12);
+}
+// A sound effect's little tune, written in D major, in the song's key and scale.
+function inKey(f) {
+  const [k, sc] = keyNow(), m = Math.round(69 + 12 * Math.log2(f / 440));
+  return f * 2 ** ((inScale(m, sc, k) - m) / 12);
+}
 const sfx = (() => {
   // Signal flow: effects -> master (effects volume) -> out (mute); music -> musicBus (music volume) -> out.
   let ctx = null, master = null, out = null, musicBus = null, noiseBuf = null;
@@ -1384,7 +1396,7 @@ const sfx = (() => {
       musicBus.connect(out);
       music = createMusic(ctx, musicBus);   // the sound button mutes both
       music.setStyle(songStyle());
-      music.setKey(songKey());
+      music.setKey(songKey(), songScale());
       music.start();
       noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
       const d = noiseBuf.getChannelData(0);
@@ -1406,10 +1418,10 @@ const sfx = (() => {
     o.stop(t + dur + 0.02);
   }
   // ---- hop voices ----
-  // Two octaves of D pentatonic: climbs from the low D up to the high B, then walks back down
-  // (times keyK(), in the song's key).
+  // Two octaves of the key's pentatonic (D major's: D E F# A B): climbs from the key note
+  // up to the top, then walks back down.
   const TAP_LEN = 0.12;   // how long a quick tap on a Jam Stage pad is held
-  const HOP_TUNE = [293.7, 329.6, 370, 440, 493.9, 587.3, 659.3, 740, 880, 987.8, 880, 740, 659.3, 587.3, 493.9, 440, 370, 329.6];
+  const HOP_TUNE = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 8, 7, 6, 5, 4, 3, 2, 1];   // steps for pentHz()
   let hopStep = 0, pulse = null;
   function env(g, t, vol, dur, attack = 0.004) {
     g.gain.setValueAtTime(0.0001, t);
@@ -1580,7 +1592,7 @@ const sfx = (() => {
     // The notes walk a major pentatonic line in the soundtrack's key, so a run of hops
     // plays a little tune. delay: seconds from now, for sounds that must land on a beat.
     sustain: store.get('bl-sustain', 0.35),
-    hop(id, delay = 0) { this.note(id, HOP_TUNE[hopStep++ % HOP_TUNE.length] * keyK(), delay); },
+    hop(id, delay = 0) { this.note(id, pentHz(HOP_TUNE[hopStep++ % HOP_TUNE.length]), delay); },
     note(id, n, delay = 0) {
       this.voice(id, n, false, delay);
       this.hold(id, n, this.sustain, delay, TAP_LEN);
@@ -1728,9 +1740,9 @@ const sfx = (() => {
     },
     bump() { tone(220, 150, 0.07, 'square', 0.07); },
     // these little tunes are in D too, so they move with the song's key
-    pick() { const k = keyK(); tone(587 * k, 880 * k, 0.08, 'triangle', 0.07); },
-    place() { const k = keyK(); tone(880 * k, null, 0.05, 'triangle', 0.07); tone(1175 * k, null, 0.12, 'triangle', 0.06, 0.05); },
-    coin() { const k = keyK(); tone(988 * k, null, 0.08, 'square', 0.07); tone(1319 * k, null, 0.2, 'square', 0.07, 0.08); },
+    pick() { tone(inKey(587), inKey(880), 0.08, 'triangle', 0.07); },
+    place() { tone(inKey(880), null, 0.05, 'triangle', 0.07); tone(inKey(1175), null, 0.12, 'triangle', 0.06, 0.05); },
+    coin() { tone(inKey(988), null, 0.08, 'square', 0.07); tone(inKey(1319), null, 0.2, 'square', 0.07, 0.08); },
     squash() { noise(0.3, 0.5, 'lowpass', 700); tone(180, 60, 0.3, 'sawtooth', 0.12); },
     splash() { noise(0.55, 0.45, 'bandpass', 1400); tone(600, 180, 0.25, 'sine', 0.1); },
     moo() { tone(150, 105, 0.7, 'sawtooth', 0.07); tone(152, 108, 0.7, 'triangle', 0.12); },
@@ -1738,7 +1750,7 @@ const sfx = (() => {
     creak() { tone(320, 170, 0.45, 'sawtooth', 0.035); tone(260, 210, 0.3, 'square', 0.02, 0.15); },
     snort() { noise(0.35, 0.35, 'bandpass', 500); tone(90, 60, 0.3, 'sawtooth', 0.1); },
     rooster() { tone(700, 900, 0.12, 'sawtooth', 0.045); tone(900, 760, 0.12, 'sawtooth', 0.045, 0.13); tone(760, 1020, 0.14, 'sawtooth', 0.045, 0.27); tone(1020, 640, 0.55, 'sawtooth', 0.045, 0.43); },
-    upgrade() { const k = keyK(); tone(784 * k, null, 0.1, 'square', 0.06); tone(988 * k, null, 0.1, 'square', 0.06, 0.1); tone(1319 * k, null, 0.32, 'square', 0.06, 0.2); noise(0.4, 0.25, 'bandpass', 1400, 0.05); },
+    upgrade() { tone(inKey(784), null, 0.1, 'square', 0.06); tone(inKey(988), null, 0.1, 'square', 0.06, 0.1); tone(inKey(1319), null, 0.32, 'square', 0.06, 0.2); noise(0.4, 0.25, 'bandpass', 1400, 0.05); },
     lullaby() { tone(784, null, 0.4, 'triangle', 0.08); tone(659, null, 0.4, 'triangle', 0.08, 0.35); tone(523, null, 0.9, 'triangle', 0.08, 0.7); },
     launch() { tone(300, 1200, 0.4, 'square', 0.07); },
     cast() { tone(900, 380, 0.2, 'sine', 0.06); noise(0.18, 0.12, 'highpass', 2500); },
@@ -5015,10 +5027,11 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
     return;
   }
-  if (game.picking && shopOpen()) {   // shop: arrows pick, Enter buys, Tab / Q / E switch tabs, Escape closes
+  if (game.picking && shopOpen()) {   // shop: arrows pick, Enter buys, Tab / Q / E switch tabs, [ / ] scales, Escape closes
     const nav = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[e.code];
     if (nav) { document.body.classList.add('keys'); shopFocus = gridStep(shopCards(), shopFocus, nav); refreshShop(); }
     else if (/^(Tab|KeyQ|KeyE)$/.test(e.code)) setShopTab(shopTab === 'decor' ? 'music' : 'decor');
+    else if (shopTab === 'music' && /^Bracket(Left|Right)$/.test(e.code)) nextScale(e.code === 'BracketLeft' ? -1 : 1);
     else if (e.code === 'Enter' || e.code === 'Space') shopBuy();
     else if (e.code === 'Escape') closeShop();
     e.preventDefault();
@@ -6367,20 +6380,29 @@ DECOR.forEach((id, i) => {
   card.addEventListener('click', () => { shopFocus = i; buyDecor(id); });
   shopGrid.append(card);
 });
-// The Music tab: the song's key. D is the tune's own; the others are KEY_PRICE each.
-// Tap one you have to switch to it: the soundtrack and every hopper sound change key
-// together on the next bar line. Tab, Q / E or LB / RB switch tabs.
-const keyGrid = $('keyGrid');
-let shopTab = 'decor';
-SONG_KEYS.forEach(([id], i) => {
+// The Music tab: the song's key. Pick a scale (Major, Minor, ...) at the top, then a
+// key: D major is the tune's own; every other key is KEY_PRICE. Tap one you have to
+// switch to it: the soundtrack and every hopper sound change key together on the next
+// bar line. Tab, Q / E or LB / RB switch tabs; [ / ] or LT / RT switch scales.
+const keyGrid = $('keyGrid'), scaleChips = $('scaleChips');
+let shopTab = 'decor', keyScale = songScale();
+for (const sc of Object.keys(SCALES)) {
+  const chip = document.createElement('button');
+  chip.className = 'setTab';
+  chip.dataset.scale = sc;
+  chip.setAttribute('role', 'tab');
+  chip.addEventListener('click', () => setKeyScale(sc));
+  scaleChips.append(chip);
+}
+SONG_KEYS.forEach((_, i) => {
   const card = document.createElement('button');
   card.className = 'heroCard keyCard';
-  card.dataset.id = id;
-  card.style.background = `hsl(${i * 30} 85% 88%)`;
   card.innerHTML = '<b class="keyGlyph"></b><span class="heroName"></span><i class="tag"></i>';
   card.addEventListener('click', () => { shopFocus = i; buyKey(i); });
   keyGrid.append(card);
 });
+// Bought keys, by id: 'C' for C major, 'C:minor' for C minor.
+const keyId = (i, sc) => SONG_KEYS[i][0] + (sc === 'major' ? '' : ':' + sc);
 const ownedKeys = () => new Set(['D', ...store.get('bl-keys', [])]);
 const shopCards = () => [...(shopTab === 'music' ? keyGrid : shopGrid).children];
 const shopBuy = () => (shopTab === 'music' ? buyKey(shopFocus) : buyDecor(DECOR[shopFocus]));
@@ -6391,16 +6413,24 @@ function setShopTab(tab) {
     $(id).setAttribute('aria-selected', String(on));
   }
   shopGrid.hidden = tab === 'music';
-  keyGrid.hidden = tab !== 'music';
-  shopFocus = tab === 'music' ? Math.max(0, SONG_KEYS.findIndex(k => k[1] === songKey())) : Math.max(0, DECOR.findIndex(id => !ownedDecor.has(id)));
+  keyGrid.hidden = scaleChips.hidden = tab !== 'music';
+  if (tab === 'music') keyScale = songScale();
+  shopFocus = tab === 'music' ? keyFocus() : Math.max(0, DECOR.findIndex(id => !ownedDecor.has(id)));
   refreshShop();
   document.querySelector('#shop .panelBody').scrollTop = 0;
 }
+const keyFocus = () => (keyScale === songScale() ? Math.max(0, SONG_KEYS.findIndex(k => k[1] === songKey())) : 0);
+function setKeyScale(sc) {
+  keyScale = sc;
+  shopFocus = keyFocus();
+  refreshShop();
+}
+const nextScale = d => { const all = Object.keys(SCALES); setKeyScale(all[(all.indexOf(keyScale) + d + all.length) % all.length]); };
 $('tabDecor').addEventListener('click', () => setShopTab('decor'));
 $('tabMusic').addEventListener('click', () => setShopTab('music'));
 const STEP_SEC = 60 / 84 / 2;   // an eighth note of the farm tune (84 BPM)
 function buyKey(i) {
-  const [id, n] = SONG_KEYS[i], owned = ownedKeys();
+  const id = keyId(i, keyScale), n = SONG_KEYS[i][1], sc = keyScale, owned = ownedKeys();
   if (!owned.has(id)) {
     if (game.coins < KEY_PRICE) { sfx.bump(); refreshShop(needText(KEY_PRICE - game.coins)); return; }
     game.coins -= KEY_PRICE;
@@ -6408,26 +6438,37 @@ function buyKey(i) {
     store.set('bl-keys', [...owned].filter(k => k !== 'D').concat(id));
     hud();
   }
-  if (n === songKey()) { refreshShop(); return; }
-  store.set('bl-key', n);   // a farm setting: the guests on this farm hear it too
+  if (n === songKey() && sc === songScale()) { refreshShop(); return; }
+  store.set('bl-key', n);   // farm settings: the guests on this farm hear it too
+  store.set('bl-scale', sc);
   sfx.ensure();
-  const wait = music?.setKey(n) ?? 0;
+  const wait = music?.setKey(n, sc) ?? 0;
   // Right as the tune changes key, your hopper sings up its chord: the root, third, fifth and octave.
-  [0, 2, 3, 5].forEach((col, j) => sfx.note(heroId, 293.66 * 2 ** (n / 12) * SCALE[col], wait + j * STEP_SEC));
-  refreshShop(t('keyHere', { k: keyLabel(i) }));
+  const deg = SCALES[sc].deg;
+  [0, 4 + deg[2], 7 + deg[4], 12].forEach((st, j) => sfx.note(heroId, 293.66 * 2 ** ((n + st) / 12), wait + j * STEP_SEC));
+  refreshShop(t('keyHere', { k: keyLabel(i, sc) }));
 }
-const keyLabel = i => t('keyMajor', { k: t('keyNames.' + i) });
+// Key names: a scale can spell some differently (C# minor, not Db minor).
+const keyGlyph = (i, sc) => STRINGS.en.keyNamesBy?.[sc] ? t('keyNamesBy.' + sc + '.' + i) : t('keyNames.' + i);
+const keyLabel = (i, sc) => t('scaleKey.' + sc, { k: keyGlyph(i, sc) });
 function refreshShop(msg) {
   const nav = document.body.classList.contains('pad') || document.body.classList.contains('keys');
   $('shopWho').textContent = t(shopTab === 'music' ? 'shopKeyWho' : 'shopWho');
-  const owned = ownedKeys(), now = songKey();
+  for (const chip of scaleChips.children) {
+    const on = chip.dataset.scale === keyScale;
+    chip.textContent = t('scales.' + chip.dataset.scale);
+    chip.classList.toggle('on', on);
+    chip.setAttribute('aria-selected', String(on));
+  }
+  const owned = ownedKeys(), now = songKey(), nowScale = songScale(), minor = SCALES[keyScale].deg[2] < 0;
   [...keyGrid.children].forEach((c, i) => {
-    const [id, n] = SONG_KEYS[i], have = owned.has(id), on = n === now, name = keyLabel(i);
+    const n = SONG_KEYS[i][1], have = owned.has(keyId(i, keyScale)), on = n === now && keyScale === nowScale, name = keyLabel(i, keyScale);
+    c.style.background = minor ? `hsl(${i * 30} 45% 80%)` : `hsl(${i * 30} 85% 88%)`;   // minor keys a little dusky
     c.classList.toggle('short', !have && game.coins < KEY_PRICE);
     c.classList.toggle('on', on);
     c.classList.toggle('focus', nav && shopTab === 'music' && i === shopFocus);
-    c.querySelector('.keyGlyph').textContent = t('keyNames.' + i);
-    c.querySelector('.heroName').textContent = t('keyMajorShort');
+    c.querySelector('.keyGlyph').textContent = keyGlyph(i, keyScale);
+    c.querySelector('.heroName').textContent = t('scaleShort.' + keyScale);
     const tag = c.querySelector('.tag');
     tag.style.display = on ? 'none' : '';   // the chosen key wears the spinning sunflower instead
     tag.className = 'tag ' + (have ? 'check' : 'cost');
@@ -6552,7 +6593,7 @@ $('landBuy').addEventListener('click', buyLand);
 $('landClose').addEventListener('click', closeLand);
 $('land').addEventListener('click', e => { if (e.target.id === 'land') closeLand(); });
 
-const SCALE = [1, 1.1225, 1.2599, 1.4983, 1.6818, 2];   // D E F# A B D
+const SCALE = [0, 1, 2, 3, 4, 5];   // pad columns: pentHz() steps, the key's pentatonic and its octave (D E F# A B D in D major)
 const JAM_ROWS = 3;   // top row an octave up, bottom row an octave down
 const JAM_KEYS = ['KeyQ KeyW KeyE KeyR KeyT KeyY', 'KeyA KeyS KeyD KeyF KeyG KeyH', 'KeyZ KeyX KeyC KeyV KeyB KeyN'].map(r => r.split(' '));
 const PAD_BTNS = [4, 2, 0, 3, 1, 5], PAD_LABELS = ['LB', 'X', 'A', 'Y', 'B', 'RB'];   // controller button for each column
@@ -6635,7 +6676,7 @@ function setDrums(on) {
 }
 $('instBtn').addEventListener('click', () => { sfx.ensure(); setDrums(!jam.drums); });
 const padAt = (row, col) => jamPads.querySelector(`.pad[data-row="${row}"][data-col="${col}"]`);
-const noteFreq = (oct, row, col) => 293.66 * keyK() * SCALE[col] * 2 ** (oct + 1 - row);
+const noteFreq = (oct, row, col) => pentHz(SCALE[col]) * 2 ** (oct + 1 - row);
 const padFreq = (row, col) => noteFreq(jam.oct, row, col);
 function playPad(row, col, by) {
   sfx.ensure();
@@ -7949,7 +7990,7 @@ $('settings').addEventListener('click', e => { if (e.target.id === 'settings') c
 const supportOpen = () => $('support').classList.contains('show');
 let supTimer = null;
 function songStyle() { return (GUEST || supporter) && store.get('bl-dnb', false) ? 'dnb' : 'classic'; }
-function applySong() { music?.setStyle(songStyle()); music?.setKey(songKey()); }
+function applySong() { music?.setStyle(songStyle()); music?.setKey(songKey(), songScale()); }
 function setSong(on) {
   store.set('bl-dnb', on);   // a farm setting: the guests on this farm hear it too
   applySong();
@@ -8185,6 +8226,7 @@ function pollPad() {
   if (game.picking && shopOpen()) {
     if (dir) { shopFocus = gridStep(shopCards(), shopFocus, dir); refreshShop(); }
     if (pressed(4) || pressed(5)) setShopTab(shopTab === 'decor' ? 'music' : 'decor');   // LB / RB: the other tab
+    if (shopTab === 'music' && (pressed(6) || pressed(7))) nextScale(pressed(6) ? -1 : 1);   // LT / RT: the other scales
     if (pressed(0) || pressed(9)) shopBuy();
     if (pressed(1) || pressed(8)) closeShop();
     return;
@@ -8339,4 +8381,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyK, songKey, buyKey, setShopTab, noteFreq };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq };
