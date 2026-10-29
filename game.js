@@ -259,6 +259,7 @@ const postMat = new THREE.ShaderMaterial({
     // (centre and radii, in uv) where the night tint gives way to warm light.
     lamps: { value: Array.from({ length: 24 }, () => new THREE.Vector4()) },
     lampS: { value: new Array(24).fill(0) },
+    lampC: { value: Array.from({ length: 24 }, () => new THREE.Color(1, 0.96, 0.82)) },   // each halo's colour (warm white, unless it's something green, say)
     lampW: { value: new Array(24).fill(1) },   // 1: warm torchlight; 0: white, so a glowing thing keeps its own colour; -1: plain white light, no halo (stage lighting)
     lampN: { value: 0 },
     lampK: { value: 0 },   // how dark it is: 0 in the day, 1 at night
@@ -276,6 +277,7 @@ const postMat = new THREE.ShaderMaterial({
     uniform vec4 lamps[24];
     uniform float lampS[24];
     uniform float lampW[24];
+    uniform vec3 lampC[24];
     uniform int lampN;
     uniform float lampK;
     uniform vec3 lampCol;
@@ -291,17 +293,19 @@ const postMat = new THREE.ShaderMaterial({
     void main() {
       vec3 col = texture2D(tColor, vUv).rgb;
       float lit = 0., warm = 0., halo = 0.;
+      vec3 haloC = vec3(0.);
       for (int i = 0; i < 24; i++) {
         if (i >= lampN) break;
         vec2 q = (vUv - lamps[i].xy) / lamps[i].zw;
         float f = max(0., 1. - dot(q, q));
         lit += f * f * lampS[i];
         warm += f * f * lampS[i] * max(lampW[i], 0.);
-        halo += f * lampS[i] * (lampW[i] < 0. ? 0. : 1. - lampW[i]);   // things that glow themselves (the players' sunflowers): a soft halo
+        halo += f * lampS[i] * (lampW[i] < 0. ? 0. : 1. - lampW[i]);
+        haloC += f * lampS[i] * (lampW[i] < 0. ? 0. : 1. - lampW[i]) * lampC[i];   // things that glow themselves (the players' sunflowers): a soft halo
       }
       vec3 tint = mix(vec3(1.), lampCol, warm / max(lit, 1e-4));
       lit = min(lit, 1.) * lampK;
-      col = max(mix(vec3(dot(col, vec3(0.2126, 0.7152, 0.0722))), col, sat), 0.) * mix(grade, max(grade, tint), lit) + tint * lit * 0.05 + vec3(1., .96, .82) * min(halo, 1.) * lampK * 0.28;
+      col = max(mix(vec3(dot(col, vec3(0.2126, 0.7152, 0.0722))), col, sat), 0.) * mix(grade, max(grade, tint), lit) + tint * lit * 0.05 + min(haloC, vec3(1.)) * lampK * 0.28;
       vec2 dx = vec2(texel.x, 0.), dy = vec2(0., texel.y);
       float dc = D(vUv);
       // second difference: flat (even sloped) ground cancels out, steps don't
@@ -3599,6 +3603,7 @@ function placeLamps(views) {
       U.lamps.value[n].set(cx, cy, ex + 0.001, L.flame ? ex * W / H + 0.001 : ey * 1.35 + 0.01);   // a little taller: it lights the hoppers standing in it
       U.lampS.value[n] = L.s * (L.torch ? 0.9 + 0.1 * Math.sin(game.time * 9 + L.ph) : 1);
       U.lampW.value[n] = L.w ?? 1;
+      if (L.c) U.lampC.value[n].setRGB(...L.c); else U.lampC.value[n].setRGB(1, 0.96, 0.82);
       n++;
     }
   }
@@ -4204,7 +4209,7 @@ function boardLights(kind) {
     b.position.set(x, y - 0.05, -0.08);
     g.add(b);
     bulbs.push([b, i * 0.9]);
-    for (const z of [0.01, -0.17]) glowAt(g, x, y - 0.05, z, [0xff8a1a, 0xb070ff, 0xfff1c8][i % 3], 0.34);   // each bulb's own glow after dark, front and back
+    for (const z of [0.01, -0.17]) glowAt(g, x, y - 0.05, z, [0xff8a1a, 0xb070ff, 0xfff1c8][i % 3], 0.6);   // each bulb's own glow after dark, front and back
   });
   g.userData.twinkle = t => { for (const [b, ph] of bulbs) b.scale.setScalar(1.3 * (0.88 + 0.14 * (0.5 + 0.5 * Math.sin(t * 3 + ph)))); };
   g.userData.kind = kind;
@@ -4327,11 +4332,12 @@ function buildCauldron(g) {   // a witch's pot on its fire, the green brew bubbl
   for (let i = 0; i < 3; i++) { const a = i * Math.PI * 2 / 3 + 0.5; v.cyl(0.035, 0.025, 0.24, Math.cos(a) * 0.22, 0.12, Math.sin(a) * 0.22, K); }   // legs
   for (const a of [0.5, -0.5]) v.cyl(0.055, 0.055, 0.7, 0, 0.05, 0, 0x6b4226, 0, a, Math.PI / 2);   // firewood
   v.cap(0.025, 0.5, 0.18, 0.85, -0.05, 0x8a5a33, 0, 0, -0.6);               // a stirring stick
-  brew.cyl(0.28, 0.28, 0.03, 0, 0.67, 0, 0x7dff5a);
+  brew.cyl(0.28, 0.28, 0.03, 0, 0.67, 0, 0x5aff3a);
   g.add(v.mesh());
   const lit = new THREE.Mesh(brew.geometry(), GLOW_VMAT);
   g.add(lit);
-  lamps.push({ o: lit, r: 1.5, s: 0.9, w: 0 });   // a green glow of its own
+  lit.material = GOO_GLOW_MAT;   // lit up brighter than bright, neon green
+  lamps.push({ o: lit, r: 1.5, s: 1.1, w: 0, c: [0.25, 1, 0.3] });   // and a green glow of its own
   const fire = new THREE.Group();
   fire.position.set(0, 0.12, 0);
   for (const [x, s] of [[-0.08, 0.8], [0.08, 0.7], [0, 1]]) {
@@ -4893,6 +4899,7 @@ function fishModel(sp) {
 
 // Pond styles: the classic blue, and the Pumpkin Harvest's Glowing Goo.
 const POND_SKINS = ['classic', 'goo'];
+const GOO_GLOW_MAT = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.35, 1, 0.25).multiplyScalar(1.8) });   // the cauldron's brew, brighter than bright
 const GOO_MAT = new THREE.MeshBasicMaterial({ color: 0x6bff7a, transparent: true, opacity: 0.9, depthWrite: false });
 const pondSkins = () => ['classic', ...store.get('bl-pond-skins', [])].filter(s => POND_SKINS.includes(s));
 const pondSkin = () => { const s = store.get('bl-pond-skin', 'classic'); return pondSkins().includes(s) ? s : 'classic'; };
@@ -4911,7 +4918,7 @@ function buildPond() {
     s.scale.set(rx * 0.98, 0.2, rz * 0.98);
     s.position.y = 0.045;
     g.add(s);
-    lamps.push({ o: s, r: rx + 0.6, s: 0.9, w: 0 });
+    lamps.push({ o: s, r: rx + 0.6, s: 1.1, w: 0, c: [0.25, 1, 0.3] });   // a neon-green glow round it
     farm.goo = s;
   }
   if (!goo) farm.goo = null;
@@ -4965,7 +4972,7 @@ const _fw = new THREE.Vector3();
 function updateFarm(dt) {
   const t = game.time, [rx, rz] = farm.pondR;
   if (farm.goo) {   // the goo shimmers, and bubbles pop up through it
-    GOO_MAT.color.setHSL(0.3 + 0.02 * Math.sin(t * 1.1), 1, 0.45 + 0.06 * Math.sin(t * 1.9)).multiplyScalar(1.4);
+    GOO_MAT.color.setHSL(0.33 + 0.02 * Math.sin(t * 1.1), 1, 0.5 + 0.06 * Math.sin(t * 1.9)).multiplyScalar(1.8);   // neon
     if (Math.random() < dt * 5) {
       const a = Math.random() * Math.PI * 2, k = Math.sqrt(Math.random()) * 0.85;
       farm.goo.localToWorld(_fw.set(Math.cos(a) * k, 0.3, Math.sin(a) * k));
