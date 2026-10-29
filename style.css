@@ -539,7 +539,9 @@ body.farm.fishing #fishBar { display: grid; }
   #fishCast svg { width: 50px; height: 50px; }
 }
 body.farm.fishing.reeling #fishBar { display: none; }   /* nothing but the beat lane while reeling in */
-body.farm.fishing #farmBtns { display: none; }
+body.farm.fishing #farmBtns, body.farm.swinging #farmBtns { display: none; }
+#swingHint { position: fixed; left: 50%; translate: -50% 0; bottom: calc(env(safe-area-inset-bottom) + 24px); display: none; pointer-events: none; }
+body.farm.swinging #swingHint { display: block; }
 #bookBtn { --c1: var(--berry); --c2: var(--berry-d); width: 76px; height: 76px; }
 #bookBtn svg { width: 46px; height: 46px; }
 #fishStop svg { width: 56px; height: 56px; margin: 0; }

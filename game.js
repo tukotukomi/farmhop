@@ -2755,7 +2755,7 @@ function markSplit() {   // the ink line between the halves
 
 let fishCamHook = null;   // fishing's own camera (set up with the fishing, further down)
 function updateCamera(dt) {
-  if (game.where === 'farm' && fishCamHook?.(dt)) return;
+  if (game.where === 'farm' && (fishCamHook?.(dt) || swingCamHook(dt))) return;
   if (game.where === 'road') skyClouds(dt, camera.position.x, camera.position.z);   // the hopping game's sky has clouds too
   else clouds.visible = false;                                                       // the farm from above has no sky
   const V = activeView();
@@ -2960,7 +2960,7 @@ const PIECES = {
   flowers: { build: buildFlowers, foot: [-0.75, 0.75, -0.75, 0.75], at: [-4.5, 2.5, 0] },
   mailbox: { build: buildMailbox, foot: [-0.35, 0.35, -0.35, 0.35], at: [-3, 6, 0] },
   scarecrow: { build: buildScarecrow, foot: [-0.75, 0.75, -0.45, 0.45], decor: true, price: 10, bg: '#fff1b8' },
-  swing: { build: buildSwing, foot: [-1.05, 1.05, -0.9, 0.9], decor: true, price: 10, bg: '#d9f2ff' },
+  swing: { build: buildSwing, foot: [-1.1, 1.1, -0.9, 0.9], decor: true, price: 10, bg: '#d9f2ff', icon: 0.78 },   // icon: smaller in the shop, it's tall
   drums: { build: buildDrumKit, decor: true, onStage: true, price: 1, bg: '#ffd6ec' },   // sits on the Jam Stage, not in the yard
   disco: { build: buildDiscoBall, decor: true, onStage: true, price: 100, bg: '#e6dcff' },   // turns on top of the Jam Stage's sign
   bigstage: { build: buildBigStageIcon, decor: true, onStage: true, needsStage: true, price: 200, bg: '#ffe0b8' },   // the Jam Stage, a third bigger
@@ -3006,7 +3006,7 @@ function addPiece(id, near) {
   farm.group.add(p.group);
   p.update = PIECES[id].build(p.group);   // a few pieces return a little animation
   const saved = savedLayout[id];
-  let [x, z, r] = near || (saved ? [saved.x, saved.z, saved.r] : PIECES[id].at);
+  let [x, z, r] = near || (saved ? [saved.x, saved.z, saved.r] : PIECES[id].at || [0, 0, 0]);   // (a decoration with no saved spot: the nearest free one to the middle)
   if (!placeOk(id, x, z, r)) [x, z] = findSpot(id, x, z, r) || [x, z];
   farm.pieces[id] = p;
   setPiece(p, x, z, r);
@@ -3392,18 +3392,26 @@ function buildScarecrow(g) {   // straw hat, patched red shirt, a crow on one ar
   vb.ball(0.012, 0.012, 0.01, 0.45, 1.45, 0.11, 0xffffff);
   g.add(vb.mesh());
 }
-function buildSwing(g) {   // a wooden A-frame with a pink seat that sways
-  const vb = new VB(0.6), WOOD = 0x9c6b3c;
-  vb.cyl(0.06, 0.06, 2.0, 0, 1.5, 0, WOOD, 0, 0, Math.PI / 2);
-  for (const x of [-0.88, 0.88]) for (const sz of [-1, 1]) vb.cyl(0.05, 0.05, 1.66, x, 0.75, sz * 0.35, WOOD, -sz * 0.437, 0, 0);
+// A wooden A-frame, tall enough for a hopper to sit under, with a pink seat on two ropes.
+// It sways a little on its own and swings properly with someone on it.
+const SWING_TOP = 2.3, SWING_ROPE = 1.82, SEAT_TOP = -SWING_ROPE + 0.005;   // the seat's top, below the bar
+function buildSwing(g) {
+  const vb = new VB(0.6), WOOD = 0x9c6b3c, spread = 0.75, leg = Math.hypot(SWING_TOP, spread), lean = Math.atan2(spread, SWING_TOP);
+  vb.cyl(0.06, 0.06, 2.1, 0, SWING_TOP, 0, WOOD, 0, 0, Math.PI / 2);
+  for (const x of [-0.95, 0.95]) for (const sz of [-1, 1]) vb.cyl(0.05, 0.05, leg, x, SWING_TOP / 2, sz * spread / 2, WOOD, -sz * lean, 0, 0);
   g.add(vb.mesh());
   const sv = new VB(0.6);
-  for (const x of [-0.3, 0.3]) sv.cyl(0.012, 0.012, 1.05, x, -0.55, 0, 0xf4ead8);
-  sv.rbox(0.78, 0.07, 0.32, 0, -1.08, 0, 0xff7fb8, 0.03);
+  for (const x of [-0.36, 0.36]) sv.cyl(0.012, 0.012, SWING_ROPE, x, -SWING_ROPE / 2, 0, 0xf4ead8);
+  sv.rbox(0.86, 0.07, 0.36, 0, -SWING_ROPE - 0.03, 0, 0xff7fb8, 0.03);
   const seat = sv.mesh();
-  seat.position.y = 1.5;
+  seat.position.y = SWING_TOP;
   g.add(seat);
-  return t => { seat.rotation.x = Math.sin(t * 1.7) * 0.28; };
+  g.userData.seat = seat;
+  let swing = 0;
+  return t => {
+    swing += ((farm.swingSitter?.sit ? 0.36 : 0.1) - swing) * 0.02;   // eases up to a real swing with someone on it
+    seat.rotation.x = Math.sin(t * 1.7) * swing;
+  };
 }
 
 // A price bubble floating over a plot: a sunflower and how many it takes to build.
@@ -3950,7 +3958,7 @@ function stageShows(dt) {
   }
   if (!live || (show.next -= dt) > 0) return;
   show.next = rand(35, 75);
-  const idle = farm.walkers.filter(w => !w.hidden && !players.has(w) && !w.fishing && !w.leap && !w.goal && !w.show).sort(() => rnd() - 0.5);
+  const idle = farm.walkers.filter(w => !w.hidden && !players.has(w) && !w.fishing && !w.leap && !w.goal && !w.show && !w.sit && !w.swingGo).sort(() => rnd() - 0.5);
   if (idle.length < 2) return;
   const band = stageK() > 1 && idle.length >= 5 && rnd() < 0.5 ? 3 : idle.length >= 4 && rnd() < 0.4 ? 2 : 1;
   const perf = [[[-0.15, 0.1]], [[-0.45, 0.15], [0.2, 0.05]], [[-0.6, 0.15], [-0.05, 0.05], [0.55, 0.12]]][band - 1];
@@ -4147,6 +4155,8 @@ function landLeap(w, x, z, up, y = null) {   // y: a height to land at (up onto 
 function farmHop(id, dx, dr) {
   const w = walkerOf(id);
   if (!w || fishers.has(id)) return;
+  if (w.sit) { standUp(w); return; }   // on the swing: a hop gets off
+  w.swingGo = false;
   if (w.leap) { w.queued = [dx, dr]; return; }   // pressed again mid-hop: go straight after this one
   w.goal = null;
   leapTo(w, w.x + dx * FARM_STEP, w.z - dr * FARM_STEP);
@@ -4154,6 +4164,7 @@ function farmHop(id, dx, dr) {
 function hopToward(id, x, z) {   // a tap on the grass: hop over there
   const w = walkerOf(id);
   if (!w) return;
+  w.swingGo = false;
   w.goal = { x, z };
   if (!w.leap) nextLeap(w);
 }
@@ -4169,6 +4180,97 @@ function nextLeap(w) {
   leapTo(w, w.x, w.z);
 }
 // The TV's own hopper, from the keyboard or a controller
+// ---------- the swing ----------
+// Now and then a farm hopper wanders over to the swing, hops on and sits for a good
+// swing, then hops off again. Tap the swing and your own hopper goes and sits, with
+// a camera in front of the swing; any tap or hop gets off. The sitter rides the seat:
+// hips on the board, legs dangling below it, tipping as it swings.
+const SIT_HIP = 0.3;   // a hopper's hips above its feet (at the hoppers' 1.3 scale)
+const _sv = new THREE.Vector3(), _sq = new THREE.Quaternion(), _turn = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
+const swingFront = () => pieceToFarm(farm.pieces.swing, 0, 1.25);
+const onSwing = (x, z) => { const p = farm.pieces.swing, [a, b, c, d] = worldRect(PIECES.swing.foot, p.x, p.z, p.r); return x > a && x < b && z > c && z < d; };
+const swingTaken = by => farm.walkers.some(o => o !== by && (o.sit || o.swingGo));   // one hopper on the swing at a time
+function goSwing(w, mine = false) {   // head for the front of the swing; false if it can't
+  const sp = farm.pieces.swing;
+  if (!w || !sp || decor.on || w.fishing || w.sit || w.show) return false;
+  if (swingTaken(w)) {   // your turn: whoever's on it hops off, and anyone on the way changes their mind
+    if (!mine) return false;
+    for (const o of farm.walkers) if (o !== w) { if (o.sit) standUp(o); o.swingGo = false; }
+  }
+  const [x, z] = swingFront();
+  if (blockedAt(x, z)) return false;
+  farm.swingSitter = w;
+  if (mine) { hopToward(w.key, x, z); w.swingGo = true; return true; }
+  if (!pathClear(w.x, w.z, x, z)) { farm.swingSitter = null; return false; }
+  w.swingGo = true;
+  w.tx = x; w.tz = z;
+  toGuests({ t: 'walk', k: w.key, x: w.x, z: w.z, tx: x, tz: z });
+  return true;
+}
+function sitDown(w) {
+  w.swingGo = false;
+  const other = farm.walkers.find(o => o !== w && o.sit);
+  if (other) { if (w.key !== myKey()) return; standUp(other); }   // taken: a farm hopper wanders off; yours takes a turn
+  if (!farm.pieces.swing || Math.hypot(w.x - swingFront()[0], w.z - swingFront()[1]) > 0.6) { if (farm.swingSitter === w) farm.swingSitter = null; return; }   // didn't make it
+  farm.swingSitter = w;
+  w.sit = { t: w.key === myKey() ? Infinity : rand(12, 22), k: 0 };   // yours stays till you hop off
+  w.leap = null; w.hop = 0;
+  sfx.hop(w.id);
+  if (w.key === myKey()) document.body.classList.add('swinging');
+}
+function standUp(w) {
+  if (!w?.sit) return;
+  w.sit = null;
+  if (farm.swingSitter === w) farm.swingSitter = null;
+  if (w.key === myKey()) document.body.classList.remove('swinging');
+  w.m.group.quaternion.identity();
+  w.m.group.rotation.y = w.face;
+  if (!farm.pieces.swing) { w.y = 0; return; }
+  const [x, z] = w.key === myKey() ? swingFront() : pieceToFarm(farm.pieces.swing, rnd() < 0.5 ? -1.6 : 1.6, 0.2);   // others hop off to the side, out of the way and out of the swing camera's view
+  landLeap(w, x, z, 0.35, 0);   // a hop down off the seat
+  toGuests({ t: 'leap', k: w.key, x, z, up: 0.35, y: 0 });
+  w.wait = rand(1, 3);
+}
+// On the seat: placed on it as it swings, facing out the front.
+function sitPose(w, dt) {
+  const sp = farm.pieces.swing, seat = sp?.group.userData.seat;
+  if (!seat || decor.on || game.state !== 'farm') { standUp(w); return; }
+  seat.updateMatrixWorld();
+  seat.localToWorld(_sv.set(0, SEAT_TOP - SIT_HIP, 0.02));
+  farm.group.worldToLocal(_sv);
+  w.m.group.position.copy(_sv);
+  seat.getWorldQuaternion(_sq);
+  w.m.group.quaternion.copy(_sq).multiply(_turn);
+  w.m.inner.position.y = 0;
+  w.m.inner.rotation.z = 0;
+  w.x = w.tx = _sv.x; w.z = w.tz = _sv.z; w.y = _sv.y;
+  w.face = (sp.r * Math.PI / 2) + Math.PI;
+  w.sit.k = Math.min(1, w.sit.k + dt * 2);
+  if ((w.sit.t -= dt) <= 0) standUp(w);
+}
+// Your hopper on the swing: a camera out in front, a little low, looking up at you
+// swinging, with the sky and clouds behind.
+const swingCam = { on: false, swoop: 1, look: new THREE.Vector3() };
+function swingCamHook(dt) {
+  const me = walkerOf(myKey()), sp = farm.pieces.swing;
+  if (!me?.sit || !sp) { swingCam.on = false; return false; }
+  useCamera(perspCam);
+  const base = farm.group.position, [fx, fz] = pieceToFarm(sp, 0, 1), dx = fx - sp.x, dz = fz - sp.z;   // the swing's front
+  const lookX = base.x + sp.x, lookY = 1.15, lookZ = base.z + sp.z;
+  if (!swingCam.on) { swingCam.on = true; swingCam.swoop = 1; }
+  swingCam.swoop *= Math.exp(-dt * 2.5);
+  const t = game.time * 0.15, side = Math.sin(t) * 0.8, d = 3.6 + swingCam.swoop * 2;
+  camera.position.set(lookX + dx * d + dz * side, 0.75 + swingCam.swoop * 1.5, lookZ + dz * d - dx * side);
+  camera.lookAt(swingCam.look.set(lookX, lookY, lookZ));
+  skyClouds(dt, lookX, lookZ);
+  sun.position.copy(swingCam.look).add(SUN_OFF);
+  sun.target.position.copy(swingCam.look);
+  setShadowSpan(FISH_SHADOW);
+  sun.updateMatrixWorld();
+  sun.target.updateMatrixWorld();
+  camera.updateMatrixWorld();
+  return true;
+}
 function hostFarmHop(dx, dr) {
   if (game.state !== 'farm' || game.picking || decor.on || jam.open || fishers.has(myKey())) return false;
   farmHop(myKey(), dx, dr);
@@ -4177,6 +4279,7 @@ function hostFarmHop(dx, dr) {
 function updateWalkers(dt, t) {
   for (const w of farm.walkers) {
     if (w.hidden) continue;
+    if (w.sit) { sitPose(w, dt); continue; }
     const { inner, group, tails } = w.m;
     const dx = w.tx - w.x, dz = w.tz - w.z, d = Math.hypot(dx, dz);
     let sway = Math.sin(t * 2.2 + w.ph) * 0.1;
@@ -4210,9 +4313,11 @@ function updateWalkers(dt, t) {
       inner.position.y = lerp(inner.position.y, 0, Math.min(1, dt * 10));
       inner.rotation.z = lerp(inner.rotation.z, 0, Math.min(1, dt * 10));
       if (w.show) showAct(w, t);
+      else if (w.swingGo && !w.goal) sitDown(w);
       else if ((w.wait -= dt) <= 0) {
         if (w.fishing) w.wait = 1;
         else if (GUEST) w.wait = 1;   // on a friend's farm, the host decides where everyone wanders
+        else if (rnd() < 0.22 && !playerMarks().some(([o]) => o === w) && goSwing(w)) {}   // off for a swing
         else { [w.tx, w.tz] = nextSpot(w); toGuests({ t: 'walk', k: w.key, x: w.x, z: w.z, tx: w.tx, tz: w.tz }); }
       }
     }
@@ -4342,7 +4447,7 @@ function tipText(key) {
 const tipWalker = () => farm.walkers?.find(w => w.id === 'betty' && !w.hidden) || walkerOf(myKey());
 function updateTip(dt) {
   const el = $('tip');
-  const quiet = game.state !== 'farm' || decor.on || game.picking || fishers.has(myKey()) || document.body.classList.contains('show-logo');
+  const quiet = game.state !== 'farm' || decor.on || game.picking || fishers.has(myKey()) || /show-logo|swinging/.test(document.body.className);   // (and not over the swing's view)
   if (quiet) {
     if (tip.show > 0) { tip.show = 0; el.classList.remove('show'); }
     tip.wait = Math.max(tip.wait, 3);   // a moment's breath before she speaks again
@@ -4627,8 +4732,11 @@ function tapFarm(x, y) {
   _ndc.set(x / window.innerWidth * 2 - 1, -(y / window.innerHeight) * 2 + 1);
   _ray.setFromCamera(_ndc, camera);
   const hit = (obj) => _ray.intersectObject(obj, true).length > 0;
+  const me = walkerOf(myKey());
+  if (me?.sit) { standUp(me); return; }   // on the swing: any tap hops off
   const w = farm.walkers.find(w => !w.hidden && hit(w.m.group));
   if (w) { w.hop = 0.5; sfx.hop(w.id); return; }
+  if (!GUEST && farm.pieces.swing && (hit(farm.pieces.swing.group) || (groundAt(x, y, _a) && onSwing(_a.x - farm.group.position.x, _a.z - farm.group.position.z)))) { goSwing(me, true); return; }   // the frame, or anywhere on its patch of grass
   const pondHit = _ray.intersectObject(farm.pieces.pond.group, true)[0];
   if (pondHit && (GUEST || onDock(pondHit.point))) { goFish(myKey(), 'tap'); return; }
   if (!GUEST) {   // a guest's taps on buildings just hop there
@@ -4890,7 +4998,7 @@ function renderPortraits() {
   const LIFT = { catstar: -0.42, moonbun: -0.15 };   // springs and ears stand tall above the face
   const heads = built.map((m, i) => { const d = tops[i] - tops[0] + (LIFT[HEROES[i].id] || 0); return shot({ build: () => m }, 160, 1.08 + d, 0.72, 0.74 + d); });
   const cards = HEROES.map(h => shot(h, 256, 0.8, 0.98));
-  const decor = DECOR.map(id => shot({ build: () => { const group = new THREE.Group(); PIECES[id].build(group); return { group }; } }, 256, 0.9, 1.1, null, -0.45));
+  const decor = DECOR.map(id => shot({ build: () => { const group = new THREE.Group(); PIECES[id].build(group); group.scale.setScalar(PIECES[id].icon || 1); return { group }; } }, 256, 0.9, 1.1, null, -0.45));
   const builds = BUILDINGS.map(b => shot({ build: () => {   // each building as it looks once built, whether it is yet or not
     const group = new THREE.Group(), was = [farm[b.id], farm[b.flag]];
     farm[b.id] = group; farm[b.flag] = true;
@@ -5055,6 +5163,7 @@ function goFish(key, via) {
   if (game.state !== 'farm' || decor.on || jam.open || fishers.has(key)) return;
   const w = walkerOf(key);
   if (!w || w.hidden) return;
+  if (w.sit) standUp(w);   // off the swing first
   closePond();
   if (farm.level < 1) { if (key === myKey()) bettySays(t('fish.noFish')); sfx.bump(); return; }
   const spot = fishSpot(w);
@@ -5971,6 +6080,7 @@ function focusPiece(p) {   // bring it into view (controller users can't drag th
 function enterDecor() {
   if (GUEST) return;
   if (game.state !== 'farm' || decor.on) return;
+  if (farm.swingSitter?.sit) standUp(farm.swingSitter);   // everyone off the swing while things move
   closeHeroes(); closePond(); closeBunk(); closeBuilds(); closeSettings();
   stopAllFishing();
   decor.on = true;
@@ -7969,4 +8079,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; } };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; } };
