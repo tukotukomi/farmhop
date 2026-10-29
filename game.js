@@ -836,9 +836,9 @@ function buildCaptain() {
     b.cap(0.043, 0.12, s * 0.22, 0.42, 0, SKIN, 0, 0, s * 0.18);         // bare forearms...
     b.cap(0.058, 0.03, s * 0.2, 0.51, 0, SHIRT, 0, 0, s * 0.18);         // ...under short sleeves
     b.ball(0.055, 0.055, 0.055, s * 0.245, 0.31, -0.01, SKIN);           // big hands
-    b.ball(0.034, 0.03, 0.02, s * 0.085, 0.785, -0.214, 0x2a2420);       // eyes, a little narrow under the brows
-    b.ball(0.012, 0.012, 0.008, s * 0.085 + 0.01, 0.793, -0.231, 0xffffff);
-    b.rbox(0.095, 0.034, 0.034, s * 0.088, 0.832, -0.212, W, 0.014, 0, 0, s * 0.28);   // bushy white brows, set stern
+    b.ball(0.034, 0.037, 0.02, s * 0.085, 0.785, -0.214, 0x2a2420);      // eyes, round and kind under the brows
+    b.ball(0.014, 0.014, 0.008, s * 0.085 + 0.011, 0.796, -0.231, 0xffffff);
+    b.rbox(0.095, 0.034, 0.034, s * 0.088, 0.838, -0.21, W, 0.014, 0, 0, s * 0.12);   // bushy white brows, a little stern
     b.ball(0.042, 0.024, 0.01, s * 0.155, 0.725, -0.188, 0xff9e9e);     // rosy cheeks: a big softie really
     b.ball(0.07, 0.11, 0.1, s * 0.215, 0.79, 0.05, W);                   // white hair round the sides...
     b.ball(0.075, 0.042, 0.04, s * 0.058, 0.69, -0.214, W, 0, 0, s * 0.25);   // moustache
