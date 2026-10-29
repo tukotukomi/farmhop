@@ -4860,7 +4860,11 @@ function renderPortraits() {
     sc.remove(m.group);
     return r.domElement.toDataURL('image/png');
   };
-  const head = shot(HEROES[0], 160, 1.08, 0.72, 0.74);
+  // Head and shoulders of every hopper, for the button that picks your hopper: framed
+  // like Betty Lou's, moved up or down by how much taller or shorter each one is.
+  const built = HEROES.map(h => h.build()), tops = built.map(m => new THREE.Box3().setFromObject(m.group).max.y);
+  const LIFT = { catstar: -0.42, moonbun: -0.15 };   // springs and ears stand tall above the face
+  const heads = built.map((m, i) => { const d = tops[i] - tops[0] + (LIFT[HEROES[i].id] || 0); return shot({ build: () => m }, 160, 1.08 + d, 0.72, 0.74 + d); });
   const cards = HEROES.map(h => shot(h, 256, 0.8, 0.98));
   const decor = DECOR.map(id => shot({ build: () => { const group = new THREE.Group(); PIECES[id].build(group); return { group }; } }, 256, 0.9, 1.1, null, -0.45));
   const builds = BUILDINGS.map(b => shot({ build: () => {   // each building as it looks once built, whether it is yet or not
@@ -4873,11 +4877,12 @@ function renderPortraits() {
   const fish = FISH.map(sp => shot({ build: () => fishModel(sp) }, 192, 0.5, 0.7, null, 0.35));
   r.dispose();
   r.forceContextLoss();
-  return { head, cards, decor, builds, fish };
+  return { heads, cards, decor, builds, fish };
 }
 
 const shots = renderPortraits();
-document.querySelectorAll('.heroBtn img').forEach(img => { img.src = shots.head; });
+const showHeroBtn = () => document.querySelectorAll('.heroBtn img').forEach(img => { img.src = shots.heads[Math.max(0, HEROES.findIndex(h => h.id === heroId))]; });   // your hopper's face on the button
+showHeroBtn();
 const heroGrid = $('heroGrid');
 HEROES.forEach((h, i) => {
   const card = document.createElement('button');
@@ -4901,6 +4906,7 @@ function gridStep(cards, i, dir) {
 const anyPanel = () => !!document.querySelector('.sheet.show');
 let heroFocus = 0;   // highlighted card (among the shown ones) when choosing with a controller or arrow keys
 function markHero() {
+  showHeroBtn();
   for (const c of heroGrid.children) c.classList.toggle('on', c.dataset.id === heroId);
   shownCards().forEach((c, i) => c.classList.toggle('focus', i === heroFocus));
 }
@@ -7873,4 +7879,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, farmCam, offBeat, stageShow: show, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; } };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; } };
