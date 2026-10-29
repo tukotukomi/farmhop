@@ -1565,15 +1565,15 @@ const sfx = (() => {
     },
     // A hop plays the hopper's own voice (their Jam Stage instrument). The notes walk a
     // D-major pentatonic line (the soundtrack's key), so a run of hops plays a little tune.
-    hop(id) { this.voice(id, HOP_TUNE[hopStep++ % HOP_TUNE.length]); },
+    hop(id, delay = 0) { this.voice(id, HOP_TUNE[hopStep++ % HOP_TUNE.length], false, delay); },   // delay: seconds from now, for sounds that must land exactly on a beat
     // One hopper's voice at pitch n: the same sound for a hop on the farm and a pad on
     // the Jam Stage, so each hopper sounds like itself everywhere. Every layer starts
     // right on the note (a little echo of the old hop may follow it), and only
     // octaves and fifths of n are used, so it's always in key and tight on the beat.
     // (tight is still passed by the Jam Stage; the sound is the same either way.)
-    voice(id, n) {
+    voice(id, n, _tight, delay = 0) {
       if (!ctx || muted) return;
-      const t = ctx.currentTime;
+      const t = ctx.currentTime + Math.max(0, delay);
       if (id === 'axolotl') {                                   // a watery bloop, and a little bubble after
         sweep('sine', n * 0.94, n * 1.06, t, 0.13, 0.17);
         sweep('triangle', n * 4, n * 4, t, 0.1, 0.02);
@@ -6936,9 +6936,11 @@ $('latHelp').addEventListener('click', () => { sfx.ensure(); openTap(); });
 
 // The Latency Helper: your hopper hops on the beat, singing its own note, and you tap
 // the big button each time it lands. Four beats to count in, then twelve to measure.
-// Each tap is compared with when that beat came out of the speakers; the middle of
-// those differences (leaving out any wild ones) is your latency.
-const TAP_BEAT = 60 / 84, TAP_COUNT = 4, TAP_BEATS = 12;
+// The hops fall on the farm tune's own beats (the tune carries on softly underneath,
+// and two beats a little apart pull the ear off), each sound set on the audio clock to
+// reach the ears right on its beat. Each tap is compared with that moment; the middle
+// of those differences (leaving out any wild ones) is your latency.
+const TAP_BEAT = BEAT, TAP_COUNT = 4, TAP_BEATS = 12;
 const tapOpen = () => $('tapHelp').classList.contains('show');
 const tap = { run: 0, beats: [], taps: [], timers: [], result: null };
 const tapNow = () => performance.now() / 1000;
@@ -6973,32 +6975,34 @@ function closeTap() {
 function tapStart() {
   sfx.ensure();
   tapReset();
-  const run = tap.run, lag = outLag(), t0 = tapNow() + 0.6;
+  const run = tap.run;
   $('tapGo').hidden = true;
   $('tapSay').textContent = t('lat.listen');
   const later = (at, fn) => tap.timers.push(setTimeout(() => { if (tap.run === run) fn(); }, Math.max(0, (at - tapNow()) * 1000)));
+  // The first count-in beat: the tune's next beat that's at least 0.8 s away (when
+  // it'll be heard, on the performance clock). Without the tune, just 0.8 s from now.
+  const h = music?.heard();
+  let first = h ? h.at + (BEAT - h.pos % BEAT) : tapNow() + 0.8;
+  while (first - tapNow() < 0.8) first += BEAT;
   for (let k = 0; k < TAP_COUNT + TAP_BEATS; k++) {
-    const playAt = t0 + k * TAP_BEAT;
-    // The hop takes off before the beat and lands on it as it reaches the ears (92% of
-    // the way through tapHop), so it has to be set going ahead of the sound itself.
-    later(playAt + lag - 0.32 * 0.92, () => {
+    const heard = first + k * TAP_BEAT;
+    tap.beats[k] = heard;
+    // The hop takes off before the beat and lands on it (92% of the way through tapHop).
+    later(heard - 0.32 * 0.92, () => {
       const img = $('tapHopper');
       img.classList.remove('hop'); void img.offsetWidth; img.classList.add('hop');
     });
-    later(playAt, () => {
-      sfx.hop(heroId);
-      const heard = tapNow() + lag;                      // when this beat reaches the ears
-      tap.beats[k] = heard;
-      later(heard, () => {
-        if (k < TAP_COUNT) $('tapCount').textContent = t('lat.count')[k];
-        else {
-          $('tapCount').textContent = '';
-          $('tapDots').children[k - TAP_COUNT].classList.add('on');
-        }
-      });
+    // A little ahead, set the sound going on the audio clock so it's heard right on the beat.
+    later(heard - 0.6, () => sfx.hop(heroId, heard - tapNow() - outLag()));   // room for even Bluetooth's delay (up to half a second)
+    later(heard, () => {
+      if (k < TAP_COUNT) $('tapCount').textContent = t('lat.count')[k];
+      else {
+        $('tapCount').textContent = '';
+        $('tapDots').children[k - TAP_COUNT].classList.add('on');
+      }
     });
   }
-  later(t0 + (TAP_COUNT + TAP_BEATS) * TAP_BEAT + 0.5, tapFinish);
+  later(first + (TAP_COUNT + TAP_BEATS) * TAP_BEAT + 0.5, tapFinish);
 }
 function tapHit(at) {   // at: when the tap happened (seconds, performance clock)
   const pad = $('tapPad');
