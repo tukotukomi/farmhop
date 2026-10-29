@@ -3409,7 +3409,8 @@ function buildSwing(g) {
   g.userData.seat = seat;
   let swing = 0;
   return t => {
-    swing += ((farm.swingSitter?.sit ? 0.36 : 0.1) - swing) * 0.02;   // eases up to a real swing with someone on it
+    const on = farm.swingSitter?.sit;
+    swing += ((on?.leaving ? 0.62 : on ? 0.36 : 0.1) - swing) * (on?.leaving ? 0.05 : 0.02);   // eases up to a real swing with someone on it, and higher to jump off
     seat.rotation.x = Math.sin(t * 1.7) * swing;
   };
 }
@@ -4154,8 +4155,8 @@ function landLeap(w, x, z, up, y = null) {   // y: a height to land at (up onto 
 }
 function farmHop(id, dx, dr) {
   const w = walkerOf(id);
-  if (!w || fishers.has(id)) return;
-  if (w.sit) { standUp(w); return; }   // on the swing: a hop gets off
+  if (!w || fishers.has(id) || w.flip) return;
+  if (w.sit) { if (w.key === myKey()) dismount(w); else standUp(w); return; }   // on the swing: a hop gets off
   w.swingGo = false;
   if (w.leap) { w.queued = [dx, dr]; return; }   // pressed again mid-hop: go straight after this one
   w.goal = null;
@@ -4185,7 +4186,38 @@ function nextLeap(w) {
 // swing, then hops off again. Tap the swing and your own hopper goes and sits, with
 // a camera in front of the swing; any tap or hop gets off. The sitter rides the seat:
 // hips on the board, legs dangling below it, tipping as it swings.
-const SIT_HIP = 0.3;   // a hopper's hips above its feet (at the hoppers' 1.3 scale)
+// Sitting bends a hopper at the waist: while seated it wears a copy of its body with
+// everything below the hips swung forward, so its legs stick out over the front of
+// the seat. HIPS: where each one's legs meet its body (model units, before the 1.3 scale).
+const HIPS = { betty: 0.265, axolotl: 0.18, catstar: 0.235, leafwish: 0.2, tuko: 0.235, spider: 0.235, lyla: 0.24, carla: 0.2, siracha: 0.17, ribbit: 0.235, moonbun: 0.235 };
+const SIT_BEND = 1.35;   // how far forward the legs swing (radians)
+const hipOf = w => (HIPS[w.id] ?? 0.22) * 1.3;
+function bendBody(w, on) {
+  const hip = HIPS[w.id] ?? 0.22;
+  for (const m of [...w.m.inner.children]) {
+    if (!m.isMesh) continue;
+    if (!on) {   // back to standing
+      if (m.userData.stand) { m.geometry.dispose(); m.geometry = m.userData.stand; m.userData.stand = null; }
+      continue;
+    }
+    if (m.userData.stand) continue;
+    const g = m.geometry.clone(), pos = g.attributes.position, nor = g.attributes.normal, oy = m.position.y, oz = m.position.z;
+    for (let i = 0; i < pos.count; i++) {
+      const y = pos.getY(i) + oy;
+      if (y >= hip) continue;
+      const k = Math.min(1, (hip - y) / 0.05), a = SIT_BEND * k * k * (3 - 2 * k);   // eases in just under the hips, so nothing tears
+      const c = Math.cos(a), sn = Math.sin(a), dy = y - hip, dz = pos.getZ(i) + oz;
+      pos.setY(i, hip + dy * c - dz * sn - oy);
+      pos.setZ(i, dy * sn + dz * c - oz);
+      if (nor) { const ny = nor.getY(i), nz = nor.getZ(i); nor.setY(i, ny * c - nz * sn); nor.setZ(i, ny * sn + nz * c); }
+    }
+    pos.needsUpdate = true;
+    if (nor) nor.needsUpdate = true;
+    g.computeBoundingSphere();
+    m.userData.stand = m.geometry;
+    m.geometry = g;
+  }
+}
 const _sv = new THREE.Vector3(), _sq = new THREE.Quaternion(), _turn = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
 const swingFront = () => pieceToFarm(farm.pieces.swing, 0, 1.25);
 const onSwing = (x, z) => { const p = farm.pieces.swing, [a, b, c, d] = worldRect(PIECES.swing.foot, p.x, p.z, p.r); return x > a && x < b && z > c && z < d; };
@@ -4214,13 +4246,54 @@ function sitDown(w) {
   if (!farm.pieces.swing || Math.hypot(w.x - swingFront()[0], w.z - swingFront()[1]) > 0.6) { if (farm.swingSitter === w) farm.swingSitter = null; return; }   // didn't make it
   farm.swingSitter = w;
   w.sit = { t: w.key === myKey() ? Infinity : rand(12, 22), k: 0 };   // yours stays till you hop off
+  bendBody(w, true);
   w.leap = null; w.hop = 0;
   sfx.hop(w.id);
   if (w.key === myKey()) document.body.classList.add('swinging');
 }
+// Your hopper's way off: the swing goes higher and higher, and at the top of a swing
+// forward you let go, backflip through the air and land out in front.
+function dismount(w) {
+  if (!w?.sit || w.sit.leaving) return;
+  w.sit.leaving = 0.001;
+  w.sit.t = Infinity;
+}
+function flipOff(w) {
+  const sp = farm.pieces.swing;
+  let [x, z] = pieceToFarm(sp, 0, 2.6);
+  if (blockedAt(x, z) || x < YARD.x0 || x > YARD.x1 || z < YARD.z0 || z > YARD.z1) [x, z] = swingFront();
+  w.sit = null;
+  if (farm.swingSitter === w) farm.swingSitter = null;
+  w.flip = { t: 0, dur: 1.05, x0: w.x, y0: w.y || 0, z0: w.z, x1: x, z1: z };
+  w.face = sp.r * Math.PI / 2 + Math.PI;
+  sfx.hop(w.id);
+  toGuests({ t: 'leap', k: w.key, x, z, up: 0.5, y: 0 });
+}
+const _flipQ = new THREE.Quaternion(), _xAxis = new THREE.Vector3(1, 0, 0), _yAxis = new THREE.Vector3(0, 1, 0);
+function flipPose(w, dt) {
+  const F = w.flip, k = Math.min(1, (F.t += dt) / F.dur), spin = k < 0.5 ? 2 * k * k : 1 - 2 * (1 - k) * (1 - k);   // eases in and out of the turn
+  w.x = w.tx = lerp(F.x0, F.x1, k);
+  w.z = w.tz = lerp(F.z0, F.z1, k);
+  w.y = lerp(F.y0, 0, k) + Math.sin(Math.PI * k) * 1.5;
+  const g = w.m.group;
+  g.position.set(w.x, w.y, w.z);
+  g.quaternion.setFromAxisAngle(_yAxis, w.face).multiply(_flipQ.setFromAxisAngle(_xAxis, Math.PI * 2 * spin));   // head back first: a backflip
+  if (k >= 1) {   // landed (legs tucked all the way round, straightened now)
+    w.flip = null;
+    bendBody(w, false);
+    w.y = 0;
+    g.quaternion.identity();
+    g.rotation.y = w.face;
+    w.hop = 0.3;
+    w.wait = STEER_IDLE;
+    sfx.hop(w.id);
+    if (w.key === myKey()) document.body.classList.remove('swinging');
+  }
+}
 function standUp(w) {
   if (!w?.sit) return;
   w.sit = null;
+  bendBody(w, false);
   if (farm.swingSitter === w) farm.swingSitter = null;
   if (w.key === myKey()) document.body.classList.remove('swinging');
   w.m.group.quaternion.identity();
@@ -4236,7 +4309,7 @@ function sitPose(w, dt) {
   const sp = farm.pieces.swing, seat = sp?.group.userData.seat;
   if (!seat || decor.on || game.state !== 'farm') { standUp(w); return; }
   seat.updateMatrixWorld();
-  seat.localToWorld(_sv.set(0, SEAT_TOP - SIT_HIP, 0.02));
+  seat.localToWorld(_sv.set(0, SEAT_TOP - hipOf(w) + 0.02, -0.04));   // hips on the board, a touch back
   farm.group.worldToLocal(_sv);
   w.m.group.position.copy(_sv);
   seat.getWorldQuaternion(_sq);
@@ -4246,21 +4319,38 @@ function sitPose(w, dt) {
   w.x = w.tx = _sv.x; w.z = w.tz = _sv.z; w.y = _sv.y;
   w.face = (sp.r * Math.PI / 2) + Math.PI;
   w.sit.k = Math.min(1, w.sit.k + dt * 2);
+  if (w.sit.leaving) {   // getting off with a flourish: let go at the front of a big swing
+    const S = w.sit, a = seat.rotation.x;
+    S.leaving += dt;
+    if ((S.last != null && a > S.last && S.last < -0.35 && S.leaving > 1.2) || S.leaving > 4) { flipOff(w); return; }   // just past the front (or it's taken long enough)
+    S.last = a;
+    return;
+  }
   if ((w.sit.t -= dt) <= 0) standUp(w);
 }
 // Your hopper on the swing: a camera out in front, a little low, looking up at you
 // swinging, with the sky and clouds behind.
-const swingCam = { on: false, swoop: 1, look: new THREE.Vector3() };
+// Look around just like the fishing camera: drag (or A / D, W / S, the right stick,
+// LB / RB) to turn and tilt, pinch, the wheel, Q / E or the triggers to zoom.
+const SWING_PITCH = [0.02, 1.0], SWING_ZOOM = [0.55, 1.8];
+const swingCam = { on: false, swoop: 1, look: new THREE.Vector3(), yaw: 0, shown: 0, pitch: 0.12, zoom: 1, spin: 0, tilt: 0, zoomSpin: 0 };
+function setSwingView(pitch, zoom) {
+  swingCam.pitch = clamp(pitch, ...SWING_PITCH);
+  swingCam.zoom = clamp(zoom, ...SWING_ZOOM);
+}
 function swingCamHook(dt) {
   const me = walkerOf(myKey()), sp = farm.pieces.swing;
-  if (!me?.sit || !sp) { swingCam.on = false; return false; }
+  if (!(me?.sit || me?.flip) || !sp) { swingCam.on = false; return false; }
   useCamera(perspCam);
-  const base = farm.group.position, [fx, fz] = pieceToFarm(sp, 0, 1), dx = fx - sp.x, dz = fz - sp.z;   // the swing's front
+  const base = farm.group.position, front = sp.r * Math.PI / 2;   // the swing's front, as an angle round the y axis
   const lookX = base.x + sp.x, lookY = 1.15, lookZ = base.z + sp.z;
-  if (!swingCam.on) { swingCam.on = true; swingCam.swoop = 1; }
+  if (!swingCam.on) Object.assign(swingCam, { on: true, swoop: 1, yaw: 0, shown: 0, pitch: 0.12, zoom: 1 });
   swingCam.swoop *= Math.exp(-dt * 2.5);
-  const t = game.time * 0.15, side = Math.sin(t) * 0.8, d = 3.6 + swingCam.swoop * 2;
-  camera.position.set(lookX + dx * d + dz * side, 0.75 + swingCam.swoop * 1.5, lookZ + dz * d - dx * side);
+  swingCam.yaw += swingCam.spin * dt * 1.8;
+  if (swingCam.tilt || swingCam.zoomSpin) setSwingView(swingCam.pitch + swingCam.tilt * dt * 0.9, swingCam.zoom * Math.exp(swingCam.zoomSpin * dt * 1.2));
+  swingCam.shown += (swingCam.yaw - swingCam.shown) * Math.min(1, dt * 8);
+  const a = front + swingCam.shown, p = swingCam.pitch + swingCam.swoop * 0.3, d = 3.6 * swingCam.zoom + swingCam.swoop * 2;
+  camera.position.set(lookX + Math.sin(a) * Math.cos(p) * d, 0.75 + Math.sin(p) * d, lookZ + Math.cos(a) * Math.cos(p) * d);
   camera.lookAt(swingCam.look.set(lookX, lookY, lookZ));
   skyClouds(dt, lookX, lookZ);
   sun.position.copy(swingCam.look).add(SUN_OFF);
@@ -4280,6 +4370,7 @@ function updateWalkers(dt, t) {
   for (const w of farm.walkers) {
     if (w.hidden) continue;
     if (w.sit) { sitPose(w, dt); continue; }
+    if (w.flip) { flipPose(w, dt); continue; }
     const { inner, group, tails } = w.m;
     const dx = w.tx - w.x, dz = w.tz - w.z, d = Math.hypot(dx, dz);
     let sway = Math.sin(t * 2.2 + w.ph) * 0.1;
@@ -4643,6 +4734,12 @@ function zoomFarm(k) {
 const _a = new THREE.Vector3(), _b = new THREE.Vector3();
 window.addEventListener('pointerdown', e => {
   if (!exploring(e)) return;
+  if (swingCam.on) {   // on the swing: drag to look around, pinch to zoom (the button hops off)
+    fishTouch.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (fishTouch.size === 2) { fishDrag = null; fishPinch = 0; }
+    else { fishPtr = e.pointerId; fishDrag = { x: e.clientX, y: e.clientY, yaw: swingCam.yaw, pitch: swingCam.pitch, moved: false }; }
+    return;
+  }
   const meF = fishers.get(myKey());
   if (meF) {   // fishing: the whole screen is the reel
     fishTouch.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -4666,7 +4763,7 @@ window.addEventListener('pointermove', e => {
     ft.x = e.clientX; ft.y = e.clientY;
     if (fishTouch.size === 2) {   // pinch to zoom
       const [m, n] = [...fishTouch.values()], d = Math.hypot(m.x - n.x, m.y - n.y);
-      if (fishPinch) setFishView(fishView.pitch, fishView.zoom * fishPinch / d);
+      if (fishPinch) { if (swingCam.on) setSwingView(swingCam.pitch, swingCam.zoom * fishPinch / d); else setFishView(fishView.pitch, fishView.zoom * fishPinch / d); }
       fishPinch = d;
       return;
     }
@@ -4674,7 +4771,10 @@ window.addEventListener('pointermove', e => {
   if (fishDrag && e.pointerId === fishPtr) {
     const dx = e.clientX - fishDrag.x, dy = e.clientY - fishDrag.y;
     if (Math.hypot(dx, dy) > 8) fishDrag.moved = true;
-    if (fishDrag.moved) {
+    if (fishDrag.moved && swingCam.on) {
+      swingCam.yaw = fishDrag.yaw - dx * 0.012;
+      setSwingView(fishDrag.pitch + dy * 0.006, swingCam.zoom);
+    } else if (fishDrag.moved) {
       fishCam.yaw = fishDrag.yaw - dx * 0.012;
       setFishView(fishDrag.pitch + dy * 0.006, fishView.zoom);   // drag down to look down from higher up
     }
@@ -4724,6 +4824,7 @@ window.addEventListener('wheel', e => {
   if (game.state !== 'farm' || game.picking) return;
   e.preventDefault();
   if (fishCam.on) { setFishView(fishView.pitch, fishView.zoom * Math.exp(e.deltaY * 0.0015)); return; }   // the fishing camera
+  if (swingCam.on) { setSwingView(swingCam.pitch, swingCam.zoom * Math.exp(e.deltaY * 0.0015)); return; }   // the swing's
   zoomFarm(Math.exp(-e.deltaY * 0.0015));
 }, { passive: false });
 // A tap on the pond or the Bunkhouse opens it; a tap on a hopper gets a happy hop.
@@ -4733,7 +4834,6 @@ function tapFarm(x, y) {
   _ray.setFromCamera(_ndc, camera);
   const hit = (obj) => _ray.intersectObject(obj, true).length > 0;
   const me = walkerOf(myKey());
-  if (me?.sit) { standUp(me); return; }   // on the swing: any tap hops off
   const w = farm.walkers.find(w => !w.hidden && hit(w.m.group));
   if (w) { w.hop = 0.5; sfx.hop(w.id); return; }
   if (!GUEST && farm.pieces.swing && (hit(farm.pieces.swing.group) || (groundAt(x, y, _a) && onSwing(_a.x - farm.group.position.x, _a.z - farm.group.position.z)))) { goSwing(me, true); return; }   // the frame, or anywhere on its patch of grass
@@ -4770,9 +4870,9 @@ window.addEventListener('keyup', e => {
   if (jam.open) letGo('k' + e.code);
   const meF = fishers.get(myKey()), kf = keysPlayer() && fishers.get('p' + keysPlayer());
   if (meF && (e.code === 'Space' || e.code === 'Enter')) fishPress(meF, false);
-  if (['KeyA', 'KeyD', 'ArrowLeft', 'ArrowRight'].includes(e.code)) fishCam.spin = 0;
-  if (['KeyW', 'KeyS', 'ArrowUp', 'ArrowDown'].includes(e.code)) fishCam.tilt = 0;
-  if (['KeyQ', 'KeyE'].includes(e.code)) fishCam.zoomSpin = 0;
+  if (['KeyA', 'KeyD', 'ArrowLeft', 'ArrowRight'].includes(e.code)) fishCam.spin = swingCam.spin = 0;
+  if (['KeyW', 'KeyS', 'ArrowUp', 'ArrowDown'].includes(e.code)) fishCam.tilt = swingCam.tilt = 0;
+  if (['KeyQ', 'KeyE'].includes(e.code)) fishCam.zoomSpin = swingCam.zoomSpin = 0;
   if (kf && e.code.startsWith('Arrow')) fishPress(kf, false);
 });
 window.addEventListener('keydown', e => {
@@ -4878,6 +4978,15 @@ window.addEventListener('keydown', e => {
     if (nav) { document.body.classList.add('keys'); heroNav(nav); }
     else if (e.code === 'Enter' || e.code === 'Space') pickHero(shownCards()[heroFocus].dataset.id);
     else if (e.code === 'Escape') closeHeroes();
+    e.preventDefault();
+    return;
+  }
+  if (game.state === 'farm' && !game.picking && swingCam.on) {   // on the swing: look around like fishing; Space, Enter or Escape hops off
+    const turn = { KeyA: 1, KeyD: -1, ArrowLeft: 1, ArrowRight: -1 }[e.code], tilt = { KeyW: -1, KeyS: 1, ArrowUp: -1, ArrowDown: 1 }[e.code], zoom = { KeyQ: -1, KeyE: 1 }[e.code];
+    if (turn) swingCam.spin = turn;
+    else if (tilt) swingCam.tilt = tilt;
+    else if (zoom) swingCam.zoomSpin = zoom;
+    else if (['Space', 'Enter', 'Escape'].includes(e.code)) dismount(walkerOf(myKey()));
     e.preventDefault();
     return;
   }
@@ -6297,6 +6406,7 @@ function buildJamStage() {
 $('stageBuy').addEventListener('click', buildJamStage);
 $('stageClose').addEventListener('click', closeStage);
 $('stage').addEventListener('click', e => { if (e.target.id === 'stage') closeStage(); });
+$('swingOff').addEventListener('click', () => { sfx.ensure(); dismount(walkerOf(myKey())); });
 $('landBuy').addEventListener('click', buyLand);
 $('landClose').addEventListener('click', closeLand);
 $('land').addEventListener('click', e => { if (e.target.id === 'land') closeLand(); });
@@ -7886,6 +7996,14 @@ function pollPad() {
     if (pressed(3)) { goFish(myKey(), 'pad'); return; }
     if (pressed(2)) { openBag(); return; }
     if (pressed(1)) closePond();
+    return;
+  }
+  if (game.state === 'farm' && !game.picking && swingCam.on) {   // on the swing: the right stick, LB / RB and the triggers look around; A or B hops off
+    const rx = gp.axes[2] || 0, ry = gp.axes[3] || 0;
+    swingCam.spin = Math.abs(rx) > 0.3 ? -rx : down[4] ? 1 : down[5] ? -1 : 0;
+    swingCam.tilt = Math.abs(ry) > 0.3 ? ry : 0;
+    swingCam.zoomSpin = (gp.buttons[7]?.value || 0) - (gp.buttons[6]?.value || 0);
+    if (pressed(0) || pressed(1)) dismount(walkerOf(myKey()));
     return;
   }
   const meF = game.state === 'farm' && !game.picking && fishers.get(myKey());
