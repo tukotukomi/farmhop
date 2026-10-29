@@ -863,6 +863,9 @@ body.guest #phonesBtn, body.guest #partyBtn, body.guest #play { display: none !i
 }
 .setRow.focus { border-color: var(--sky); box-shadow: 0 0 0 3px rgba(143, 216, 255, .5); }
 .setLabel { font-size: 15px; font-weight: 700; letter-spacing: .02em; }
+.creditsRow { justify-items: center; text-align: center; }
+.creditsRow .setLabel { justify-self: start; }
+.creditsLogo { width: min(260px, 100%); height: auto; }
 .setNote { margin: 0; font-size: 13px; font-weight: 500; line-height: 1.35; opacity: .75; }
 /* pill choices: wrap freely, sized by their words (labels grow in other languages) */
 .seg { display: flex; flex-wrap: wrap; gap: 6px; }
