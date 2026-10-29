@@ -6630,7 +6630,7 @@ $('shop').addEventListener('click', e => { if (e.target.id === 'shop') closeShop
 // ---------- Photos ----------
 // In the Close Up views (fishing, the swing) the camera button takes a photo of just the
 // game: no buttons, the logo in the top-right corner and farmhop.fun along the bottom.
-// Then it can be saved, shared with the photo (where the device can), or posted as a link.
+// Then it can be saved, or shared through the device's share sheet (where it has one).
 const SITE = 'https://farmhop.fun';
 const photoOpen = () => $('photo').classList.contains('show');
 const closeUp = () => game.state === 'farm' && /\b(fishing|swinging)\b/.test(document.body.className) && !document.body.classList.contains('reeling');
@@ -6723,30 +6723,6 @@ async function sharePhoto() {
   if (!photoBlob) return;
   try { await navigator.share({ files: [photoFile()], title: "Betty Lou's Farm Hop", text: t('photo.text') + ' ' + SITE }); } catch {}   // (cancelled: nothing to do)
 }
-function flashLabel(btn, text) {   // a button says what just happened, for a moment
-  clearTimeout(btn._back);
-  btn._label ??= btn.textContent;
-  btn.textContent = text;
-  btn._back = setTimeout(() => { btn.textContent = btn._label; btn._label = null; }, 2200);
-}
-// Instagram and Discord get the photo itself (everything else is in the Share sheet): through the
-// device's share sheet where there is one; otherwise copied for pasting into Discord, or
-// saved and Instagram opened.
-function shareApp(net, btn) {
-  if (navigator.canShare?.({ files: [photoFile()] })) { sharePhoto(); return; }
-  if (net === 'dc') {
-    navigator.clipboard.write([new ClipboardItem({ 'image/png': photoBlob })])
-      .then(() => flashLabel(btn, t('photo.pasted')), () => { savePhoto(); flashLabel(btn, t('photo.saved')); });
-    return;
-  }
-  savePhoto();
-  flashLabel(btn, t('photo.igSaved'));
-  window.open('https://www.instagram.com/', '_blank', 'noopener');
-}
-document.querySelectorAll('.photoSocial [data-net]').forEach(b => b.addEventListener('click', () => {
-  shareApp(b.dataset.net, b);
-}));
-$('photoCopy').addEventListener('click', () => { navigator.clipboard.writeText(SITE).then(() => flashLabel($('photoCopy'), t('photo.copied')), () => {}); });
 $('camBtn').addEventListener('click', takePhoto);
 $('photoSave').addEventListener('click', savePhoto);
 $('photoShare').addEventListener('click', sharePhoto);

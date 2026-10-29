@@ -23,8 +23,7 @@ export const STRINGS = {
       fish: 'Go fishing at the Fish Pond!', fishPad: 'Press X, then Y to go fishing!', fishGuest: 'Tap the pond to go fishing!', fishGuestPad: 'Press X to go fishing!',
     },
     photo: {
-      title: 'Say cheese!', save: 'Save', share: 'Share', copy: 'Copy link', copied: 'Link copied!',
-      pasted: 'Copied! Paste it in Discord', saved: 'Photo saved!', igSaved: 'Saved! Post it on Instagram',
+      title: 'Say cheese!', save: 'Save', share: 'Share',
       text: "Hopping around on Betty Lou's Farm Hop!", alt: 'Your photo from the farm',
     },
     bag: {
@@ -162,8 +161,7 @@ export const STRINGS = {
       fish: '¡Ve a pescar al estanque!', fishPad: '¡Pulsa X y luego Y para pescar!', fishGuest: '¡Toca el estanque para pescar!', fishGuestPad: '¡Pulsa X para pescar!',
     },
     photo: {
-      title: '¡Sonríe!', save: 'Guardar', share: 'Compartir', copy: 'Copiar enlace', copied: '¡Enlace copiado!',
-      pasted: '¡Copiada! Pégala en Discord', saved: '¡Foto guardada!', igSaved: '¡Guardada! Publícala en Instagram',
+      title: '¡Sonríe!', save: 'Guardar', share: 'Compartir',
       text: "¡Saltando por Betty Lou's Farm Hop!", alt: 'Tu foto de la granja',
     },
     bag: {
@@ -301,8 +299,7 @@ export const STRINGS = {
       fish: '去鱼塘钓鱼吧！', fishPad: '按 X 再按 Y 去钓鱼！', fishGuest: '点鱼塘去钓鱼吧！', fishGuestPad: '按 X 去钓鱼！',
     },
     photo: {
-      title: '笑一个！', save: '保存', share: '分享', copy: '复制链接', copied: '链接已复制！',
-      pasted: '已复制！粘贴到 Discord 吧', saved: '照片已保存！', igSaved: '已保存！发到 Instagram 吧',
+      title: '笑一个！', save: '保存', share: '分享',
       text: "在 Betty Lou's Farm Hop 里蹦蹦跳跳！", alt: '你在农场拍的照片',
     },
     bag: {

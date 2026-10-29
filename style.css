@@ -562,10 +562,9 @@ body.lefty #camBtn { left: auto; right: calc(env(safe-area-inset-right) + 18px);
 #flash { position: fixed; inset: 0; z-index: 20; background: #fff; opacity: 0; pointer-events: none; }
 #flash.go { animation: flash .5s ease-out; }
 @keyframes flash { from { opacity: .9 } to { opacity: 0 } }
-.photoImg { display: block; max-width: 100%; max-height: 46vh; width: auto; height: auto; margin: 0 auto; box-sizing: border-box; border: 3px solid var(--ink); border-radius: 16px; box-shadow: 0 4px 0 var(--ink-soft); background: var(--cream-d); }
-.photoSocial { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-.photoNote { margin: 10px 2px 0; font-size: 13px; text-align: center; opacity: .8; }
-.photoNote a { color: var(--berry-d); font-weight: 700; }
+.photoPanel { max-width: 720px !important; }
+.photoImg { display: block; max-width: 100%; max-height: max(110px, calc(100dvh - 290px));   /* the whole window on screen, no scrolling */
+  width: auto; height: auto; margin: 0 auto; box-sizing: border-box; border: 3px solid var(--ink); border-radius: 16px; box-shadow: 0 4px 0 var(--ink-soft); background: var(--cream-d); }
 #photoShare[hidden] { display: none; }
 #swingHint { position: fixed; left: 50%; translate: -50% 0; bottom: calc(env(safe-area-inset-bottom) + 118px); display: none; pointer-events: none; white-space: nowrap; }
 body.farm.swinging #swingHint { display: block; }
