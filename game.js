@@ -6972,14 +6972,16 @@ function tapStart() {
   const later = (at, fn) => tap.timers.push(setTimeout(() => { if (tap.run === run) fn(); }, Math.max(0, (at - tapNow()) * 1000)));
   for (let k = 0; k < TAP_COUNT + TAP_BEATS; k++) {
     const playAt = t0 + k * TAP_BEAT;
+    // The hop takes off before the beat and lands on it as it reaches the ears (92% of
+    // the way through tapHop), so it has to be set going ahead of the sound itself.
+    later(playAt + lag - 0.32 * 0.92, () => {
+      const img = $('tapHopper');
+      img.classList.remove('hop'); void img.offsetWidth; img.classList.add('hop');
+    });
     later(playAt, () => {
       sfx.hop(heroId);
       const heard = tapNow() + lag;                      // when this beat reaches the ears
       tap.beats[k] = heard;
-      later(heard - 0.32 * 0.92, () => {                 // the hop, landing right on the beat (92% of the way through tapHop)
-        const img = $('tapHopper');
-        img.classList.remove('hop'); void img.offsetWidth; img.classList.add('hop');
-      });
       later(heard, () => {
         if (k < TAP_COUNT) $('tapCount').textContent = t('lat.count')[k];
         else {
