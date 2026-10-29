@@ -4881,7 +4881,16 @@ function renderPortraits() {
 }
 
 const shots = renderPortraits();
-const showHeroBtn = () => document.querySelectorAll('.heroBtn img').forEach(img => { img.src = shots.heads[Math.max(0, HEROES.findIndex(h => h.id === heroId))]; });   // your hopper's face on the button
+// Your hopper's face on the button, on the same colour as their card in the hopper picker.
+const darken = (hex, k) => '#' + [1, 3, 5].map(i => Math.round(parseInt(hex.slice(i, i + 2), 16) * k).toString(16).padStart(2, '0')).join('');
+function showHeroBtn() {
+  const i = Math.max(0, HEROES.findIndex(h => h.id === heroId)), bg = HEROES[i].bg;
+  document.querySelectorAll('.heroBtn').forEach(b => {
+    b.querySelector('img').src = shots.heads[i];
+    b.style.setProperty('--c1', bg);
+    b.style.setProperty('--c2', darken(bg, 0.86));
+  });
+}
 showHeroBtn();
 const heroGrid = $('heroGrid');
 HEROES.forEach((h, i) => {
