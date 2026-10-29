@@ -7192,10 +7192,12 @@ function accountError(e) {
 if (account) {
   account.on(s => {
     if ($('settings').classList.contains('show')) renderAccount();   // (Settings is set up further down)
+    if ($('support').classList.contains('show')) refreshSupport();   // signed in from the supporter panel: on to paying
     if (s.status !== 'conflict') pickShown = false;
     else if (!pickShown && game.where === 'farm' && !anyPanel()) { pickShown = true; openPick(); }   // ask straight away, once
   });
   $('acctSignIn').addEventListener('click', () => { sfx.ensure(); account.signIn().catch(accountError); });
+  $('supSignIn').addEventListener('click', () => { sfx.ensure(); account.signIn().catch(e => { console.warn(e); $('supGateNote').textContent = t('acct.error'); }); });
   $('acctOutBtn').addEventListener('click', () => account.signOut().then(renderAccount));
   $('acctPickBtn').addEventListener('click', openPick);
   $('acctDel').addEventListener('click', async () => {
@@ -7542,7 +7544,16 @@ async function supFetch(path, body) {
 async function checkPaid(code) {
   try { return (await supFetch('/check?code=' + encodeURIComponent(code))).data.paid === true; } catch { return false; }
 }
+// Not signed in with Google? The farm (and so the purchase) lives only in this browser,
+// so first a word about signing in, with "continue without" still there.
+let supSkipped = false;
 function refreshSupport(note) {
+  const u = account?.state.user, gate = !!account && !u && !supporter && !supSkipped;
+  $('supGate').hidden = !gate;
+  $('supPay').hidden = gate;
+  $('supSafe').hidden = !u;
+  if (u) $('supSafe').textContent = t('sup.safe', { name: u.name });
+  if (gate) account.prepare();   // ready for the tap, so the sign-in popup isn't blocked
   $('supAsk').hidden = supporter;
   $('supThanks').hidden = !supporter;
   $('supTitle').textContent = t(supporter ? 'sup.thanksTitle' : 'sup.title');
@@ -7557,6 +7568,7 @@ function refreshSupport(note) {
 function openSupport() {
   if (!SUPPORT_URL) return;
   closeSettings();
+  supSkipped = false;
   refreshSupport(t('sup.waiting'));
   $('supRestoreNote').textContent = '';
   $('support').classList.add('show');
@@ -7598,6 +7610,7 @@ function welcomeSupporter(code) {
 }
 $('supBtn').addEventListener('click', () => { sfx.ensure(); openSupport(); });
 $('supClose').addEventListener('click', closeSupport);
+$('supSkip').addEventListener('click', () => { supSkipped = true; refreshSupport(); });
 $('support').addEventListener('click', e => { if (e.target.id === 'support') closeSupport(); });
 $('supCopy').addEventListener('click', async () => {
   const code = $('supCodeText').textContent;

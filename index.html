@@ -402,6 +402,14 @@
       <li data-i18n="sup.perk3">A supporter heart by your name</li>
     </ul>
     <div id="supAsk" class="supAsk">
+      <div id="supGate" class="supGate" hidden>
+        <p data-i18n="sup.gate">Sign in with Google first, so your supporter perks are kept safe.</p>
+        <button id="supSignIn" class="gBtn"><svg class="gLogo" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg><span data-i18n="acct.signIn">Sign in with Google</span></button>
+        <button id="supSkip" class="supSkip" data-i18n="sup.skip">Continue without signing in</button>
+        <p id="supGateNote" class="supNote"></p>
+      </div>
+      <div id="supPay" class="supAsk">
+      <p id="supSafe" class="supNote supSafe" hidden></p>
       <a id="supCard" class="buyBtn bubble supKofi" target="_blank" rel="noopener"><svg class="heart" viewBox="0 0 32 32" aria-hidden="true"><g stroke="#3a2442" stroke-width="1.6" stroke-linejoin="round"><ellipse cx="11.2" cy="6.4" rx="2.7" ry="5.2" fill="#ff7fb8" transform="rotate(-14 11.2 6.4)"/><ellipse cx="20.8" cy="6.4" rx="2.7" ry="5.2" fill="#ff7fb8" transform="rotate(14 20.8 6.4)"/><path d="M16 29.2S4 22.2 4 14.1C4 9.9 7 7.2 10.6 7.2c2.3 0 4.3 1.2 5.4 3.1 1.1-1.9 3.1-3.1 5.4-3.1 3.6 0 6.6 2.7 6.6 6.9 0 8.1-12 15.1-12 15.1z" fill="#ff5f9e"/></g><ellipse cx="11.2" cy="5.9" rx="1.1" ry="3.2" fill="#ffd1e6" transform="rotate(-14 11.2 5.9)"/><ellipse cx="20.8" cy="5.9" rx="1.1" ry="3.2" fill="#ffd1e6" transform="rotate(14 20.8 5.9)"/><ellipse cx="9.6" cy="12.6" rx="2.1" ry="1.3" fill="#fff" opacity=".75" transform="rotate(-35 9.6 12.6)"/><circle cx="12.7" cy="16.6" r="1.25" fill="#3a2442"/><circle cx="19.3" cy="16.6" r="1.25" fill="#3a2442"/><circle cx="13.1" cy="16.2" r=".4" fill="#fff"/><circle cx="19.7" cy="16.2" r=".4" fill="#fff"/><ellipse cx="10.4" cy="19.3" rx="1.5" ry=".9" fill="#ffc2dc"/><ellipse cx="21.6" cy="19.3" rx="1.5" ry=".9" fill="#ffc2dc"/><path d="M14.4 19.2q1.6 1.7 3.2 0" fill="none" stroke="#3a2442" stroke-width="1.1" stroke-linecap="round"/></svg><span data-i18n="sup.card">Support $5</span></a>
       <p id="supCardNote" class="supNote" data-i18n="sup.cardNote">A secure Stripe checkout. Then come back here: it unlocks by itself.</p>
       <p id="supStatus" class="supNote"></p>
@@ -415,6 +423,7 @@
           <p class="supStep"><b>3</b><span data-i18n="sup.step3">Come back here: it unlocks by itself</span></p>
         </div>
       </details>
+      </div>
       <details class="supRestore">
         <summary data-i18n="sup.already">Already a supporter?</summary>
         <form id="supForm" class="joinRow">

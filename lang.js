@@ -98,6 +98,8 @@ export const STRINGS = {
       noEmail: "We couldn't find a $5 support from that email.", what: 'Type your HOP- code, or the email you used on Ko-fi.',
       offline: "Couldn't reach the farm office. Try again in a moment.",
       thanks: 'Thank you so much! Your new hoppers have moved in.', thanksTitle: "You're a Hop Supporter!", yourCode: 'Your code, for other devices:',
+      gate: 'Sign in with Google first, so your support is kept safe. Right now your farm is only saved in this browser: clearing its data, or playing on another device, would lose it and your supporter perks.',
+      skip: 'Continue without signing in', safe: 'Signed in as {name}: your support and your farm are saved to your Google account.',
     },
     party: {
       code: 'Room code', codeLine: 'Room code: {code}', joinTitle: "Join a friend's farm", joinHint: 'Type the room code your friend sent you.', join: 'Join',
@@ -224,6 +226,8 @@ export const STRINGS = {
       noEmail: 'No encontramos un apoyo de $5 con ese correo.', what: 'Escribe tu código HOP- o el correo que usaste en Ko-fi.',
       offline: 'No pudimos contactar con la oficina de la granja. Inténtalo de nuevo en un momento.',
       thanks: '¡Muchísimas gracias! Tus nuevos saltarines ya se mudaron.', thanksTitle: '¡Eres Hop Supporter!', yourCode: 'Tu código, para otros dispositivos:',
+      gate: 'Primero inicia sesión con Google para que tu apoyo quede a salvo. Ahora tu granja solo se guarda en este navegador: si borras sus datos o juegas en otro dispositivo, la perderías junto con tus ventajas de apoyo.',
+      skip: 'Seguir sin iniciar sesión', safe: 'Sesión iniciada como {name}: tu apoyo y tu granja se guardan en tu cuenta de Google.',
     },
     party: {
       code: 'Código de sala', codeLine: 'Código de sala: {code}', joinTitle: 'Unirte a la granja de un amigo', joinHint: 'Escribe el código de sala que te envió tu amigo.', join: 'Unirme',
@@ -350,6 +354,8 @@ export const STRINGS = {
       noEmail: '没有找到这个邮箱的 5 美元支持。', what: '请输入你的 HOP- 代码，或你在 Ko-fi 用的邮箱。',
       offline: '暂时联系不上农场办公室，请稍后再试。',
       thanks: '太感谢你了！你的新角色已经搬进来了。', thanksTitle: '你是跳跳支持者啦！', yourCode: '你的代码（用于其他设备）：',
+      gate: '请先用 Google 登录，好好保存你的支持。现在你的农场只保存在这个浏览器里：清除浏览器数据或换一台设备玩，农场和支持者奖励都会丢失。',
+      skip: '不登录，继续', safe: '已登录为 {name}：你的支持和农场都保存在你的 Google 账号里。',
     },
     party: {
       code: '房间码', codeLine: '房间码：{code}', joinTitle: '加入朋友的农场', joinHint: '输入朋友发给你的房间码。', join: '加入',

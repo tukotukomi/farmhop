@@ -873,6 +873,13 @@ body.guest #phonesBtn, body.guest #partyBtn, body.guest #play { display: none !i
 .supPanel { display: grid; gap: 10px; text-align: center; max-width: 380px !important; }
 .supPanel h2 { margin-bottom: 0 !important; }
 .supIntro { margin: 0; font-weight: 600; }
+/* Not signed in: a word about keeping the purchase safe, before the ways to pay */
+.supGate { display: grid; justify-items: center; gap: 10px; padding: 12px 14px; border-radius: 18px; background: #fff; border: 3px solid var(--ink-soft); }
+.supGate[hidden], #supPay[hidden], .supSafe[hidden] { display: none; }
+.supGate p { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.35; }
+.supGate .gBtn { justify-self: center; }
+.supSkip { background: none; border: 0; padding: 2px 6px; cursor: pointer; font: inherit; font-size: 14px; font-weight: 600; color: var(--berry-d); text-decoration: underline; opacity: .85; }
+.supSafe { color: var(--leaf-d); opacity: 1; font-weight: 600; }
 .supPerks { margin: 0; padding: 10px 14px 10px 30px; text-align: left; background: #fff; border: 3px solid var(--ink-soft); border-radius: 18px; font-weight: 600; line-height: 1.45; }
 .supAsk { display: grid; justify-items: center; gap: 10px; }
 .supStep { margin: 4px 0 0; display: flex; align-items: center; gap: 8px; font-weight: 700; text-align: left; }
