@@ -1351,9 +1351,9 @@ function buildCombine(sp = false) {
   b.rbox(0.64, 0.07, 0.7, 0.25, 1.6, 0, 0xffffff, 0.03);
   b.rbox(0.45, 0.42, 0.45, -0.65, 1.28, 0, G, 0.12);                    // grain tank
   b.cyl(0.05, 0.05, 0.9, -0.75, 1.55, 0.3, Y, 0, 0, 1.2);               // unloading auger
-  b.rbox(0.14, 0.3, 1.9, 0.75, 0.32, 0, Y, 0.05);                       // header, wider than the lane
-  b.rbox(0.34, 0.06, 1.9, 0.86, 0.12, 0, Y, 0.025);
-  for (let z = -0.85; z <= 0.86; z += 0.17) b.cone(0.03, 0.14, 1.06, 0.12, z, 0xb0b0b0, 0, 0, -Math.PI / 2); // teeth
+  b.rbox(0.14, 0.3, 1.15, 0.75, 0.32, 0, Y, 0.05);                      // header, a little wider than the body
+  b.rbox(0.34, 0.06, 1.15, 0.86, 0.12, 0, Y, 0.025);
+  for (let z = -0.5; z <= 0.51; z += 0.125) b.cone(0.03, 0.14, 1.06, 0.12, z, 0xb0b0b0, 0, 0, -Math.PI / 2); // teeth
   b.cyl(0.035, 0.035, 0.4, -0.2, 1.35, -0.25, 0x555555);                // exhaust
   const parts = [];
   const big = wheelGeo(0.33, 0.2, dark, Y), small = wheelGeo(0.2, 0.16, dark, Y);
@@ -1362,11 +1362,11 @@ function buildCombine(sp = false) {
     parts.push(part(small, -0.75, 0.2, s * 0.4, 'wheel', { r: 0.2 }));
   }
   const reel = new VB(TRAFFIC_D);                                       // spinning reel
-  reel.cyl(0.035, 0.035, 1.8, 0, 0, 0, 0xd63a2f, Math.PI / 2, 0, 0);
+  reel.cyl(0.035, 0.035, 1.05, 0, 0, 0, 0xd63a2f, Math.PI / 2, 0, 0);
   for (let i = 0; i < 4; i++) {
     const a = i * Math.PI / 2;
-    reel.cyl(0.025, 0.025, 1.8, Math.cos(a) * 0.2, Math.sin(a) * 0.2, 0, Y, Math.PI / 2, 0, 0);
-    for (const z of [-0.85, 0, 0.85]) reel.rbox(0.42, 0.035, 0.035, 0, 0, z, 0xd63a2f, 0.012, 0, 0, a);
+    reel.cyl(0.025, 0.025, 1.05, Math.cos(a) * 0.2, Math.sin(a) * 0.2, 0, Y, Math.PI / 2, 0, 0);
+    for (const z of [-0.48, 0, 0.48]) reel.rbox(0.42, 0.035, 0.035, 0, 0, z, 0xd63a2f, 0.012, 0, 0, a);
   }
   parts.push(part(reel.geometry(), 0.95, 0.5, 0, 'spin', { axis: 'z', rate: -5 }));
   return centred({ geo: b.geometry(), parts }, -1.05, 1.15);
@@ -2332,14 +2332,14 @@ function startSpooky(h) {
   spooky.on = true;
   spooky.t = SPOOKY_SECS;
   spooky.flower = null;
-  for (const lane of lanes.values()) for (const m of lane.movers) dress(m);
+  for (const lane of lanes.values()) { spookGround(lane, true); for (const m of lane.movers) dress(m); }
   if (eventOn()) swapCoins(true);
   sfx.boo();
   burst(h.x, 0.6, h.z, [0x9b6bff, 0x6bff9b, 0xff8a1a, 0xffffff], 18, 2, 4, 0.1, 0.8);
 }
 function endSpooky() {
   spooky.on = false;
-  for (const lane of lanes.values()) for (const m of lane.movers) dress(m);
+  for (const lane of lanes.values()) { spookGround(lane, false); for (const m of lane.movers) dress(m); }
   swapCoins(false);
   spooky.next = game.score + 4 + Math.floor(Math.random() * 5);   // another one soon: a few rows on (in the next grass lane built, if those are built already)
   for (let r = spooky.next; r < genRow; r++) { const lane = lanes.get(r); if (lane?.type === 'grass' && plantSpooky(lane)) break; }
@@ -2358,7 +2358,7 @@ function updateSpooky(dt) {
     music.setKey(songKey(), haunt ? 'spooky' : songScale());
   }
   ECTO_MAT.visible = spooky.k > 0;
-  BONE_PAD_MAT.visible = spooky.k > 0.5;
+  BONE_PAD_MAT.visible = BLADE_MAT.visible = spooky.k > 0.5;
   if (spooky.k > 0) {   // the ectoplasm glows and shimmers, and bubbles now and then
     ECTO_MAT.opacity = 0.96 * spooky.k;
     ECTO_MAT.color.setHSL(0.3 + 0.02 * Math.sin(game.time * 1.3), 1, 0.42 + 0.06 * Math.sin(game.time * 2.1)).multiplyScalar(1.5);   // yellow-green, and brighter than bright: it glows through the purple night
@@ -2517,6 +2517,7 @@ function addLane(r) {
   const was = rnd;
   rnd = seeded(rowSeed(r));
   try { buildLane(r); } finally { rnd = was; }
+  if (spooky.on) spookGround(lanes.get(r), true);
   catchUp(lanes.get(r), game.roadT);
 }
 function catchUp(lane, T) {
@@ -2545,6 +2546,25 @@ function bonePad() {
   }
   return new THREE.Mesh(bonePadGeo, BONE_PAD_MAT);
 }
+// ...and the fields go a dark purple with glowing pale-blue grass: each lane's ground
+// colours swap over (and back), and a few lit blades stand up in the grass.
+const SPOOKY_GROUND = (() => {
+  const m = new Map(), key = c => c.r.toFixed(3) + ',' + c.g.toFixed(3) + ',' + c.b.toFixed(3);
+  for (const [a, b] of [[0xaee667, 0x3b2b58], [0xa2dc5c, 0x34264f], [shade(0xaee667, 0.74), shade(0x3b2b58, 0.74)], [shade(0xa2dc5c, 0.74), shade(0x34264f, 0.74)], [0x6cbf3f, 0x9fe8ff], [0x4f8f30, 0x6fc8ee]]) m.set(key(new THREE.Color(a)), new THREE.Color(b));
+  return m;
+})();
+function spookGround(lane, on) {
+  const col = lane.static.geometry.attributes.color;
+  if (on && !lane.ground) lane.ground = col.array.slice();   // the first time: keep its own colours
+  if (!lane.ground) return;
+  const a = col.array, base = lane.ground;
+  for (let i = 0; i < a.length; i += 3) {
+    const to = on && SPOOKY_GROUND.get(base[i].toFixed(3) + ',' + base[i + 1].toFixed(3) + ',' + base[i + 2].toFixed(3));
+    a[i] = to ? to.r : base[i]; a[i + 1] = to ? to.g : base[i + 1]; a[i + 2] = to ? to.b : base[i + 2];
+  }
+  col.needsUpdate = true;
+}
+const BLADE_MAT = new THREE.MeshBasicMaterial({ vertexColors: true });
 function buildLane(r) {
   const prev = lanes.get(r - 1) || null;
   const type = r < 0 ? 'forest' : r < OPEN ? 'grass' : nextType(r, prev);
@@ -2729,6 +2749,17 @@ function buildLane(r) {
       const tx = rand(-VIS, VIS);
       vb.cone(0.035, 0.11, tx, 0.045, rand(-0.42, 0.42), Math.abs(tx) <= COLS + 0.5 ? 0x6cbf3f : 0x4f8f30);
     }
+  }
+  if (type === 'grass' || type === 'forest' || type === 'pasture') {   // the spooky farm's glowing blades (off the row's own dice)
+    const bl = new VB(0.4);
+    for (let i = 0; i < 16; i++) {
+      const bx = Math.random() * 2 * VIS - VIS, bz = Math.random() * 0.84 - 0.42;
+      bl.cone(0.03, 0.16, bx, 0.07, bz, Math.abs(bx) <= COLS + 0.5 ? 0xc8f6ff : 0x8fd8f0, Math.random() * 0.4 - 0.2, 0, Math.random() * 0.4 - 0.2);
+    }
+    const bm = new THREE.Mesh(bl.geometry(), BLADE_MAT);
+    bm.layers.set(GLOW_LAYER);
+    lane.group.add(bm);
+    lane.blades = bm;
   }
   if (wet(type)) {
     const e = new THREE.Mesh(ECTO_GEO, ECTO_MAT);
