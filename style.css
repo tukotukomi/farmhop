@@ -423,21 +423,26 @@ body.pad .heroCard.focus, body.keys .heroCard.focus, .heroCard:focus-visible { o
 .bunkWho { font-size: 14px; opacity: .75; margin: 0 auto 10px; }
 #bunkHome { width: 100%; }
 #shopGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; width: 100%; }
+#keyGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 20px 14px; width: 100%; padding-top: 10px; }
+#keyGrid[hidden], #shopGrid[hidden] { display: none; }
+.keyCard { padding-top: 16px; }
+.keyGlyph { font-size: 34px; font-weight: 800; line-height: 1.15; margin-bottom: 6px; white-space: nowrap; }   /* the key: C, D♭, Re♭... */
+#shop .setTabs { margin-bottom: 2px; }
 #bunkGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 12px; width: 100%; }
 #bunkGrid .heroCard { cursor: default; }
 #bunkGrid .heroCard.locked { cursor: pointer; }
 #bunkGrid .heroCard.locked img { filter: grayscale(.75) brightness(.92); opacity: .8; }
-#shopGrid .heroCard .tag, #bunkGrid .heroCard .tag {                   /* owned: a green check; locked: the price */
+#shopGrid .heroCard .tag, #keyGrid .heroCard .tag, #bunkGrid .heroCard .tag {                   /* owned: a green check; locked: the price */
   position: absolute; top: -12px; right: -10px;
   display: inline-flex; align-items: center; gap: 2px;
   height: 34px; min-width: 34px; box-sizing: border-box; justify-content: center;
   border: 2.5px solid var(--ink); border-radius: 999px; box-shadow: 0 3px 0 var(--ink-soft);
 }
-:is(#bunkGrid, #shopGrid) .heroCard .tag.check { background: var(--leaf); }
-:is(#bunkGrid, #shopGrid) .heroCard .tag.check svg { width: 20px; height: 20px; }
-:is(#bunkGrid, #shopGrid) .heroCard .tag.cost { background: var(--cream); padding: 0 9px 0 3px; font-size: 16px; font-weight: 700; }
-:is(#bunkGrid, #shopGrid) .heroCard .tag.cost .flower { width: 24px; height: 24px; }
-:is(#bunkGrid, #shopGrid) .heroCard.short .tag.cost { opacity: .7; }
+:is(#bunkGrid, #shopGrid, #keyGrid) .heroCard .tag.check { background: var(--leaf); }
+:is(#bunkGrid, #shopGrid, #keyGrid) .heroCard .tag.check svg { width: 20px; height: 20px; }
+:is(#bunkGrid, #shopGrid, #keyGrid) .heroCard .tag.cost { background: var(--cream); padding: 0 9px 0 3px; font-size: 16px; font-weight: 700; }
+:is(#bunkGrid, #shopGrid, #keyGrid) .heroCard .tag.cost .flower { width: 24px; height: 24px; }
+:is(#bunkGrid, #shopGrid, #keyGrid) .heroCard.short .tag.cost { opacity: .7; }
 /* ---------- Farm Buildings menu ---------- */
 :is(#buildGrid, #bookGrid) { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 168px)); justify-content: center; gap: 12px; width: 100%; }
 :is(#buildGrid, #bookGrid) .heroCard { background: #ffe9c7; }

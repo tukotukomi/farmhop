@@ -7,6 +7,9 @@
 //
 // Hop Supporters can switch to a drum and bass version: the same chords, banjo
 // and fiddle over a two-step break at double time (168), a reese bass, and no swing.
+//
+// Players can buy other keys: setKey(n) moves every note n semitones (-6..5) from D,
+// on a bar line, and the game's hopper sounds follow the same key (see `key`).
 
 const BPM = 84;
 const STEP = 60 / BPM / 4;          // one sixteenth note, in seconds
@@ -118,9 +121,9 @@ export function createMusic(ctx, out) {
     if (wave === 'pulse') o.setPeriodicWave(pulse); else o.type = wave;
     o.detune.value = detune;
     if (slideFrom) {                                  // fiddle slides up into the note
-      o.frequency.setValueAtTime(hz(slideFrom), t);
-      o.frequency.exponentialRampToValueAtTime(hz(midi), t + 0.06);
-    } else o.frequency.setValueAtTime(hz(midi), t);
+      o.frequency.setValueAtTime(hz(slideFrom + key), t);
+      o.frequency.exponentialRampToValueAtTime(hz(midi + key), t + 0.06);
+    } else o.frequency.setValueAtTime(hz(midi + key), t);
     if (vibrato) {
       const v = ctx.createOscillator(), vg = ctx.createGain();
       v.frequency.value = 5.5;
@@ -203,9 +206,11 @@ export function createMusic(ctx, out) {
 
   // ---- the arrangement, one sixteenth at a time ----
   let lastFiddle = 0, style = 'classic', want = 'classic', swing = SWING;
+  let key = 0, wantKey = 0, lastKey = 0, keyAt = 0;   // semitones from D; keyAt: when (context time) key took over from lastKey
   function play(step, t) {
     const bar = Math.floor(step / 16) % 32, s = step % 16;
     if (s === 0 && style !== want) { style = want; }   // switch on a bar line
+    if (s === 0 && key !== wantKey) { lastKey = key; key = wantKey; keyAt = t; }
     const dnb = style === 'dnb';
     const [prog, tune] = FORM[Math.floor(bar / 8)];
     const i = bar % 8, chord = prog[i], next = prog[(i + 1) % 8];
@@ -293,6 +298,16 @@ export function createMusic(ctx, out) {
     // 'classic' or 'dnb' (Hop Supporters): changes over at the next bar line.
     setStyle(s) { want = s === 'dnb' ? 'dnb' : 'classic'; },
     get style() { return want; },
+    // Bought keys: n semitones from D. Changes over at the next bar line, like the style;
+    // returns how many seconds from now that is (0 when the tune isn't playing).
+    setKey(n) {
+      wantKey = n;
+      if (!playing) { lastKey = key = n; return 0; }
+      const bar = Math.ceil(step / 16) * 16;
+      return key === n ? 0 : Math.max(0, t0 + at(bar) - ctx.currentTime);
+    },
+    // The key sounding right now, so the hopper sounds are always in tune with the tune.
+    get key() { return ctx.currentTime < keyAt ? lastKey : key; },
     // The song's sixteenth (counted from the top of the loop) playing at position pos.
     stepAt(pos) { return Math.round(pos / STEP); },
     // Duck under menus (e.g. 0.45 on the game-over sign), back to 1 in play.

@@ -213,9 +213,14 @@
 <div id="shop" class="sheet" role="dialog" aria-modal="true" aria-labelledby="shopTitle">
   <div class="panel bunkPanel">
     <h2 id="shopTitle" data-i18n="shop">Decorations</h2>
+    <div class="setTabs" role="tablist">
+      <button id="tabDecor" class="setTab on" role="tab" aria-selected="true" data-i18n="shopFarm">Farm</button>
+      <button id="tabMusic" class="setTab" role="tab" aria-selected="false" data-i18n="shopMusic">Music</button>
+    </div>
     <div class="panelBody">
-    <p class="bunkWho" data-i18n="shopWho">Tap something to put it on your farm.</p>
+    <p id="shopWho" class="bunkWho" data-i18n="shopWho">Tap something to put it on your farm.</p>
     <div id="shopGrid"></div>
+    <div id="keyGrid" hidden></div>
     <p id="shopNeed" class="pondNeed"></p>
     </div>
     <button id="shopClose" class="closeBtn bubble" data-i18n-aria="aria.close" aria-label="Close">&#x2715;</button>
