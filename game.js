@@ -2458,7 +2458,7 @@ function updateSpooky(dt) {
     spooky.flower.rotation.y += dt * 2.2;
     spooky.flower.position.y = Math.abs(Math.sin(game.time * 3)) * 0.12;
   }
-  const haunt = spooky.on && road;
+  const haunt = (spooky.on && road) || (jam.open && jamTrack() === 'spooky');   // the spooky farm, or the Spooky Farm Song on the Jam Stage
   if (music && music.haunted !== haunt) {   // the tune (and with it every hop and pad) goes to the spooky scale on the organ, and back
     music.setHaunted(haunt);
     music.setKey(songKey(), haunt ? 'spooky' : songScale());   // your own key, in the spooky scale
@@ -7823,6 +7823,8 @@ const OFFERS = {
 };
 const PUMPKIN_TAG_SVG = $('eventBtn').querySelector('svg').outerHTML.replace('<svg ', '<svg class="flower" ');
 let eventAsking = null;   // the offer being asked about
+// The harvest's last reward: trade for all three and the Spooky Farm Song is yours, to jam to.
+const harvestDone = () => Object.values(OFFERS).every(o => o.have());
 const eventAsk = () => !$('eventAsk').hidden;
 function refreshEvent(msg) {
   const i = HEROES.findIndex(h => h.id === 'pumpking');
@@ -7841,6 +7843,9 @@ function refreshEvent(msg) {
   });
   $('eventEnds').textContent = t('event.ends', { date: new Date(EVENT_END - 60000).toLocaleString((LANGS.find(l => l.id === lang) || LANGS[0]).html, { month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles', timeZoneName: 'short' }) });
   $('eventNeed').textContent = msg ?? '';
+  const done = harvestDone(), r = $('eventReward');
+  r.textContent = done ? t('event.rewardHave') : t('event.reward', { n: Object.values(OFFERS).filter(o => o.have()).length });
+  r.classList.toggle('done', done);
 }
 function askOffer(id) {
   const o = OFFERS[id];
@@ -7859,9 +7864,14 @@ function closeAsk() {
   $('eventAsk').hidden = true;
 }
 function sayYes() {
-  const id = eventAsking;
+  const id = eventAsking, before = harvestDone();
   closeAsk();
-  if (id) OFFERS[id].buy();
+  if (!id) return;
+  OFFERS[id].buy();
+  if (!before && harvestDone()) {   // the third one: the song's unlocked, with the full organ and the ghosts
+    refreshEvent(t('event.songDone'));
+    sfx.spookyWave();
+  }
 }
 document.querySelectorAll('.eventOffers [data-offer]').forEach(c => c.addEventListener('click', () => askOffer(c.dataset.offer)));
 $('eventYes').addEventListener('click', sayYes);
@@ -8113,7 +8123,6 @@ function setDrums(on) {
   letGoAll();
   $('jam').classList.toggle('drums', jam.drums);
   showInstrument(jam.banjo, !jam.drums && !jam.organ);   // the banjo goes down while you drum, or play the organ
-  if (jam.organKit) jam.organKit.visible = jam.organ;
   jamPads.style.setProperty('--c', jam.organ ? ORGAN_PAD : hero().pad);
   const nx = nextInst();
   $('instBtn').setAttribute('aria-label', nx === 'drums' ? t('aria.instDrums') : nx === 'organ' ? t('aria.instOrgan') : t('aria.instHopper', { name: heroName(heroId) }));
@@ -8281,7 +8290,7 @@ function openJam() {
     jam.kit.scale.setScalar(0.72);
     jam.scene.add(jam.kit);
   }
-  if (organOwned() && !jam.organKit) {   // the Spooky Organ stands behind, on the other side
+  if (organOwned() && !jam.organKit) {   // the Spooky Organ stands behind, on the other side (always there, like the drum kit)
     jam.organKit = new THREE.Group();
     buildPipeOrgan(jam.organKit);
     jam.organKit.position.set(-0.98, 0, -0.85);
@@ -8290,6 +8299,7 @@ function openJam() {
     jam.scene.add(jam.organKit);
   }
   $('instBtn').hidden = jamModes().length < 2;
+  refreshJamTracks();
   setDrums(jam.drums);
   $('partyBtn').hidden = !RELAY;
   layoutStage();
@@ -8306,6 +8316,24 @@ function openJam() {
   jam.input = null;   // start with hints for the last thing used, or what this device has
   setJamInput(document.body.classList.contains('pad') ? 'pad' : document.body.classList.contains('keys') || matchMedia('(hover: hover) and (pointer: fine)').matches ? 'keys' : 'touch');
   if (!GUEST) { tellBand(); tellBeat(); }
+}
+// Jam tracks: what the band plays along to. The farm song, and (once the harvest's three are
+// all yours) the Spooky Farm Song: the farm tune on the spooky organ in your key's spooky scale.
+const JAM_TRACKS = [{ id: 'farm' }, { id: 'spooky', have: () => harvestDone() }];
+const jamTrack = () => { const id = store.get('bl-jam-track', 'farm'); return JAM_TRACKS.find(k => k.id === id && (!k.have || k.have())) ? id : 'farm'; };
+function refreshJamTracks() {
+  const list = JAM_TRACKS.filter(k => !k.have || k.have()), now = jamTrack();
+  $('jamTracks').hidden = list.length < 2;
+  $('jamTrackChips').replaceChildren(...list.map(k => {
+    const b = document.createElement('button');
+    b.className = 'setTab';
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-checked', String(k.id === now));
+    b.classList.toggle('on', k.id === now);
+    b.textContent = t('track.' + k.id);
+    b.addEventListener('click', () => { sfx.ensure(); store.set('bl-jam-track', k.id); refreshJamTracks(); });
+    return b;
+  }));
 }
 function closeJam() {
   if (!jam.open) return;

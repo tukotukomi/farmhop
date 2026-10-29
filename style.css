@@ -891,6 +891,11 @@ body.guest #phonesBtn, body.guest #partyBtn, body.guest #play { display: none !i
   color: var(--cream); font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
 }
 .sustainRow .vol { flex: 1; margin: 0; touch-action: pan-x; }
+.jamTracks[hidden] { display: none; }
+.jamTrackChips { flex: 1; margin: 0; }
+.jamTrackChips .setTab { font-size: 13px; padding: 5px 10px 6px; text-transform: none; letter-spacing: 0; }
+.eventReward { margin: 0; padding: 8px 12px; border-radius: 14px; background: #2a1838; color: #e9dcff; font-size: 14px; font-weight: 700; text-align: center; }
+.eventReward.done { background: #3fae49; color: #fff; }
 .sustainRow[data-hint]:not([data-hint=""])::after {
   content: attr(data-hint); position: absolute; right: 0; top: -16px;
   padding: 1px 6px; border-radius: 999px; background: var(--cream); color: var(--ink); border: 2px solid var(--ink);
