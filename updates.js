@@ -20,6 +20,7 @@ export const UPDATES = [
       'Hops sound just like your hopper on the Jam Stage.',
       'The hopper button shows your own hopper, in their colour.',
       'Every menu fits your screen.',
+      'The farm buttons sit at the bottom right with Play on the end, or on the left with the new Left-handed mode.',
       'Sign in with Google before becoming a Hop Supporter, so your support is kept safe.',
       'This Updates page!'
     ],
@@ -37,6 +38,7 @@ export const UPDATES = [
         'Los saltos suenan igual que tu saltarín en el escenario.',
         'El botón de saltarín muestra al tuyo, en su color.',
         'Todos los menús caben en tu pantalla.',
+        'Los botones de la granja están abajo a la derecha, con Jugar al final, o a la izquierda con el nuevo Modo zurdo.',
         'Inicia sesión con Google antes de hacerte Hop Supporter, para que tu apoyo quede a salvo.',
         '¡Esta página de Novedades!'
       ]
@@ -55,6 +57,7 @@ export const UPDATES = [
         '跳跃的声音和你的伙伴在舞台上的声音一模一样。',
         '伙伴按钮会显示你自己的伙伴和它的颜色。',
         '所有菜单都能放进你的屏幕。',
+        '农场按钮移到了右下角，开始按钮在最边上；打开新的左手模式就会放到左边。',
         '成为跳跳支持者前先用 Google 登录，让你的支持更安全。',
         '这个“更新”页面！'
       ]

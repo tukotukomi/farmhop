@@ -7217,7 +7217,7 @@ if (account) {
 // Language, music and effects volume, the road's view angle, and the art style.
 // With a controller or arrow keys: up/down picks a row, left/right changes it.
 const settingsOpen = () => $('settings').classList.contains('show');
-const SET_ROWS = [...(account ? ['acct'] : []), ...(SUPPORT_URL ? ['sup'] : []), 'lang', 'music', 'fx', 'timing', 'coop', 'gfx'];   // in the order they're shown
+const SET_ROWS = [...(account ? ['acct'] : []), ...(SUPPORT_URL ? ['sup'] : []), 'lang', 'music', 'fx', 'timing', 'coop', 'hand', 'gfx'];   // in the order they're shown
 const GFX_CHOICES = ['auto', ...Q_LEVELS];
 let setFocus = 0;
 function segment(el, labels, current, pick, icons) {
@@ -7241,6 +7241,7 @@ function setVolSlider(id, v) {
 function renderSettings() {
   segment($('segLang'), LANGS.map(l => l.label), LANGS.findIndex(l => l.id === lang), i => setLang(LANGS[i].id));
   segment($('segCoop'), t('coopScreens'), splitPref ? 1 : 0, i => setSplit(!!i));
+  segment($('segHand'), t('lat.offOn'), lefty ? 1 : 0, i => setLefty(!!i));
   $('coopNote').textContent = t('coopNote');
   const gi = GFX_CHOICES.indexOf(gfx);
   segment($('segGfx'), t('gfxs'), gi, i => setGfx(GFX_CHOICES[i]));
@@ -7268,6 +7269,15 @@ function setGfx(name) {
   store.set('bl-gfx', name);
   Object.assign(autoQ, { dts: [], calm: 0, tried: false, noUp: false });
   applyQuality();
+  renderSettings();
+}
+// Left-handed mode: the farm, decorate and fishing buttons on the left instead of the right.
+let lefty = store.get('bl-lefty', false);
+document.body.classList.toggle('lefty', lefty);
+function setLefty(on) {
+  lefty = on;
+  store.set('bl-lefty', on);
+  document.body.classList.toggle('lefty', on);
   renderSettings();
 }
 function setSplit(on) {
@@ -7351,6 +7361,7 @@ function settingsNav(dir) {
     renderSettings();
   } else if (row === 'timing') { setBeatLag(beatLag + d * 0.005); renderLatency(); }
   else if (row === 'coop') setSplit(!splitPref);
+  else if (row === 'hand') setLefty(!lefty);
   else if (row === 'gfx') setGfx(GFX_CHOICES[(GFX_CHOICES.indexOf(gfx) + d + GFX_CHOICES.length) % GFX_CHOICES.length]);
   else if (row === 'acct') { if (!account.state.user) account.signIn().catch(accountError); }
   else if (row === 'sup') { if (supporter && !GUEST) setSong(songStyle() !== 'dnb'); else if (!supporter) openSupport(); }

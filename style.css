@@ -116,17 +116,23 @@ body.farm.decor #phonesBtn { display: none; }
 
 .btnRow { display: flex; align-items: center; justify-content: center; gap: 18px; }
 .side { display: flex; align-items: center; gap: inherit; }
-#farmBtns {
+/* The farm buttons sit in the bottom right corner, in thumb's reach, with Play on the
+   end: hopper, build, fish, play. Left-handed mode (body.lefty) mirrors them, and
+   the decorate and fishing buttons, into the bottom left. */
+#farmBtns, #decorBar {
   position: fixed; left: 0; right: 0;
-  bottom: calc(env(safe-area-inset-bottom) + 36px);
-  display: none;
+  bottom: calc(env(safe-area-inset-bottom) + 18px);
+  padding: 0 calc(env(safe-area-inset-right) + 18px) 0 calc(env(safe-area-inset-left) + 18px);
+  display: none; justify-content: flex-end;
 }
-body.farm #farmBtns { display: grid; grid-template-columns: 1fr auto 1fr; }   /* play stays dead centre */
-#farmBtns .side.left { justify-self: end; }
-#farmBtns .side.right { justify-self: start; }
-/* Decorate mode swaps the farm buttons for shop / done / rotate */
-#decorBar { position: fixed; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom) + 36px); display: none; gap: 18px; }
+body.farm #farmBtns { display: flex; }
+#farmBtns .side.right { order: 1; }
+#farmBtns .playBtn { order: 2; }
+/* Decorate mode swaps the farm buttons for shop / turn / done */
+#decorBar { gap: 18px; }
+#decorBar #doneBtn { order: 2; }
 body.farm.decor #decorBar { display: flex; }
+body.lefty :is(#farmBtns, #decorBar, #fishBar) { direction: rtl; }   /* the same rows, read from the other side */
 body.farm.decor #farmBtns, body.farm.show-logo.decor #title { display: none; }
 .shopBtn { --c1: var(--berry); --c2: var(--berry-d); width: 76px; height: 76px; }
 .rotateBtn { --c1: var(--sky); --c2: #3f9fd8; width: 76px; height: 76px; }
@@ -522,6 +528,7 @@ body.farm.fishing #fishBar { display: grid; }
     grid-template-columns: auto; justify-items: end; gap: 12px;
   }
   #fishStop, #fishCast { justify-self: end; }
+  body.lefty #fishBar { right: auto; left: calc(env(safe-area-inset-left) + 18px); }
 }
 @media (orientation: landscape) and (max-height: 440px) {   /* phones on their side: a little smaller */
   #fishBar { gap: 8px; }
