@@ -2335,18 +2335,22 @@ function flipLane(lane, on, near) {
   spookGround(lane, on);
   for (const m of lane.movers) dress(m, on);
   if (!on || eventOn()) swapCoins(lane, on);
-  if (near) for (let k = 0; k < 3; k++) burst(Math.random() * 2 * COLS - COLS, 0.25, -lane.r + Math.random() * 0.6 - 0.3, on ? [0x9b6bff, 0x6bff9b, 0xc8f6ff] : [0xffffff, 0xfff3a0, 0x9fe86b], 4, 1.2, 2.5, 0.07, 0.6, true);
+  if (near) for (let k = 0; k < 1; k++) burst(Math.random() * 2 * COLS - COLS, 0.25, -lane.r + Math.random() * 0.6 - 0.3, on ? [0x9b6bff, 0x6bff9b, 0xc8f6ff] : [0xffffff, 0xfff3a0, 0x9fe86b], 3, 1.2, 2.5, 0.07, 0.6, true);
 }
 function updateWave(dt) {
   const w = spooky.wave;
   if (!w) return;
   w.t += dt;
   const reach = 0.5 + w.t * WAVE_SPEED;
+  if (reach < 14) {   // nightmare wisps boil up along the wave's leading edge (only near the player, where it's seen: a few a frame)
+    const cols = spooky.on ? [0x6a2a9a, 0x3a1a5a, 0xb070ff, 0x1a0d26] : [0xfff3a0, 0xffffff, 0xbfe9ff];
+    for (const side of [1, -1]) for (let k = 0; k < 2; k++) burst(Math.random() * (2 * COLS + 6) - COLS - 3, 0.12, -(w.row + side * reach) + Math.random() * 0.8 - 0.4, cols, 1, 0.5, 3.4, 0.14, 0.9, true);
+  }
   let left = false;
   for (const lane of lanes.values()) {
     if (lane.spooked === spooky.on) continue;
     const d = Math.abs(lane.r - w.row);
-    if (d <= reach) flipLane(lane, spooky.on, d < 16); else left = true;
+    if (d <= reach) flipLane(lane, spooky.on, d < 9); else left = true;
   }
   if (!left) spooky.wave = null;
 }
