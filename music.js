@@ -309,7 +309,14 @@ export function createMusic(ctx, out) {
       if (ts && ts.contextTime > 0 && Math.abs(ts.performanceTime / 1000 - now) < 1) { ct = ts.contextTime; pt = ts.performanceTime / 1000; }
       return { pos: (((ct - t0) % LOOP) + LOOP) % LOOP, at: pt, swing: style === 'dnb' ? 0 : SWING };
     },
-    seek(pos) {
+    // How long (seconds) a sound started right now takes to reach the ears. The output
+    // timestamp says when an earlier moment of the context was heard, so add on how far
+    // the context has run since; without one, the browser's own latency figure.
+    lag() {
+      const ts = ctx.getOutputTimestamp?.(), now = performance.now() / 1000;
+      if (ts && ts.contextTime > 0 && Math.abs(ts.performanceTime / 1000 - now) < 1) return Math.max(0, ts.performanceTime / 1000 + ctx.currentTime - ts.contextTime - now);
+      return ctx.outputLatency || ctx.baseLatency || 0;
+    },    seek(pos) {
       if (!playing) return;
       t0 = ctx.currentTime - pos;
       const from = ctx.currentTime + 0.05 - t0;

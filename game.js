@@ -6907,9 +6907,7 @@ const tapOpen = () => $('tapHelp').classList.contains('show');
 const tap = { run: 0, beats: [], taps: [], timers: [], result: null };
 const tapNow = () => performance.now() / 1000;
 function outLag() {   // how long a sound takes to come out of the speakers
-  if (!music) return 0;
-  const h = music.heard();
-  return clamp(h.at - tapNow(), 0, 0.5);
+  return music ? clamp(music.lag(), 0, 0.5) : 0;
 }
 function tapReset() {
   for (const id of tap.timers) clearTimeout(id);
@@ -6949,7 +6947,7 @@ function tapStart() {
       sfx.hop(heroId);
       const heard = tapNow() + lag;                      // when this beat reaches the ears
       tap.beats[k] = heard;
-      later(heard - 0.32, () => {                        // the hop, landing right on the beat
+      later(heard - 0.32 * 0.92, () => {                 // the hop, landing right on the beat (92% of the way through tapHop)
         const img = $('tapHopper');
         img.classList.remove('hop'); void img.offsetWidth; img.classList.add('hop');
       });
