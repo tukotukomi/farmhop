@@ -2318,33 +2318,55 @@ function plantSpooky(lane) {   // on a free spot of a grass lane that can be rea
 }
 // The sunflowers already out on the road turn into pumpkins as the farm goes spooky (during the
 // harvest), and the pumpkins back into sunflowers when it's over.
-function swapCoins(toPumpkins) {
-  for (const lane of lanes.values()) {
-    for (const coin of [...lane.coins]) {
-      if (coin.spooky || !!coin.pumpkin === toPumpkins) continue;
-      lane.group.remove(coin.m);
-      lane.coins.splice(lane.coins.indexOf(coin), 1);
-      if (toPumpkins) addPumpkin(lane, coin.c); else addSunflower(lane, coin.c);
-    }
+function swapCoins(lane, toPumpkins) {
+  for (const coin of [...lane.coins]) {
+    if (coin.spooky || !!coin.pumpkin === toPumpkins) continue;
+    lane.group.remove(coin.m);
+    lane.coins.splice(lane.coins.indexOf(coin), 1);
+    if (toPumpkins) addPumpkin(lane, coin.c); else addSunflower(lane, coin.c);
   }
+}
+// The spooky farm doesn't arrive (or leave) all at once: it spreads out row by row from
+// where the spooky sunflower was picked, a shimmer of sparks running along each row as
+// it turns.
+const WAVE_SPEED = 14;   // rows a second
+function flipLane(lane, on, near) {
+  lane.spooked = on;
+  spookGround(lane, on);
+  for (const m of lane.movers) dress(m, on);
+  if (!on || eventOn()) swapCoins(lane, on);
+  if (near) for (let k = 0; k < 3; k++) burst(Math.random() * 2 * COLS - COLS, 0.25, -lane.r + Math.random() * 0.6 - 0.3, on ? [0x9b6bff, 0x6bff9b, 0xc8f6ff] : [0xffffff, 0xfff3a0, 0x9fe86b], 4, 1.2, 2.5, 0.07, 0.6, true);
+}
+function updateWave(dt) {
+  const w = spooky.wave;
+  if (!w) return;
+  w.t += dt;
+  const reach = 0.5 + w.t * WAVE_SPEED;
+  let left = false;
+  for (const lane of lanes.values()) {
+    if (lane.spooked === spooky.on) continue;
+    const d = Math.abs(lane.r - w.row);
+    if (d <= reach) flipLane(lane, spooky.on, d < 16); else left = true;
+  }
+  if (!left) spooky.wave = null;
 }
 function startSpooky(h) {
   spooky.on = true;
   spooky.t = SPOOKY_SECS;
   spooky.flower = null;
-  for (const lane of lanes.values()) { spookGround(lane, true); for (const m of lane.movers) dress(m); }
-  if (eventOn()) swapCoins(true);
+  spooky.wave = { row: h.r, t: 0 };   // out from here
   sfx.boo();
   burst(h.x, 0.6, h.z, [0x9b6bff, 0x6bff9b, 0xff8a1a, 0xffffff], 18, 2, 4, 0.1, 0.8);
 }
 function endSpooky() {
   spooky.on = false;
-  for (const lane of lanes.values()) { spookGround(lane, false); for (const m of lane.movers) dress(m); }
-  swapCoins(false);
+  const lead = game.crew.filter(c => c.alive && !c.parked).sort((a, b) => b.r - a.r)[0] || P;
+  spooky.wave = { row: lead.r, t: 0 };   // back to normal, out from the leading hopper
   spooky.next = game.score + 4 + Math.floor(Math.random() * 5);   // another one soon: a few rows on (in the next grass lane built, if those are built already)
   for (let r = spooky.next; r < genRow; r++) { const lane = lanes.get(r); if (lane?.type === 'grass' && plantSpooky(lane)) break; }
 }
 function updateSpooky(dt) {
+  updateWave(dt);
   const road = game.where === 'road';
   if (spooky.on && road && (game.state === 'play' || game.state === 'title')) { spooky.t -= dt; if (spooky.t <= 0) endSpooky(); }
   spooky.k = clamp(spooky.k + (spooky.on && road ? dt : -dt) / 1.5, 0, 1);
@@ -2414,7 +2436,7 @@ function gainPumpkin(h) {
   markEvent();
 }
 function addSunflower(lane, c) {
-  if (spooky.on && eventOn()) return addPumpkin(lane, c);   // on the spooky farm, during the harvest
+  if (lane.spooked && eventOn()) return addPumpkin(lane, c);   // on the spooky farm, during the harvest
   const m = new THREE.Mesh(FLOWER_GEO, FLOWER_MAT);
   m.position.set(c, LANE_Y[lane.type], 0);
   m.castShadow = true;
@@ -2442,13 +2464,13 @@ function spawnMover(lane, kind, x, y = 0) {
   mesh.position.set(x, y, 0);
   lane.group.add(mesh);
   const m = { kind, len: LEN[kind], x, y, mesh, parts: [], dir: lane.dir, skin: Math.random(), active: true, bob: 0, phase: rand(0, 6), walk: rand(0, 6), buzz: 0, t: 0 };
-  dress(m);
+  dress(m, lane.spooked);
   return m;
 }
 // Put a mover's model on (its own, or its spooky stand-in): the body, then its moving parts
 // (legs, wheels, reel, propeller, wings) and anything that glows.
-function dress(m) {
-  const mdl = model(spooky.on ? spookKind(m) : m.kind), mesh = m.mesh;
+function dress(m, on = spooky.on) {
+  const mdl = model(on ? spookKind(m) : m.kind), mesh = m.mesh;
   mesh.geometry = mdl.geo;
   for (const c of [...mesh.children]) mesh.remove(c);
   mesh.rotation.y = m.dir < 0 && !mdl.noFlip ? Math.PI : 0;
@@ -2517,7 +2539,7 @@ function addLane(r) {
   const was = rnd;
   rnd = seeded(rowSeed(r));
   try { buildLane(r); } finally { rnd = was; }
-  if (spooky.on) spookGround(lanes.get(r), true);
+  if (lanes.get(r).spooked) spookGround(lanes.get(r), true);
   catchUp(lanes.get(r), game.roadT);
 }
 function catchUp(lane, T) {
@@ -2546,11 +2568,15 @@ function bonePad() {
   }
   return new THREE.Mesh(bonePadGeo, BONE_PAD_MAT);
 }
-// ...and the fields go a dark purple with glowing pale-blue grass: each lane's ground
-// colours swap over (and back), and a few lit blades stand up in the grass.
+// ...and the fields go a dark purple with glowing pale-blue grass, the dirt (pasture, the
+// bulls' track, the crop rows) black stone: each lane's ground colours swap over (and
+// back), and a few lit blades stand up in the grass.
 const SPOOKY_GROUND = (() => {
   const m = new Map(), key = c => c.r.toFixed(3) + ',' + c.g.toFixed(3) + ',' + c.b.toFixed(3);
-  for (const [a, b] of [[0xaee667, 0x3b2b58], [0xa2dc5c, 0x34264f], [shade(0xaee667, 0.74), shade(0x3b2b58, 0.74)], [shade(0xa2dc5c, 0.74), shade(0x34264f, 0.74)], [0x6cbf3f, 0x9fe8ff], [0x4f8f30, 0x6fc8ee]]) m.set(key(new THREE.Color(a)), new THREE.Color(b));
+  for (const [a, b] of [[0xaee667, 0x3b2b58], [0xa2dc5c, 0x34264f], [shade(0xaee667, 0.74), shade(0x3b2b58, 0.74)], [shade(0xa2dc5c, 0.74), shade(0x34264f, 0.74)], [0x6cbf3f, 0x9fe8ff], [0x4f8f30, 0x6fc8ee],
+    [0xcfa66b, 0x34313d], [shade(0xcfa66b, 0.72), shade(0x34313d, 0.72)], [0xb58e58, 0x46424f], [0x8a6c43, 0x3a3744],
+    [0xb86b45, 0x2e2b36], [shade(0xb86b45, 0.72), shade(0x2e2b36, 0.72)], [0x9a5434, 0x403c4a], [0x6e3c25, 0x2a2731], [0x8f4f30, 0x1e1c24],
+    [0x8a5e3c, 0x302d38], [shade(0x8a5e3c, 0.72), shade(0x302d38, 0.72)], [0x6e4a2e, 0x46424f]]) m.set(key(new THREE.Color(a)), new THREE.Color(b));
   return m;
 })();
 function spookGround(lane, on) {
@@ -2569,7 +2595,7 @@ function buildLane(r) {
   const prev = lanes.get(r - 1) || null;
   const type = r < 0 ? 'forest' : r < OPEN ? 'grass' : nextType(r, prev);
   const lane = {
-    r, type, movers: [], blocked: new Set(), reach: new Set(), coins: [],
+    r, type, movers: [], blocked: new Set(), reach: new Set(), coins: [], spooked: spooky.on,
     dir: rnd() < 0.5 ? 1 : -1, speed: 0, group: new THREE.Group(),
   };
   lane.group.position.z = -r;
@@ -2609,7 +2635,7 @@ function buildLane(r) {
       }
       if (r > 3 && rnd() < 0.16 && reach.size) addSunflower(lane, pick([...reach]));
       if (r >= spooky.next && !spooky.on && reach.size) plantSpooky(lane);
-      if (spooky.on && eventOn() && reach.size) {   // more pumpkins besides: one, and often a second (off the row's own dice, so the rest stays the same)
+      if (lane.spooked && eventOn() && reach.size) {   // more pumpkins besides: one, and often a second (off the row's own dice, so the rest stays the same)
         for (let k = Math.random() < 0.5 ? 2 : 1; k > 0; k--) {
           const free = [...reach].filter(c => !lane.coins.some(o => o.c === c));
           if (free.length) addPumpkin(lane, free[Math.floor(Math.random() * free.length)]);
@@ -2627,7 +2653,7 @@ function buildLane(r) {
     const color = ri(0, TRACTORS.length - 1);
     addMovers(lane, () => (r >= UNLOCK.wagon && rnd() < 0.25 ? 'wagon' : 'tractor') + (rnd() < 0.5 ? color : ri(0, TRACTORS.length - 1)), 3, 7.5 - 2 * d);
     if (rnd() < 0.1) addSunflower(lane, ri(-COLS, COLS));
-    if (spooky.on && eventOn() && Math.random() < 0.25) { const c = Math.floor(Math.random() * (2 * COLS + 1)) - COLS; if (!lane.coins.some(o => o.c === c)) addPumpkin(lane, c); }   // and some on the roads
+    if (lane.spooked && eventOn() && Math.random() < 0.25) { const c = Math.floor(Math.random() * (2 * COLS + 1)) - COLS; if (!lane.coins.some(o => o.c === c)) addPumpkin(lane, c); }   // and some on the roads
   } else if (type === 'pasture') {
     strip(vb, 0, 0xcfa66b, shade(0xcfa66b, 0.72));
     for (let i = 0; i < 14; i++) {
@@ -2781,7 +2807,7 @@ function removeLane(lane) {
 }
 
 function updateLane(lane, dt, time) {
-  if (spooky.on) for (const m of lane.movers) if (m.kind === 'bull') demonBull(m, dt);
+  if (lane.spooked) for (const m of lane.movers) if (m.kind === 'bull') demonBull(m, dt);
   if (lane.type === 'bull') return updateStampede(lane, dt);
   for (const m of lane.movers) {
     m.x += lane.dir * lane.speed * dt;
@@ -5488,6 +5514,7 @@ function newWorld() {
   P.key = GUEST ? guestKey : 'h';
   game.roadT = 0;
   spooky.flower = null;
+  spooky.wave = null;
   spooky.on = false;   // a new round is a normal day, whatever haunted the last one
   spooky.k = 0;
   spooky.next = 10 + Math.floor(Math.random() * 14);
