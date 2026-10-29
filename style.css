@@ -138,6 +138,7 @@ body.farm.decor #farmBtns, body.farm.show-logo.decor #title { display: none; }
 .rotateBtn { --c1: var(--sky); --c2: #3f9fd8; width: 76px; height: 76px; }
 .shopBtn svg, .rotateBtn svg { width: 44px; height: 44px; }
 #doneBtn svg { width: 56px; height: 56px; margin: 0; }
+.marketBtn { --c1: #ffd86a; --c2: #e0a82a; width: 84px; height: 84px; }
 .pondBtn { --c1: #8fd8ff; --c2: #3f9fd8; width: 84px; height: 84px; }
 .pondBtn svg { width: 50px; height: 50px; }
 .bunkBtn { --c1: #ffc27a; --c2: #e08a3a; width: 84px; height: 84px; }

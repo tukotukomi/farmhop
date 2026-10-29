@@ -5184,6 +5184,7 @@ window.addEventListener('keydown', e => {
     else if (e.code === 'KeyB') openBuilds();
     else if (e.code === 'KeyE') enterDecor();
     else if (e.code === 'KeyJ') stageAct();
+    else if (e.code === 'KeyM') openShop();
     else if (e.code === 'KeyC') openHeroes();
     else if (e.code === 'KeyO') openSettings();
     else if (KEYS[e.code] && keysPlayer() && e.code.startsWith('Arrow')) { if (!e.repeat && !game.picking) onPlayer(keysPlayer(), { t: 'hop', dx: KEYS[e.code][0], dr: KEYS[e.code][1] }); e.preventDefault(); }
@@ -6267,10 +6268,10 @@ $('bunk').addEventListener('click', e => { if (e.target.id === 'bunk') closeBunk
 // ---------- Farm Buildings menu ----------
 // A card for each building: its picture and level once it's built, a grey shape,
 // "???" and the price until then. A tap opens the building (or its plans). Under
-// them: arranging the farm, and the decorations shop.
+// them: arranging the farm. (The Market has its own button.)
 const buildsOpen = () => $('builds').classList.contains('show');
 const buildGrid = $('buildGrid');
-const BUILD_ACTS = [$('arrangeBtn'), $('decorShopBtn')];
+const BUILD_ACTS = [$('arrangeBtn')];
 let buildFocus = 0;
 BUILDINGS.forEach((b, i) => {
   const card = document.createElement('button');
@@ -6308,8 +6309,7 @@ function buildAct() {
   const n = BUILDINGS.length;
   closeBuilds();
   if (buildFocus < n) BUILDINGS[buildFocus].open();
-  else if (buildFocus === n) enterDecor();
-  else { enterDecor(); openShop(); }
+  else enterDecor();
 }
 function buildsNav(dir) {
   const n = BUILDINGS.length, cards = [...buildGrid.children];
@@ -6317,7 +6317,7 @@ function buildsNav(dir) {
     const next = gridStep(cards, buildFocus, dir);
     buildFocus = next === buildFocus && dir === 'down' ? n : next;   // off the bottom: onto the buttons
   } else if (dir === 'up') buildFocus = 0;
-  else if (dir === 'left' || dir === 'right') buildFocus = dir === 'left' ? n : n + 1;
+  else if (dir === 'left' || dir === 'right') buildFocus = n;
   refreshBuilds();
 }
 $('buildBtn').addEventListener('click', () => { sfx.ensure(); openBuilds(); });
@@ -6447,6 +6447,7 @@ function nextPiece() {
 $('doneBtn').addEventListener('click', exitDecor);
 $('rotateBtn').addEventListener('click', rotatePiece);
 $('shopBtn').addEventListener('click', () => { sfx.ensure(); openShop(); });
+$('marketBtn').addEventListener('click', () => { sfx.ensure(); openShop(); });
 
 // ---------- Decorations shop ----------
 const shopOpen = () => $('shop').classList.contains('show');
@@ -6568,9 +6569,9 @@ function refreshShop(msg) {
   });
   $('shopNeed').textContent = msg ?? '';
 }
-function openShop() {
-  if (GUEST) return;
-  if (!decor.on) return;
+function openShop() {   // the Market: from its own button on the farm, or while arranging
+  if (GUEST || game.state !== 'farm') return;
+  closeHeroes(); closePond(); closeBunk(); closeBuilds(); closeStage();
   setShopTab(shopTab);
   $('shop').classList.add('show');
   game.picking = true;
@@ -6583,6 +6584,7 @@ function buyDecor(id) {
   if (ownedDecor.has(id) && PIECES[id].onStage) { closeShop(); return; }
   if (ownedDecor.has(id)) {   // already on the farm: go and pick it up
     closeShop();
+    enterDecor();   // (if not arranging already)
     selectPiece(id);
     focusPiece(farm.pieces[id]);
     return;
@@ -6617,6 +6619,7 @@ function buyDecor(id) {
   sfx.upgrade();
   cheer(p.x, p.z);
   closeShop();
+  enterDecor();
   selectPiece(id);
 }
 $('shopClose').addEventListener('click', closeShop);
@@ -8360,6 +8363,7 @@ function pollPad() {
     else if (pressed(1)) openBuilds();
     else if (pressed(5)) enterDecor();     // RB
     else if (pressed(4)) stageAct();       // LB
+    else if (pressed(7)) openShop();       // RT: the Market
     else if (pressed(3)) openHeroes();
     else if (pressed(2)) openPond();
     else if (pressed(8)) openSettings();   // Select / View button
