@@ -2738,6 +2738,8 @@ function markSplit() {   // the ink line between the halves
 let fishCamHook = null;   // fishing's own camera (set up with the fishing, further down)
 function updateCamera(dt) {
   if (game.where === 'farm' && fishCamHook?.(dt)) return;
+  if (game.where === 'road') skyClouds(dt, camera.position.x, camera.position.z);   // the hopping game's sky has clouds too
+  else clouds.visible = false;                                                       // the farm from above has no sky
   const V = activeView();
   markSplit();
   if (splitActive()) return updateSplit(dt, V);
@@ -5087,9 +5089,10 @@ function setFishView(pitch, zoom) {
 let fishDrag = null;                                 // a drag that turns the camera, or a tap that casts
 const _fcLook = new THREE.Vector3();
 const camFisher = () => { const f = fishers.get(myKey()); return f && f.st !== 'walk' && f.st !== 'settle' && !decor.on ? f : null; };
-// Only the fishing camera looks up at the sky, so only it has clouds: puffy heaps in a
-// ring out past the fog (which they ignore), white on top and a little blue beneath,
-// drifting slowly round and taking on the sky's colour as it gets dark.
+// Clouds for the views that look up at the sky (fishing, and the hopping game): puffy
+// heaps in a ring out past the fog (which they ignore), white on top and a little blue
+// beneath. The ring follows the camera like a faraway sky, drifts slowly round, and
+// takes on the sky's colour as it gets dark.
 const clouds = (() => {
   const vb = new VB(0.6), was = rnd;
   rnd = seeded(20261029);   // the same sky every time
@@ -5111,15 +5114,18 @@ const clouds = (() => {
   return m;
 })();
 const _white = new THREE.Color(0xffffff);
-fishCamHook = dt => {
-  const f = camFisher();
-  clouds.visible = !!f;
-  if (!f) { Object.assign(fishCam, { on: false, yaw: 0, shown: 0, spin: 0, tilt: 0, zoomSpin: 0, swoop: 1, pitch: fishView.pitch }); return false; }
-  useCamera(perspCam);
-  clouds.position.set(fishCam.look.x, 0, fishCam.look.z);
+function skyClouds(dt, x, z) {
+  clouds.visible = true;
+  clouds.position.set(x, 0, z);
   clouds.rotation.y += dt * 0.006;
   const lum = 0.2126 * skyCol.r + 0.7152 * skyCol.g + 0.0722 * skyCol.b;
   clouds.material.color.copy(skyCol).lerp(_white, clamp(lum * 1.3, 0, 1));
+}
+fishCamHook = dt => {
+  const f = camFisher();
+  if (!f) { Object.assign(fishCam, { on: false, yaw: 0, shown: 0, spin: 0, tilt: 0, zoomSpin: 0, swoop: 1, pitch: fishView.pitch }); return false; }
+  useCamera(perspCam);
+  skyClouds(dt, fishCam.look.x, fishCam.look.z);
   const w = f.w, base = farm.group.position, [ax, az] = pieceToFarm(pondPiece(), ...f.spot.aim);
   const dx = ax - w.x, dz = az - w.z, len = Math.hypot(dx, dz) || 1;
   let sx = -dz / len, sz = dx / len;                 // square on to the line
