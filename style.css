@@ -559,6 +559,9 @@ body.farm:is(.fishing, .swinging) #camBtn { display: grid; }
 body.farm.fishing.reeling #camBtn { display: none; }
 body.lefty #camBtn { left: auto; right: calc(env(safe-area-inset-right) + 18px); }
 @media (orientation: portrait) { body.farm.fishing #camBtn { bottom: calc(env(safe-area-inset-bottom) + 150px); } }   /* above the fishing row */
+#jamCam { position: absolute; z-index: 3; right: 14px; bottom: calc(24% + 14px); width: 58px; height: 58px; --c1: #ffd86a; --c2: #e0a82a; }
+#jamCam svg { width: 34px; height: 34px; }
+#photo { z-index: 14; }   /* over the Jam Stage */
 #flash { position: fixed; inset: 0; z-index: 20; background: #fff; opacity: 0; pointer-events: none; }
 #flash.go { animation: flash .5s ease-out; }
 @keyframes flash { from { opacity: .9 } to { opacity: 0 } }

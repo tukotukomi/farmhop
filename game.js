@@ -6628,7 +6628,7 @@ $('shopClose').addEventListener('click', closeShop);
 $('shop').addEventListener('click', e => { if (e.target.id === 'shop') closeShop(); });
 
 // ---------- Photos ----------
-// In the Close Up views (fishing, the swing) the camera button takes a photo of just the
+// In the Close Up views (fishing, the swing) and on the Jam Stage, the camera button takes a photo of just the
 // game: no buttons, the logo in the top-right corner and farmhop.fun along the bottom.
 // Then it can be saved, or shared through the device's share sheet (where it has one).
 const SITE = 'https://farmhop.fun';
@@ -6680,15 +6680,43 @@ function drawLogo(c, x, y, s) {   // the title logo, top centre at x, y, s times
   photoPill(c, 0, 200, 'Alpha', 16, -2 * Math.PI / 180);
   c.restore();
 }
-async function takePhoto() {
-  if (!closeUp() || photoOpen()) return;
-  sfx.ensure();
-  await document.fonts.load(`700 64px Fredoka`).catch(() => {});
+function farmShot() {
   renderCel();   // a fresh frame, copied before the browser clears it
   const shot = document.createElement('canvas');
   shot.width = canvas.width; shot.height = canvas.height;
+  shot.getContext('2d').drawImage(canvas, 0, 0);
+  return shot;
+}
+function jamShot() {   // the Jam Stage as it looks: its backdrop and floor (CSS on screen), then the band, inked
+  const src = $('jamCanvas'), w = src.width, h = src.height, k = w / (src.clientWidth || w), ink = cssVar('--ink');
+  const shot = document.createElement('canvas');
+  shot.width = w; shot.height = h;
+  const c = shot.getContext('2d');
+  let g = c.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, '#5b3f8a'); g.addColorStop(0.78, '#3a2442');
+  c.fillStyle = g; c.fillRect(0, 0, w, h);
+  c.save();   // the spotlight's glow from the top
+  c.translate(w / 2, 0); c.scale(0.45 * w, 0.7 * h);
+  g = c.createRadialGradient(0, 0, 0, 0, 0, 1);
+  g.addColorStop(0, 'rgba(255, 238, 170, .55)'); g.addColorStop(1, 'rgba(255, 238, 170, 0)');
+  c.fillStyle = g; c.fillRect(-1, 0, 2, 1);
+  c.restore();
+  const fy = h * 0.76;   // the wooden floor
+  for (let x = 0; x < w; x += 48 * k) { c.fillStyle = '#b07a46'; c.fillRect(x, fy, 46 * k, h - fy); c.fillStyle = '#9c6b3c'; c.fillRect(x + 46 * k, fy, 2 * k, h - fy); }
+  c.fillStyle = ink; c.fillRect(0, fy - 4 * k, w, 4 * k);
+  jam.r.render(jam.scene, jam.cam);
+  const o = 2.5 * k;
+  c.filter = `drop-shadow(${o}px 0 0 ${ink}) drop-shadow(${-o}px 0 0 ${ink}) drop-shadow(0 ${o}px 0 ${ink}) drop-shadow(0 ${-o}px 0 ${ink})`;
+  c.drawImage(src, 0, 0);
+  c.filter = 'none';
+  return shot;
+}
+async function takePhoto() {
+  if ((!closeUp() && !jam.open) || photoOpen()) return;
+  sfx.ensure();
+  await document.fonts.load(`700 64px Fredoka`).catch(() => {});
+  const shot = jam.open ? jamShot() : farmShot();
   const c = shot.getContext('2d'), w = shot.width, h = shot.height, short = Math.min(w, h), m = short * 0.035;
-  c.drawImage(canvas, 0, 0);
   const s = Math.min(short * 0.36, w * 0.42) / 230;
   drawLogo(c, w - m - 118 * s, m + 4 * s, s);
   photoPill(c, w - m, h - m - short * 0.03, 'farmhop.fun', Math.max(14, short * 0.032), 0, 'right');
@@ -6711,7 +6739,7 @@ function photoFile() {
 }
 function closePhoto() {
   $('photo').classList.remove('show');
-  game.picking = anyPanel();
+  game.picking = anyPanel() || jam.open;
 }
 function savePhoto() {
   if (!photoBlob) return;
@@ -6724,6 +6752,7 @@ async function sharePhoto() {
   try { await navigator.share({ files: [photoFile()], title: "Betty Lou's Farm Hop", text: t('photo.text') + ' ' + SITE }); } catch {}   // (cancelled: nothing to do)
 }
 $('camBtn').addEventListener('click', takePhoto);
+$('jamCam').addEventListener('click', takePhoto);
 $('photoSave').addEventListener('click', savePhoto);
 $('photoShare').addEventListener('click', sharePhoto);
 $('photoClose').addEventListener('click', closePhoto);
