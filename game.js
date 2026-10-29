@@ -6555,8 +6555,7 @@ const keyLabel = (i, sc) => t('scaleKey.' + sc, { k: keyGlyph(i, sc) });
 const keyMenu = $('keyMenu');
 function showKeyBtn() {
   const sc = songScale(), i = SONG_KEYS.findIndex(k => k[1] === songKey());
-  $('keyBtnName').textContent = keyGlyph(i, sc);
-  $('keyBtnScale').textContent = t('scaleShort.' + sc);
+  $('keyBtnName').textContent = keyGlyph(i, sc) + (sc === 'minor' ? 'm' : '');   // chord-chart style: D, Am
   $('keyBtn').setAttribute('aria-label', t('aria.keyBtn', { k: keyLabel(i, sc) }));
 }
 function openKeyMenu() {

@@ -96,7 +96,6 @@ body.noFull #keyBtn { right: calc(env(safe-area-inset-right) + 136px); }
 body.farm #keyBtn { display: grid; }
 body.farm.decor #keyBtn, body.guest #keyBtn { display: none; }
 #keyBtnName { font-size: 18px; font-weight: 700; }
-#keyBtnScale { font-size: 9px; font-weight: 700; opacity: .75; }
 .keyMenu {
   position: fixed; z-index: 9; min-width: 150px; max-height: calc(100dvh - 140px); overflow-y: auto; box-sizing: border-box;
   display: grid; gap: 2px; padding: 6px;
