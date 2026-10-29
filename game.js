@@ -45,7 +45,7 @@ const heroName = id => t('heroes.' + id);
 // before anything reads a setting, wait for the host to send it (guest.js). The
 // farm's settings then come from the host and are only kept in memory, so this
 // device's own farm is never touched.
-const FARM_KEYS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-coins', 'bl-top', 'bl-dnb', 'bl-land', 'bl-wide', 'bl-key', 'bl-scale', 'bl-pumpkins', 'bl-organ'];
+const FARM_KEYS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-coins', 'bl-top', 'bl-dnb', 'bl-land', 'bl-wide', 'bl-key', 'bl-scale', 'bl-pumpkins', 'bl-organ', 'bl-pond-skins', 'bl-pond-skin'];
 const joinArgs = new URLSearchParams(location.hash.slice(1));
 const GUEST = /^[A-Za-z0-9_-]{22,64}$/.test(joinArgs.get('join') || '') ? joinArgs.get('join') : null;
 const guestNet = GUEST && window.FARMHOP_RELAY_URL
@@ -2264,17 +2264,31 @@ function plantSpooky(lane) {   // on a free spot of a grass lane that can be rea
   spooky.next = Infinity;
   return true;
 }
+// The sunflowers already out on the road turn into pumpkins as the farm goes spooky (during the
+// harvest), and the pumpkins back into sunflowers when it's over.
+function swapCoins(toPumpkins) {
+  for (const lane of lanes.values()) {
+    for (const coin of [...lane.coins]) {
+      if (coin.spooky || !!coin.pumpkin === toPumpkins) continue;
+      lane.group.remove(coin.m);
+      lane.coins.splice(lane.coins.indexOf(coin), 1);
+      if (toPumpkins) addPumpkin(lane, coin.c); else addSunflower(lane, coin.c);
+    }
+  }
+}
 function startSpooky(h) {
   spooky.on = true;
   spooky.t = SPOOKY_SECS;
   spooky.flower = null;
   for (const lane of lanes.values()) for (const m of lane.movers) dress(m);
+  if (eventOn()) swapCoins(true);
   sfx.boo();
   burst(h.x, 0.6, h.z, [0x9b6bff, 0x6bff9b, 0xff8a1a, 0xffffff], 18, 2, 4, 0.1, 0.8);
 }
 function endSpooky() {
   spooky.on = false;
   for (const lane of lanes.values()) for (const m of lane.movers) dress(m);
+  swapCoins(false);
   spooky.next = game.score + 4 + Math.floor(Math.random() * 5);   // another one soon: a few rows on (in the next grass lane built, if those are built already)
   for (let r = spooky.next; r < genRow; r++) { const lane = lanes.get(r); if (lane?.type === 'grass' && plantSpooky(lane)) break; }
 }
@@ -2309,7 +2323,8 @@ function updateSpooky(dt) {
 // sunflowers come up as pumpkins, with more besides. 300 trade for the Pumpking; when
 // the harvest is over, any pumpkins left turn into sunflowers, one for one.
 const EVENT_END = Date.UTC(2026, 10, 8, 8);   // midnight at the end of Nov 7, PST (UTC-8)
-const PUMPKING_PRICE = 300, ORGAN_PRICE = 500;
+const PUMPKING_PRICE = 300, ORGAN_PRICE = 500, GOO_PRICE = 200;
+const GOO_ICON = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><g stroke="#3a2442" stroke-width="2" stroke-linejoin="round"><ellipse cx="32" cy="40" rx="27" ry="15" fill="#5a4a3a"/><ellipse cx="32" cy="38" rx="23" ry="12" fill="#7dff5a"/></g><ellipse cx="25" cy="35" rx="9" ry="4" fill="#d8ffc8"/><g stroke="#3a2442" stroke-width="1.6" fill="#b8ff9a"><circle cx="40" cy="30" r="4"/><circle cx="46" cy="22" r="2.6"/><circle cx="36" cy="18" r="1.8"/></g><path d="M18 46q4 6 8 0" fill="none" stroke="#3fae2a" stroke-width="2.4" stroke-linecap="round"/></svg>');
 const eventOn = () => Date.now() < EVENT_END;
 let pumpkins = store.get('bl-pumpkins', 0);
 // Each one a little jack-o'-lantern: its carved face lit from inside, in a warm halo.
@@ -4496,16 +4511,30 @@ function fishModel(sp) {
   return { group: v.mesh() };
 }
 
+// Pond styles: the classic blue, and the Pumpkin Harvest's Glowing Goo.
+const POND_SKINS = ['classic', 'goo'];
+const GOO_MAT = new THREE.MeshBasicMaterial({ color: 0x6bff7a, transparent: true, opacity: 0.9, depthWrite: false });
+const pondSkins = () => ['classic', ...store.get('bl-pond-skins', [])].filter(s => POND_SKINS.includes(s));
+const pondSkin = () => { const s = store.get('bl-pond-skin', 'classic'); return pondSkins().includes(s) ? s : 'classic'; };
 function buildPond() {
   const g = farm.pond, L = farm.level;
   for (const c of [...g.children]) { g.remove(c); if (c.geometry !== PGEO) c.geometry?.dispose(); }   // PGEO is shared with particles (and a torch's flame is a group)
   farm.fish = []; farm.ducks = [];
   const s = L >= 6 ? 1.3 : 1, rx = 1.7 * s, rz = 1.15 * s;
   farm.pondR = [rx, rz];
-  const v = new VB(0.6);
-  v.add(prim('disc', () => new THREE.CylinderGeometry(1, 1, 0.1, 28)), 0xd9c48a, 0, -0.02, 0, 0, 0, 0, rx + 0.18, 1, rz + 0.18);   // sandy edge
-  v.add(prim('disc', () => new THREE.CylinderGeometry(1, 1, 0.1, 28)), 0x5ccaf0, 0, 0.0, 0, 0, 0, 0, rx, 1, rz);                   // water
-  v.add(prim('disc', () => new THREE.CylinderGeometry(1, 1, 0.1, 28)), 0x8edcf6, 0.2, 0.012, -0.15, 0, 0, 0, rx * 0.55, 1, rz * 0.4); // shine
+  const v = new VB(0.6), goo = pondSkin() === 'goo';
+  v.add(prim('disc', () => new THREE.CylinderGeometry(1, 1, 0.1, 28)), goo ? 0x5a4a3a : 0xd9c48a, 0, -0.02, 0, 0, 0, 0, rx + 0.18, 1, rz + 0.18);   // sandy edge (or a slimy one)
+  v.add(prim('disc', () => new THREE.CylinderGeometry(1, 1, 0.1, 28)), goo ? 0x2f8a2a : 0x5ccaf0, 0, 0.0, 0, 0, 0, 0, rx, 1, rz);                   // water
+  if (!goo) v.add(prim('disc', () => new THREE.CylinderGeometry(1, 1, 0.1, 28)), 0x8edcf6, 0.2, 0.012, -0.15, 0, 0, 0, rx * 0.55, 1, rz * 0.4); // shine
+  else {   // Glowing Goo: a lit green surface over it, glowing in the dark and bubbling
+    const s = new THREE.Mesh(prim('disc', () => new THREE.CylinderGeometry(1, 1, 0.1, 28)), GOO_MAT);
+    s.scale.set(rx * 0.98, 0.2, rz * 0.98);
+    s.position.y = 0.045;
+    g.add(s);
+    lamps.push({ o: s, r: rx + 0.6, s: 0.9, w: 0 });
+    farm.goo = s;
+  }
+  if (!goo) farm.goo = null;
   for (const a of [2.4, 2.7, 3.0]) {                                          // reeds and cattails
     const x = Math.cos(a) * rx, z = Math.sin(a) * rz;
     v.cyl(0.015, 0.015, 0.6, x, 0.3, z, 0x4f8f30);
@@ -4555,6 +4584,14 @@ function buildPond() {
 const _fw = new THREE.Vector3();
 function updateFarm(dt) {
   const t = game.time, [rx, rz] = farm.pondR;
+  if (farm.goo) {   // the goo shimmers, and bubbles pop up through it
+    GOO_MAT.color.setHSL(0.3 + 0.02 * Math.sin(t * 1.1), 1, 0.45 + 0.06 * Math.sin(t * 1.9)).multiplyScalar(1.4);
+    if (Math.random() < dt * 5) {
+      const a = Math.random() * Math.PI * 2, k = Math.sqrt(Math.random()) * 0.85;
+      farm.goo.localToWorld(_fw.set(Math.cos(a) * k, 0.3, Math.sin(a) * k));
+      burst(_fw.x, _fw.y, _fw.z, [0x9dff9a, 0x6bff7a, 0xe0ffd8], 3, 0.5, 1.5, 0.05, 0.6);
+    }
+  }
   for (const f of farm.fish) {                     // swim in loops, now and then a little leap
     const a = f.ph + t * f.speed;
     f.jump -= dt;
@@ -5928,7 +5965,29 @@ $('pondBtn').addEventListener('click', () => { sfx.ensure(); openPond(); });
 // ---------- Fish Pond panel ----------
 const pondOpen = () => $('pond').classList.contains('show');
 const needText = short => short <= 0 ? '' : short === 1 ? t('pondNeed1') : t('pondNeedN', { n: short });
+// Switching the pond's style: buttons in the Fish Pond menu, once there's more than one.
+function setPondSkin(s) {
+  if (s === pondSkin() || !pondSkins().includes(s)) return;
+  store.set('bl-pond-skin', s);
+  buildPond();
+  sfx.place();
+  farm.pond.getWorldPosition(_fw);
+  burst(_fw.x, 0.4, _fw.z, s === 'goo' ? [0x9dff9a, 0x6bff7a, 0xffffff] : [0xbfe9ff, 0xffffff, 0x5ccaf0], 18, 1.6, 4, 0.08, 0.7);
+  refreshPond();
+}
 function refreshPond() {
+  const skins = pondSkins(), row = $('pondStyles');
+  row.hidden = skins.length < 2;
+  row.replaceChildren(...skins.map(s => {
+    const b = document.createElement('button');
+    b.className = 'setTab';
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-checked', String(s === pondSkin()));
+    b.classList.toggle('on', s === pondSkin());
+    b.textContent = t('pondSkin.' + s);
+    b.addEventListener('click', () => setPondSkin(s));
+    return b;
+  }));
   const cost = pondCost(farm.level), short = cost - game.coins;
   $('pondLevel').textContent = farm.level === 0 ? t('pondMuddy') : t('pondLevel', { n: farm.level });
   $('pondNext').textContent = pondNext(farm.level);
@@ -7368,7 +7427,12 @@ function markEvent() {
 }
 function refreshEvent(msg) {
   const have = owned.has('pumpking'), i = HEROES.findIndex(h => h.id === 'pumpking');
-  $('eventSay').textContent = t('event.say', { n: PUMPKING_PRICE, m: ORGAN_PRICE });
+  $('eventSay').textContent = t('event.say', { n: PUMPKING_PRICE, m: ORGAN_PRICE, g: GOO_PRICE });
+  const gooHave = pondSkins().includes('goo');
+  $('eventGooImg').src = GOO_ICON;
+  $('eventGooLabel').textContent = t(gooHave ? 'event.gooHave' : 'event.goo');
+  $('eventGooPrice').hidden = gooHave;
+  $('eventGoo').disabled = gooHave || pumpkins < GOO_PRICE;
   const organ = organOwned();
   $('eventOrganLabel').textContent = t(organ ? 'event.organHave' : 'event.organ');
   $('eventOrganPrice').hidden = organ;
@@ -7411,6 +7475,18 @@ function tradePumpking() {
   markEvent();
   refreshEvent(t('event.done'));
 }
+function buyGoo() {
+  sfx.ensure();
+  if (pondSkins().includes('goo')) return;
+  if (pumpkins < GOO_PRICE) { sfx.bump(); refreshEvent(t('event.need', { n: GOO_PRICE - pumpkins })); return; }
+  pumpkins -= GOO_PRICE;
+  store.set('bl-pumpkins', pumpkins);
+  store.set('bl-pond-skins', [...new Set([...store.get('bl-pond-skins', []), 'goo'])]);
+  sfx.upgrade();
+  setPondSkin('goo');   // straight in: the pond goes green
+  markEvent();
+  refreshEvent(t('event.gooDone'));
+}
 function buyOrgan() {
   sfx.ensure();
   if (organOwned()) return;
@@ -7440,6 +7516,7 @@ function settleEvent() {
 $('eventBtn').addEventListener('click', () => { sfx.ensure(); openEvent(); });
 $('eventTrade').addEventListener('click', tradePumpking);
 $('eventOrgan').addEventListener('click', buyOrgan);
+$('eventGoo').addEventListener('click', buyGoo);
 $('eventClose').addEventListener('click', closeEvent);
 $('event').addEventListener('click', e => { if (e.target.id === 'event') closeEvent(); });
 $('homeNoteX').addEventListener('click', () => { $('homeNote').hidden = true; });
