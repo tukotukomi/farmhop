@@ -425,7 +425,7 @@ function updateDay() {
     postMat.uniforms.grade.value.lerp(_ca.setHex(0xb4a2ec), sk);
     skyCol.lerp(_ca.setHex(0x2a1838), sk);
   }
-  postMat.uniforms.sat.value = look.sat * (1 - 0.3 * sk);
+  postMat.uniforms.sat.value = look.sat * (1 - 0.08 * sk);   // barely greyer: the glowing things (ectoplasm, jack-o'-lanterns) keep their colour
   fog.color.copy(skyCol);
 }
 
@@ -2291,6 +2291,15 @@ function updateSpooky(dt) {
     music.setHaunted(haunt);
     music.setKey(songKey(), haunt ? 'spooky' : songScale());
   }
+  ECTO_MAT.visible = spooky.k > 0;
+  if (spooky.k > 0) {   // the ectoplasm glows and shimmers, and bubbles now and then
+    ECTO_MAT.opacity = 0.96 * spooky.k;
+    ECTO_MAT.color.setHSL(0.3 + 0.02 * Math.sin(game.time * 1.3), 1, 0.42 + 0.06 * Math.sin(game.time * 2.1)).multiplyScalar(1.5);   // yellow-green, and brighter than bright: it glows through the purple night
+    if (spooky.k > 0.5 && Math.random() < dt * 8) {
+      const wets = [...lanes.values()].filter(l => l.type === 'water' || l.type === 'pads');
+      if (wets.length) { const l = pick(wets); burst(rand(-COLS, COLS), -0.15, -l.r + rand(-0.3, 0.3), [0x9dff9a, 0x6bff7a, 0xe0ffd8], 3, 0.6, 2, 0.05, 0.7); }
+    }
+  }
   const pill = $('spookyPill'), show = spooky.on && road;
   pill.hidden = !show;
   if (show) { const s = Math.max(0, Math.ceil(spooky.t)); pill.textContent = t('spookyTime', { t: Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') }) + (eventOn() ? '  🎃 ' + pumpkins : ''); }
@@ -2447,6 +2456,10 @@ function catchUp(lane, T) {
   if (lane.type === 'bull') { for (let t = 0; t < T; t += 0.05) updateStampede(lane, Math.min(0.05, T - t), true); return; }
   for (const m of lane.movers) { m.x += lane.dir * lane.speed * T; wrap(m); m.mesh.position.x = m.x; }
 }
+// On the spooky farm the water turns to glowing green ectoplasm: a lit surface laid over
+// every river and pond row, faded in and out with the spooky farm and shimmering.
+const ECTO_GEO = new THREE.PlaneGeometry(2 * VIS + 2, 1);
+const ECTO_MAT = new THREE.MeshBasicMaterial({ color: 0x6bff7a, transparent: true, opacity: 0, depthWrite: false });
 function buildLane(r) {
   const prev = lanes.get(r - 1) || null;
   const type = r < 0 ? 'forest' : r < OPEN ? 'grass' : nextType(r, prev);
@@ -2628,6 +2641,13 @@ function buildLane(r) {
       const tx = rand(-VIS, VIS);
       vb.cone(0.035, 0.11, tx, 0.045, rand(-0.42, 0.42), Math.abs(tx) <= COLS + 0.5 ? 0x6cbf3f : 0x4f8f30);
     }
+  }
+  if (wet(type)) {
+    const e = new THREE.Mesh(ECTO_GEO, ECTO_MAT);
+    e.rotation.x = -Math.PI / 2;
+    e.position.y = -0.205;   // over the water, under the lily pads and logs
+    e.layers.set(GLOW_LAYER);
+    lane.group.add(e);
   }
   lane.static = vb.mesh();
   lane.group.add(lane.static);
@@ -2907,7 +2927,7 @@ function die(kind, mover, lane, h = P) {
   if (!h.remote) roadSend({ t: 'rd', k: h.key, kind, x: h.x, r: h.r, dir: lane?.dir || 1, type: lane?.type || 'grass' });
   h.alive = false;
   h.death = kind;
-  h.deathSay = mover && spooky.on ? 'sp_' + spookyCulprit(mover) : kind;   // what the sign says: the spooky farm's creature, if that's what it was
+  h.deathSay = !spooky.on ? kind : mover ? 'sp_' + spookyCulprit(mover) : kind === 'splash' || kind === 'swept' ? 'sp_slime' : kind;   // what the sign says: the spooky farm's creature, if that's what it was
   h.deathT = 0;
   h.hop = null;
   h.queue = null;
