@@ -2330,6 +2330,34 @@ function swapCoins(lane, toPumpkins) {
 // where the spooky sunflower was picked, a shimmer of sparks running along each row as
 // it turns.
 const WAVE_SPEED = 42;   // rows a second
+// The wave's front is a wall of mist rolling out across the land: purple as the farm turns
+// spooky, pale gold as it lifts. Two tall soft curtains, drifting, gone once they're past.
+let mistTex = null;
+const MIST_MAT = new THREE.MeshBasicMaterial({ color: 0x9b5cff, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide });
+const mistWalls = [];
+function mistWall() {
+  if (!mistTex) {
+    const c = document.createElement('canvas'), g = c.getContext('2d');
+    c.width = 256; c.height = 128;
+    for (let i = 0; i < 110; i++) {   // soft puffs, thickest low down
+      const x = Math.random() * 256, y = 30 + Math.random() * 98, r = 12 + Math.random() * 28, gr = g.createRadialGradient(x, y, 0, x, y, r);
+      gr.addColorStop(0, 'rgba(255, 255, 255, .4)'); gr.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      g.fillStyle = gr; g.fillRect(x - r, y - r, 2 * r, 2 * r);
+    }
+    g.globalCompositeOperation = 'destination-in';   // and thinning out to nothing at the top
+    const f = g.createLinearGradient(0, 0, 0, 128);
+    f.addColorStop(0, 'rgba(0, 0, 0, 0)'); f.addColorStop(0.5, 'rgba(0, 0, 0, .75)'); f.addColorStop(1, 'rgba(0, 0, 0, 1)');
+    g.fillStyle = f; g.fillRect(0, 0, 256, 128);
+    mistTex = new THREE.CanvasTexture(c);
+    mistTex.wrapS = THREE.RepeatWrapping;
+    mistTex.repeat.x = 4;
+    MIST_MAT.map = mistTex;
+  }
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(2 * VIS + 2, 2.8), MIST_MAT);
+  m.layers.set(GLOW_LAYER);
+  scene.add(m);
+  return m;
+}
 function flipLane(lane, on, near) {
   lane.spooked = on;
   spookGround(lane, on);
@@ -2339,12 +2367,18 @@ function flipLane(lane, on, near) {
 }
 function updateWave(dt) {
   const w = spooky.wave;
+  for (const m of mistWalls) m.visible = !!w;
   if (!w) return;
   w.t += dt;
   const reach = 0.5 + w.t * WAVE_SPEED;
-  if (reach < 14) {   // nightmare wisps boil up along the wave's leading edge (only near the player, where it's seen: a few a frame)
+  if (!mistWalls.length) mistWalls.push(mistWall(), mistWall());
+  MIST_MAT.color.setHex(spooky.on ? 0x9b5cff : 0xfff3c4);
+  MIST_MAT.opacity = clamp((26 - reach) / 10, 0, 1) * 0.9;   // fades as it rolls on out of sight
+  mistTex.offset.x += dt * 0.12;
+  mistWalls.forEach((m, i) => m.position.set(0, 1.25, -(w.row + (i ? -1 : 1) * reach)));
+  if (reach < 14) {   // nightmare wisps boil up at the foot of the mist (only near the player, where it's seen)
     const cols = spooky.on ? [0x6a2a9a, 0x3a1a5a, 0xb070ff, 0x1a0d26] : [0xfff3a0, 0xffffff, 0xbfe9ff];
-    for (const side of [1, -1]) for (let k = 0; k < 2; k++) burst(Math.random() * (2 * COLS + 6) - COLS - 3, 0.12, -(w.row + side * reach) + Math.random() * 0.8 - 0.4, cols, 1, 0.5, 3.4, 0.14, 0.9, true);
+    for (const side of [1, -1]) burst(Math.random() * (2 * COLS + 6) - COLS - 3, 0.12, -(w.row + side * reach) + Math.random() * 0.8 - 0.4, cols, 1, 0.5, 3.4, 0.14, 0.9, true);
   }
   let left = false;
   for (const lane of lanes.values()) {
