@@ -821,16 +821,11 @@ function buildTuko() {
 }
 
 // Captain Awesome: a big 55-year-old with a white beard and a stern brow who turns out
-// to be the friendliest guy on the farm. A baseball cap worn forwards, a red flannel shirt,
+// to be the friendliest guy on the farm. A baseball cap worn forwards, a black shirt,
 // jeans and work boots, and his acoustic guitar slung on his back.
 function buildCaptain() {
   const SKIN = 0xf5caa8, DENIM = 0x3d5f9a, DENIM_D = 0x2e4a7a, BOOT = 0x6b4226, W = 0xf6f4ef, W_D = 0xe4e0d8;
-  const HAT = 0x2f4566, HAT_D = 0x22344f, RED = 0xc8322f, RED_D = 0x6e1616, RED_L = 0xe26050, WOOD = 0xd9984e, WOOD_D = 0x8a5a2b, NECK = 0x6b4226;
-  const fr = v => ((v * 11) % 1 + 1) % 1;
-  const flannel = (x, y) => {   // red plaid: dark stripes both ways, a lighter thread between
-    const a = fr(x), c = fr(y);
-    return a < 0.24 && c < 0.24 ? 0x4a0e0e : a < 0.24 || c < 0.24 ? RED_D : (a > 0.56 && a < 0.66) || (c > 0.56 && c < 0.66) ? RED_L : RED;
-  };
+  const HAT = 0x2f4566, HAT_D = 0x22344f, SHIRT = 0x2a2a30, WOOD = 0xd9984e, WOOD_D = 0x8a5a2b, NECK = 0x6b4226;
   const group = new THREE.Group(), inner = new THREE.Group();
   group.add(inner);
   const b = new VB();
@@ -838,7 +833,8 @@ function buildCaptain() {
     b.ball(0.085, 0.055, 0.115, s * 0.095, 0.05, -0.03, BOOT);           // work boots
     b.cap(0.06, 0.1, s * 0.095, 0.18, 0, DENIM);                         // jeans
     b.rbox(0.135, 0.04, 0.135, s * 0.095, 0.115, 0, DENIM_D, 0.02);      // turned-up cuffs
-    b.cap(0.05, 0.12, s * 0.22, 0.43, 0, flannel, 0, 0, s * 0.18);      // flannel sleeves
+    b.cap(0.043, 0.12, s * 0.22, 0.42, 0, SKIN, 0, 0, s * 0.18);         // bare forearms...
+    b.cap(0.058, 0.03, s * 0.2, 0.51, 0, SHIRT, 0, 0, s * 0.18);         // ...under short sleeves
     b.ball(0.055, 0.055, 0.055, s * 0.245, 0.31, -0.01, SKIN);           // big hands
     b.ball(0.034, 0.03, 0.02, s * 0.085, 0.785, -0.214, 0x2a2420);       // eyes, a little narrow under the brows
     b.ball(0.012, 0.012, 0.008, s * 0.085 + 0.01, 0.793, -0.231, 0xffffff);
@@ -846,13 +842,13 @@ function buildCaptain() {
     b.ball(0.042, 0.024, 0.01, s * 0.155, 0.725, -0.188, 0xff9e9e);     // rosy cheeks: a big softie really
     b.ball(0.07, 0.11, 0.1, s * 0.215, 0.79, 0.05, W);                   // white hair round the sides...
     b.ball(0.075, 0.042, 0.04, s * 0.058, 0.69, -0.214, W, 0, 0, s * 0.25);   // moustache
-    b.cone(0.05, 0.07, s * 0.07, 0.635, -0.135, RED, Math.PI / 2 - 0.5, 0, s * 0.4);   // shirt collar points
+    b.cone(0.05, 0.07, s * 0.07, 0.635, -0.135, SHIRT, Math.PI / 2 - 0.5, 0, s * 0.4);   // shirt collar points
   }
   b.ball(0.14, 0.1, 0.1, 0, 0.8, 0.165, W);                               // ...and round the back
   b.ball(0.22, 0.14, 0.17, 0, 0.32, 0, DENIM);                           // jeans
   b.cyl(0.205, 0.205, 0.04, 0, 0.415, 0, 0x5a3a24);                      // belt
   b.rbox(0.07, 0.05, 0.02, 0, 0.415, -0.2, 0xd8b04a, 0.01);              // buckle
-  b.ball(0.215, 0.17, 0.17, 0, 0.51, 0, flannel);                        // red flannel shirt, a big frame
+  b.ball(0.215, 0.17, 0.17, 0, 0.51, 0, SHIRT);                          // black shirt, a big frame
   for (const y of [0.47, 0.53, 0.59]) b.ball(0.014, 0.014, 0.01, 0, y, -0.168, 0xf4ead8);   // buttons
   b.hiBall(0.235, 0.225, 0.215, 0, 0.79, 0, SKIN);                       // head: mostly bald
   b.ball(0.036, 0.032, 0.03, 0, 0.75, -0.232, 0xeeac8c);                 // nose
