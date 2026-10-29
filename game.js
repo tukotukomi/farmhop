@@ -1291,21 +1291,24 @@ function buildCow() {
 }
 
 function buildBull(sp = false) {   // sp: a spooky black bull whose red eyes glow
-  const b = new VB(TRAFFIC_D), B = sp ? 0x1b1722 : 0x4a2a1c, HORN = sp ? 0xd9d2c0 : 0xfff1d6, glow = sp ? new VB(TRAFFIC_D) : null;
+  const b = new VB(TRAFFIC_D), B = sp ? 0x1f0d12 : 0x4a2a1c, HORN = sp ? 0x4a0a0a : 0xfff1d6, glow = sp ? new VB(TRAFFIC_D) : null;   // sp: demon red-black, dark red horns
   b.ball(0.52, 0.3, 0.31, 0, 0.68, 0, B);
   b.ball(0.26, 0.16, 0.26, 0.2, 0.92, 0, shade(B, 1.15));               // hump
   b.ball(0.2, 0.19, 0.19, 0.62, 0.74, 0, B);                            // lowered head
-  b.ball(0.1, 0.11, 0.15, 0.8, 0.68, 0, sp ? 0x3a3340 : 0xc9a07a);       // snout
+  b.ball(0.1, 0.11, 0.15, 0.8, 0.68, 0, sp ? 0x3a1a20 : 0xc9a07a);       // snout
   b.torus(0.045, 0.012, Math.PI * 2, 0.89, 0.6, 0, 0xffd23f, 0, Math.PI / 2, 0); // nose ring
   b.cap(0.02, 0.32, -0.55, 0.64, 0, B, 0, 0, 0.3);                      // tail
   b.ball(0.045, 0.07, 0.045, -0.6, 0.45, 0, 0x111111);
   for (const s of [-1, 1]) {
     b.cap(0.035, 0.16, 0.6, 0.92, s * 0.22, HORN, s * 1.1, 0, 0);       // horns sweep out...
     b.cone(0.035, 0.12, 0.62, 1.03, s * 0.34, HORN, -s * 0.35, 0, 0);   // ...then up
-    if (sp) glow.ball(0.04, 0.034, 0.03, 0.77, 0.81, s * 0.115, 0xff2a2a);
+    if (sp) {
+      glow.ball(0.045, 0.038, 0.03, 0.77, 0.81, s * 0.115, 0xff2a2a);       // burning red eyes
+      b.cone(0.03, 0.18, 0.5, 1.08, s * 0.16, HORN, -s * 0.5, 0, 0.5);     // a second pair of horns, swept back
+    }
     else b.ball(0.03, 0.026, 0.02, 0.77, 0.81, s * 0.11, 0xff2020);     // angry red eyes
   }
-  const lg = legGeo(0.52, 0.065, B, 0x111111), parts = [];
+  const lg = legGeo(0.52, 0.065, B, sp ? 0xff6a1a : 0x111111), parts = [];   // (sp: hooves of fire)
   // galloping: front legs together, back legs together, slightly offset
   for (const [x, z, ph] of [[0.3, 0.18, 0], [0.3, -0.18, 0.5], [-0.3, 0.18, Math.PI], [-0.3, -0.18, Math.PI + 0.5]]) parts.push(part(lg, x, 0.52, z, 'leg', { ph }));
   return centred({ geo: b.geometry(), parts, glow: glow?.geometry() }, -0.65, 0.92);
@@ -1417,6 +1420,8 @@ function buildLog(len, sp = false) {
 }
 
 // ---------- spooky farm: Halloween stand-ins for the traffic ----------
+// (The pattern for every seasonal look to come, winter, spring and the rest: a stand-in
+// model per mover kind, chosen in dress(); the lanes, speeds and lengths never change.)
 // The same movers in the same places (so every screen still agrees): only what they
 // look like changes. Tractors go black (or turn into a pair of ghosts), cows become
 // mummies or a vampire, geese a swarm of bats, bulls black with glowing red eyes.
@@ -1500,8 +1505,55 @@ function buildBats() {   // a swarm of four bats, wings flapping (the geese's le
   });
   return { geo: b.geometry(), parts, glow: glow.geometry() };
 }
+function buildSkeletons(len) {   // cute skeletons floating on their backs, head to toe, a log's length (still good to hop along)
+  const b = new VB(TRAFFIC_D), BONE = 0xf4ecd8, BONE_D = 0xd8ccb0, INK = SPOOK_INK;
+  for (let i = 0; i < len; i++) {
+    const cx = -(len - 1) / 2 + i;
+    b.ball(0.2, 0.15, 0.19, cx + 0.27, 0.03, 0, BONE);                       // a round skull, face up
+    for (const s of [-1, 1]) {
+      b.ball(0.065, 0.03, 0.06, cx + 0.31, 0.15, s * 0.075, INK);            // big round eye sockets...
+      b.ball(0.02, 0.012, 0.02, cx + 0.335, 0.172, s * 0.075 + 0.018, 0xffffff);   // ...with a twinkle
+      b.cap(0.024, 0.2, cx - 0.36, 0.03, s * 0.07, BONE, 0, 0, Math.PI / 2);   // legs
+      b.ball(0.04, 0.035, 0.045, cx - 0.48, 0.03, s * 0.07, BONE);           // knobbly feet
+      b.cap(0.02, 0.2, cx + 0.04, 0.1, s * 0.02, BONE, Math.PI / 2, 0, s * 0.6);   // arms folded over the chest
+    }
+    b.ball(0.022, 0.015, 0.02, cx + 0.24, 0.165, 0, INK);                     // a little nose
+    for (const z of [-0.05, 0, 0.05]) b.ball(0.018, 0.012, 0.018, cx + 0.17 + Math.abs(z) * 0.6, 0.15, z, INK);   // and a smile
+    b.cap(0.03, 0.42, cx - 0.04, 0.04, 0, BONE_D, 0, 0, Math.PI / 2);         // spine
+    for (let k = 0; k < 3; k++) b.cap(0.02, 0.22, cx + 0.07 - k * 0.08, 0.06, 0, BONE, Math.PI / 2, 0, 0);   // ribs
+    b.ball(0.08, 0.05, 0.12, cx - 0.22, 0.04, 0, BONE);                       // hips
+  }
+  return { geo: b.geometry(), parts: [] };
+}
+function buildStyxBoat(len) {   // a ferry on the river Styx: a long black boat, a green lamp at the prow, a hooded ferryman at the back and ghostly passengers
+  const b = new VB(TRAFFIC_D), glow = new VB(TRAFFIC_D), HULL = 0x2a2230, CLOAK = 0x2a2033;
+  b.ball(len / 2 + 0.12, 0.14, 0.3, 0, 0, 0, HULL);
+  b.ball(len / 2 - 0.05, 0.04, 0.24, 0, 0.09, 0, 0x3e3448);                 // deck
+  for (const s of [-1, 1]) b.cap(0.05, 0.32, s * (len / 2 + 0.04), 0.2, 0, HULL, 0, 0, -s * 0.55);   // prow and stern curl up
+  b.cap(0.015, 0.52, len / 2 - 0.12, 0.36, 0, 0x5a4a3a);                    // the lamp's pole...
+  glow.ball(0.065, 0.075, 0.065, len / 2 - 0.12, 0.65, 0, 0x9dff6a);       // ...and its green flame
+  const fx = -len / 2 + 0.35;
+  b.cone(0.17, 0.56, fx, 0.37, 0, CLOAK);                                   // the ferryman's cloak...
+  b.ball(0.11, 0.12, 0.11, fx, 0.67, 0, CLOAK);                             // ...and hood
+  for (const s of [-1, 1]) glow.ball(0.02, 0.018, 0.012, fx + 0.095, 0.67, s * 0.035, 0x9dff6a);   // two eyes in the dark
+  b.cap(0.015, 0.95, fx + 0.14, 0.42, 0.15, 0x8a6a4a, 0.3, 0, -0.4);        // his pole
+  for (let x = fx + 0.65; x < len / 2 - 0.35; x += 0.7) {                   // a ghost passenger in each seat
+    b.ball(0.13, 0.15, 0.12, x, 0.27, 0, SPOOK_W);
+    b.cyl(0.13, 0.15, 0.12, x, 0.15, 0, SPOOK_W);
+    for (const z of [-1, 1]) for (const s of [-1, 1]) b.ball(0.02, 0.03, 0.012, x + s * 0.045, 0.31, z * 0.115, SPOOK_INK);   // eyes (on both sides)
+  }
+  return { geo: b.geometry(), parts: [], glow: glow.geometry() };
+}
+const _bf = new THREE.Vector3();
+function demonBull(m, dt) {   // a spooky bull trails red smoke from its eyes and kicks up fire from its hooves
+  if (!m.active || !m.mesh.visible || Math.abs(m.x) > VIS || Math.random() > dt * 24) return;
+  const s = Math.random() < 0.5 ? 1 : -1;
+  m.mesh.localToWorld(_bf.set(0.64, 0.81, s * 0.115));
+  burst(_bf.x, _bf.y, _bf.z, [0xff2a2a, 0xb01010, 0x6a0a0a], 1, 0.35, 0.6, 0.07, 0.6, true);
+  m.mesh.localToWorld(_bf.set(Math.random() * 0.8 - 0.4, 0.04, Math.random() * 0.36 - 0.18));
+  burst(_bf.x, _bf.y, _bf.z, [0xffb02a, 0xff6a1a, 0xffe07a], 1, 0.8, 2.5, 0.05, 0.35, true);
+}
 const SPOOKY_TRACTORS = [[0x2b2433, 0xff8a1a], [0x3a1f4a, 0x9dff6a], [0x1c1824, 0xb070ff], [0x4a1a1a, 0xffb02a]];
-const SPOOKY_KAYAKS = [0x3a2a44, 0x5b3f8a, 0x4a1a2a, 0x2b4a3a];
 function buildSpooky(kind) {
   if (kind === 'ghosts') return buildGhosts();
   if (kind === 'mummies') return buildMummies();
@@ -1509,11 +1561,11 @@ function buildSpooky(kind) {
   if (kind === 'bats') return buildBats();
   if (kind.startsWith('tractor')) { const [c, h] = SPOOKY_TRACTORS[+kind.slice(7)]; return buildTractor(c, h, false, true); }
   if (kind.startsWith('wagon')) { const [c, h] = SPOOKY_TRACTORS[+kind.slice(5)]; return buildTractor(c, h, true, true); }
-  if (kind.startsWith('kayak')) return buildKayak(+kind[5], SPOOKY_KAYAKS[+kind.slice(7)]);
+  if (kind.startsWith('kayak')) return buildStyxBoat(+kind[5]);
   if (kind === 'bull') return buildBull(true);
   if (kind === 'combine') return buildCombine(true);
   if (kind === 'plane') return buildPlane(true);
-  return buildLog(LEN[kind], true);
+  return buildSkeletons(LEN[kind]);   // the logs
 }
 // What got you, on the spooky farm (for the sign): ghosts, mummies, a vampire, bats, a haunted tractor...
 const spookyCulprit = m => { const k = spookKind(m).slice(3); return k.startsWith('tractor') ? 'tractor' : k.startsWith('wagon') ? 'wagon' : k === 'plane' ? 'witch' : k; };
@@ -2698,6 +2750,7 @@ function removeLane(lane) {
 }
 
 function updateLane(lane, dt, time) {
+  if (spooky.on) for (const m of lane.movers) if (m.kind === 'bull') demonBull(m, dt);
   if (lane.type === 'bull') return updateStampede(lane, dt);
   for (const m of lane.movers) {
     m.x += lane.dir * lane.speed * dt;
