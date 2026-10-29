@@ -1806,7 +1806,7 @@ const sfx = (() => {
     // The notes walk a major pentatonic line in the soundtrack's key, so a run of hops
     // plays a little tune. delay: seconds from now, for sounds that must land on a beat.
     sustain: store.get('bl-sustain', 0.35),
-    hop(id, delay = 0) { this.note(id, pentHz(HOP_TUNE[hopStep++ % HOP_TUNE.length]), delay); },
+    hop(id, delay = 0) { this.note(id, pentHz(HOP_TUNE[hopStep++ % HOP_TUNE.length]) * (music?.haunted ? 0.5 : 1), delay); },   // an octave down on the spooky farm
     note(id, n, delay = 0) {
       this.voice(id, n, false, delay);
       this.hold(id, n, this.sustain, delay, TAP_LEN);
@@ -5027,7 +5027,9 @@ function newWorld() {
   P.key = GUEST ? guestKey : 'h';
   game.roadT = 0;
   spooky.flower = null;
-  if (!spooky.on) spooky.next = 10 + Math.floor(Math.random() * 14);
+  spooky.on = false;   // a new round is a normal day, whatever haunted the last one
+  spooky.k = 0;
+  spooky.next = 10 + Math.floor(Math.random() * 14);
   if (!GUEST) game.seed = (Math.random() * 2 ** 32) >>> 0;   // a guest gets the host's (see goRoadGuest)
   setupCrew();
   game.camZ = -roadView().lead;
