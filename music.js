@@ -102,6 +102,11 @@ export function createMusic(ctx, out) {
   dusty.Q.value = 0.4;
   const level = ctx.createGain();
   level.gain.value = 1;
+  let day = 1, spook = 0;
+  const shade = () => {   // daylight and the spooky farm together set the low-pass and the reverb
+    dusty.frequency.setTargetAtTime((1300 + 2900 * day) * (1 - 0.6 * spook), ctx.currentTime, 0.5);
+    verbIn.gain.setTargetAtTime(0.5 + 0.35 * (1 - day) + 0.7 * spook, ctx.currentTime, 0.5);
+  };
   bus.connect(wobble).connect(dusty).connect(level).connect(out);
 
   const verb = ctx.createConvolver();
@@ -312,8 +317,18 @@ export function createMusic(ctx, out) {
     },
     // Dusk and night make the tune duskier: the low-pass closes and the reverb grows.
     setDay(d) {
-      dusty.frequency.setTargetAtTime(1300 + 2900 * d, ctx.currentTime, 0.5);
-      verbIn.gain.setTargetAtTime(0.5 + 0.35 * (1 - d), ctx.currentTime, 0.5);
+      day = d;
+      shade();
+    },
+    // The spooky farm (0..1): the tape warbles, the low-pass closes into a ringing hollow
+    // and the reverb swells, so the same tune drifts in like it's from a haunted radio.
+    setSpooky(k) {
+      spook = k;
+      shade();
+      const now = ctx.currentTime;
+      dusty.Q.setTargetAtTime(0.4 + 6 * k, now, 0.5);
+      lfo.frequency.setTargetAtTime(0.33 + 1.4 * k, now, 0.5);
+      lfoAmt.gain.setTargetAtTime(0.0022 + 0.006 * k, now, 0.5);
     },
     // 'classic' or 'dnb' (Hop Supporters): changes over at the next bar line.
     setStyle(s) { want = s === 'dnb' ? 'dnb' : 'classic'; },

@@ -417,6 +417,15 @@ function updateDay() {
   if (game.where === 'farm') SUN_OFF.x = farmSunX();   // the sun crosses the farm by day, the moon by night
   else SUN_OFF.x = -5;
   mixHex(A[8], B[8], t, skyCol);   // the sky behind the Behind view, and its fog
+  const sk = spooky.k;   // the spooky farm: a purple night with a green-tinged moon
+  if (sk > 0) {
+    sun.color.lerp(_ca.setHex(0xb8a8ff), sk);
+    hemi.color.lerp(_ca.setHex(0x8a6fc8), sk);
+    hemi.groundColor.lerp(_ca.setHex(0x2a1a40), sk);
+    postMat.uniforms.grade.value.lerp(_ca.setHex(0xb4a2ec), sk);
+    skyCol.lerp(_ca.setHex(0x2a1838), sk);
+  }
+  postMat.uniforms.sat.value = look.sat * (1 - 0.3 * sk);
   fog.color.copy(skyCol);
 }
 
@@ -1161,6 +1170,7 @@ const part = (geo, x, y, z, role, extra = {}) => ({ geo, x, y, z, role, ...extra
 function centred(m, minX, maxX) {   // shift body and parts so the model is centred on x = 0
   const dx = -(minX + maxX) / 2;
   m.geo.translate(dx, 0, 0);
+  m.glow?.translate(dx, 0, 0);
   for (const p of m.parts) p.x += dx;
   return m;
 }
@@ -1179,17 +1189,17 @@ function legGeo(hip, r, col, hoof) {
   return v.geometry();
 }
 
-function buildTractor(col, hub, wagon) {
-  const b = new VB(TRAFFIC_D), dark = 0x2a2a2a, glass = 0xbfe9ff;
+function buildTractor(col, hub, wagon, sp = false) {   // sp: spooky, with glowing lamps and a load of pumpkins
+  const b = new VB(TRAFFIC_D), dark = 0x2a2a2a, glass = sp ? 0x4a3a6a : 0xbfe9ff, glow = sp ? new VB(TRAFFIC_D) : null;
   b.rbox(1.5, 0.14, 0.42, 0.15, 0.32, 0, 0x3a3a3a, 0.05);              // chassis
   b.rbox(0.85, 0.38, 0.5, 0.45, 0.56, 0, col, 0.12);                    // rounded hood
   b.rbox(0.86, 0.03, 0.12, 0.45, 0.755, 0, hub, 0.012);
   b.rbox(0.62, 0.42, 0.66, -0.35, 0.6, 0, col, 0.1);                    // cab
   b.rbox(0.54, 0.36, 0.6, -0.35, 0.99, 0, glass, 0.08);
-  b.rbox(0.8, 0.08, 0.8, -0.35, 1.24, 0, 0xffffff, 0.035);              // roof
+  b.rbox(0.8, 0.08, 0.8, -0.35, 1.24, 0, sp ? 0x5b3f8a : 0xffffff, 0.035);   // roof
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.cyl(0.03, 0.03, 0.42, -0.35 + sx * 0.29, 1.0, sz * 0.32, col);
   b.rbox(0.06, 0.26, 0.38, 0.88, 0.55, 0, 0x444444, 0.02);             // grille
-  for (const s of [-1, 1]) b.cyl(0.05, 0.05, 0.03, 0.9, 0.63, s * 0.17, 0xfff3a0, 0, 0, Math.PI / 2);
+  for (const s of [-1, 1]) (glow || b).cyl(0.05, 0.05, 0.03, 0.9, 0.63, s * 0.17, sp ? 0xb8ff6a : 0xfff3a0, 0, 0, Math.PI / 2);
   b.cyl(0.035, 0.035, 0.38, 0.55, 0.92, 0.12, 0x555555);                // exhaust
   b.ball(0.05, 0.03, 0.05, 0.55, 1.12, 0.12, 0x333333);
   const big = wheelGeo(0.31, 0.2, dark, hub), small = wheelGeo(0.17, 0.14, dark, hub), parts = [];
@@ -1204,6 +1214,11 @@ function buildTractor(col, hub, wagon) {
     b.rbox(1.25, 0.12, 0.74, -1.6, 0.42, 0, 0x9c6b3c, 0.04);
     for (const s of [-1, 1]) b.rbox(1.25, 0.14, 0.05, -1.6, 0.54, s * 0.36, 0x8a5a33, 0.02);
     for (const [x, y] of [[-1.3, 0.7], [-1.9, 0.7], [-1.6, 1.08]]) {     // round bales
+      if (sp) {                                                         // (or pumpkins)
+        b.ball(0.26, 0.21, 0.26, x, y - 0.02, 0, (px, py, pz) => (Math.atan2(pz, px - x) * 8 / Math.PI & 1 ? 0xff8a1a : 0xe8700f));
+        b.cyl(0.03, 0.04, 0.1, x, y + 0.22, 0, 0x4a6a2a);
+        continue;
+      }
       b.cyl(0.22, 0.22, 0.6, x, y, 0, hay, Math.PI / 2, 0, 0);
       for (const s of [-1, 1]) b.torus(0.12, 0.018, Math.PI * 2, x, y, s * 0.3, band);
     }
@@ -1211,7 +1226,7 @@ function buildTractor(col, hub, wagon) {
     for (const s of [-1, 1]) parts.push(part(wg, -1.6, 0.16, s * 0.36, 'wheel', { r: 0.16 }));
     minX = -2.22;
   }
-  return centred({ geo: b.geometry(), parts }, minX, 0.95);
+  return centred({ geo: b.geometry(), parts, glow: glow?.geometry() }, minX, 0.95);
 }
 
 const COW_SPOTS = [[-0.2, 0.75, 0.27, 0.15], [0.2, 0.62, -0.27, 0.13], [-0.25, 0.6, -0.26, 0.12], [0.05, 0.9, 0.05, 0.14], [0.32, 0.78, 0.22, 0.1], [-0.42, 0.7, 0.05, 0.12]];
@@ -1236,24 +1251,25 @@ function buildCow() {
   return centred({ geo: b.geometry(), parts }, -0.56, 0.84);
 }
 
-function buildBull() {
-  const b = new VB(TRAFFIC_D), B = 0x4a2a1c, HORN = 0xfff1d6;
+function buildBull(sp = false) {   // sp: a spooky black bull whose red eyes glow
+  const b = new VB(TRAFFIC_D), B = sp ? 0x1b1722 : 0x4a2a1c, HORN = sp ? 0xd9d2c0 : 0xfff1d6, glow = sp ? new VB(TRAFFIC_D) : null;
   b.ball(0.52, 0.3, 0.31, 0, 0.68, 0, B);
   b.ball(0.26, 0.16, 0.26, 0.2, 0.92, 0, shade(B, 1.15));               // hump
   b.ball(0.2, 0.19, 0.19, 0.62, 0.74, 0, B);                            // lowered head
-  b.ball(0.1, 0.11, 0.15, 0.8, 0.68, 0, 0xc9a07a);                      // snout
+  b.ball(0.1, 0.11, 0.15, 0.8, 0.68, 0, sp ? 0x3a3340 : 0xc9a07a);       // snout
   b.torus(0.045, 0.012, Math.PI * 2, 0.89, 0.6, 0, 0xffd23f, 0, Math.PI / 2, 0); // nose ring
   b.cap(0.02, 0.32, -0.55, 0.64, 0, B, 0, 0, 0.3);                      // tail
   b.ball(0.045, 0.07, 0.045, -0.6, 0.45, 0, 0x111111);
   for (const s of [-1, 1]) {
     b.cap(0.035, 0.16, 0.6, 0.92, s * 0.22, HORN, s * 1.1, 0, 0);       // horns sweep out...
     b.cone(0.035, 0.12, 0.62, 1.03, s * 0.34, HORN, -s * 0.35, 0, 0);   // ...then up
-    b.ball(0.03, 0.026, 0.02, 0.77, 0.81, s * 0.11, 0xff2020);          // angry red eyes
+    if (sp) glow.ball(0.04, 0.034, 0.03, 0.77, 0.81, s * 0.115, 0xff2a2a);
+    else b.ball(0.03, 0.026, 0.02, 0.77, 0.81, s * 0.11, 0xff2020);     // angry red eyes
   }
   const lg = legGeo(0.52, 0.065, B, 0x111111), parts = [];
   // galloping: front legs together, back legs together, slightly offset
   for (const [x, z, ph] of [[0.3, 0.18, 0], [0.3, -0.18, 0.5], [-0.3, 0.18, Math.PI], [-0.3, -0.18, Math.PI + 0.5]]) parts.push(part(lg, x, 0.52, z, 'leg', { ph }));
-  return centred({ geo: b.geometry(), parts }, -0.65, 0.92);
+  return centred({ geo: b.geometry(), parts, glow: glow?.geometry() }, -0.65, 0.92);
 }
 
 // A mother goose leading three goslings, all one mover.
@@ -1285,11 +1301,11 @@ function buildGeese() {
   return { geo: b.geometry(), parts };
 }
 
-function buildCombine() {
-  const b = new VB(TRAFFIC_D), G = 0x2f9a3a, Y = 0xffd23f, dark = 0x2a2a2a;
+function buildCombine(sp = false) {
+  const b = new VB(TRAFFIC_D), G = sp ? 0x2b2433 : 0x2f9a3a, Y = sp ? 0xff8a1a : 0xffd23f, dark = 0x2a2a2a;
   b.rbox(1.5, 0.75, 0.82, -0.25, 0.7, 0, G, 0.16);                      // body
   b.rbox(0.62, 0.12, 0.84, -0.25, 1.1, 0, Y, 0.05);                     // stripe
-  b.rbox(0.54, 0.5, 0.62, 0.25, 1.32, 0, 0xbfe9ff, 0.1);                // cab glass
+  b.rbox(0.54, 0.5, 0.62, 0.25, 1.32, 0, sp ? 0x4a3a6a : 0xbfe9ff, 0.1);   // cab glass
   b.rbox(0.64, 0.07, 0.7, 0.25, 1.6, 0, 0xffffff, 0.03);
   b.rbox(0.45, 0.42, 0.45, -0.65, 1.28, 0, G, 0.12);                    // grain tank
   b.cyl(0.05, 0.05, 0.9, -0.75, 1.55, 0.3, Y, 0, 0, 1.2);               // unloading auger
@@ -1315,15 +1331,16 @@ function buildCombine() {
 }
 
 // Crop duster biplane: flies low along its lane, wings overhang the lanes either side.
-function buildPlane() {
-  const b = new VB(TRAFFIC_D), Y = 0xffcf2a, R = 0xe2412f;
+function buildPlane(sp = false) {   // sp: black and purple, with a witch at the stick
+  const b = new VB(TRAFFIC_D), Y = sp ? 0x2b2433 : 0xffcf2a, R = sp ? 0x6a3fa0 : 0xe2412f;
   b.cap(0.15, 1.0, -0.05, 0.75, 0, Y, 0, 0, Math.PI / 2);              // fuselage
   b.cyl(0.17, 0.15, 0.16, 0.6, 0.75, 0, R, 0, 0, Math.PI / 2);          // cowling
   b.rbox(0.42, 0.05, 2.1, 0.2, 0.6, 0, Y, 0.024);                       // lower wing
   b.rbox(0.42, 0.05, 2.1, 0.25, 1.08, 0, R, 0.024);                     // upper wing
   b.rbox(0.3, 0.05, 0.7, -0.6, 0.82, 0, R, 0.024);                      // tail plane
   b.rbox(0.28, 0.3, 0.05, -0.62, 0.98, 0, R, 0.024);                    // fin
-  b.ball(0.11, 0.11, 0.11, 0.05, 0.96, 0, 0x6b4a8a);                    // pilot
+  b.ball(0.11, 0.11, 0.11, 0.05, 0.96, 0, sp ? 0x8fd16a : 0x6b4a8a);     // pilot
+  if (sp) { b.cyl(0.2, 0.2, 0.02, 0.05, 1.06, 0, 0x1c1824); b.cone(0.1, 0.26, 0.02, 1.2, 0, 0x1c1824, 0, 0, 0.3); }   // her pointy hat
   b.cyl(0.02, 0.02, 0.5, -0.1, 0.56, 0, 0xbfbfbf, Math.PI / 2, 0, 0);   // spray boom
   for (const s of [-1, 1]) {
     b.cyl(0.02, 0.02, 0.44, 0.25, 0.84, s * 0.85, 0x8a5a33);            // wing struts
@@ -1348,8 +1365,8 @@ function buildKayak(len, col) {
   return { geo: b.geometry(), parts: [] };
 }
 
-function buildLog(len) {
-  const b = new VB(TRAFFIC_D), BARKC = 0x8a5a33;
+function buildLog(len, sp = false) {
+  const b = new VB(TRAFFIC_D), BARKC = sp ? 0x3e2c22 : 0x8a5a33;
   b.cyl(0.17, 0.17, len, 0, 0, 0, BARKC, 0, 0, Math.PI / 2);
   for (const s of [-1, 1]) {                                            // cut ends with rings
     b.cyl(0.15, 0.15, 0.02, s * len / 2, 0, 0, 0xd9b27c, 0, 0, Math.PI / 2);
@@ -1359,6 +1376,114 @@ function buildLog(len) {
   b.cyl(0.04, 0.06, 0.18, -len * 0.25, 0.17, 0.05, BARKC, 0, 0, 0.6);   // stubby branch
   return { geo: b.geometry(), parts: [] };
 }
+
+// ---------- spooky farm: Halloween stand-ins for the traffic ----------
+// The same movers in the same places (so every screen still agrees): only what they
+// look like changes. Tractors go black (or turn into a pair of ghosts), cows become
+// mummies or a vampire, geese a swarm of bats, bulls black with glowing red eyes.
+const SPOOK_W = 0xf3f0ff, SPOOK_INK = 0x2a2033;
+function buildGhosts() {   // two sheet ghosts, bobbing side by side (a tractor's length)
+  const b = new VB(TRAFFIC_D), parts = [];
+  const g = new VB(TRAFFIC_D);
+  g.ball(0.3, 0.32, 0.28, 0, 0.3, 0, SPOOK_W);                            // head and shoulders
+  g.cyl(0.3, 0.37, 0.34, 0, 0.04, 0, SPOOK_W);                            // the sheet falling
+  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; g.ball(0.09, 0.08, 0.09, Math.cos(a) * 0.32, -0.14, Math.sin(a) * 0.32, SPOOK_W); }   // a wavy hem
+  for (const s of [-1, 1]) {
+    g.ball(0.05, 0.075, 0.03, s * 0.1, 0.36, 0.25, SPOOK_INK);           // eyes
+    g.ball(0.1, 0.05, 0.06, s * 0.33, 0.1, 0.06, SPOOK_W, 0, 0, s * 0.5);   // little arms
+  }
+  g.ball(0.045, 0.06, 0.03, 0, 0.22, 0.265, SPOOK_INK);                   // "oooo"
+  const geo = g.geometry();
+  for (const [x, ph] of [[-0.42, 0], [0.42, 2.2]]) {
+    b.ball(0.26, 0.012, 0.2, x, 0.012, 0, 0x8a78b8);                      // a glow on the ground under each
+    parts.push(part(geo, x, 0.62, 0, 'float', { rate: 2.6, ph, amp: 0.1 }));
+  }
+  return { geo: b.geometry(), parts, noFlip: true };
+}
+function buildMummies() {   // two mummies shuffling along, arms out (a cow's length)
+  const b = new VB(TRAFFIC_D), glow = new VB(TRAFFIC_D), parts = [], A = 0xe9e2c8, B = 0xc9bf9c;
+  const band = (x, y) => ((Math.floor(y * 20 + x * 4) % 2) + 2) % 2 ? A : B;
+  const lg = legGeo(0.5, 0.065, A, B);
+  for (const [mx, ph] of [[0.33, 0], [-0.33, Math.PI]]) {
+    b.cap(0.16, 0.3, mx, 0.74, 0, band);                                   // wrapped body
+    b.ball(0.15, 0.16, 0.15, mx + 0.02, 1.1, 0, band);                     // wrapped head
+    for (const s of [-1, 1]) {
+      b.cap(0.055, 0.3, mx + 0.2, 0.92, s * 0.14, band, 0, 0, Math.PI / 2);   // arms out in front
+      glow.ball(0.026, 0.03, 0.02, mx + 0.155, 1.12, s * 0.06, 0x9dff6a);    // glowing green eyes
+      parts.push(part(lg, mx, 0.5, s * 0.08, 'leg', { ph: ph + (s > 0 ? 0 : Math.PI) }));
+    }
+    b.cap(0.022, 0.24, mx - 0.12, 0.5, 0.13, A, 0.5, 0, 0.7);              // a loose bandage trailing
+  }
+  return { geo: b.geometry(), parts, glow: glow.geometry() };
+}
+function buildVampire() {   // a vampire gliding sideways, cape spread wide (a cow's length)
+  const b = new VB(TRAFFIC_D), glow = new VB(TRAFFIC_D), SKIN = 0xdfe6ef, SUIT = 0x1c1824, CAPE = 0x231a2e, LINE = 0xa3122e, HAIR = 0x15121a;
+  b.cyl(0.15, 0.24, 0.62, 0, 0.4, 0, SUIT);                                // long coat
+  b.rbox(0.12, 0.2, 0.04, 0, 0.6, 0.15, 0xffffff, 0.02);                  // shirt front
+  b.ball(0.05, 0.03, 0.02, 0, 0.7, 0.17, LINE);                           // a red bow
+  b.ball(0.17, 0.19, 0.17, 0, 0.9, 0, SKIN);                              // pale face
+  b.ball(0.18, 0.11, 0.18, 0, 1.0, -0.02, HAIR);                          // slicked hair...
+  b.cone(0.05, 0.08, 0, 0.99, 0.15, HAIR, Math.PI, 0, 0);                  // ...with a widow's peak
+  b.ball(0.05, 0.012, 0.01, 0, 0.83, 0.16, 0x5a1020);                     // mouth
+  for (const s of [-1, 1]) {
+    glow.ball(0.032, 0.026, 0.015, s * 0.062, 0.92, 0.155, 0xff2a3a);     // glowing red eyes
+    b.cone(0.012, 0.035, s * 0.025, 0.815, 0.162, 0xffffff, Math.PI, 0, 0);   // fangs
+    b.rbox(0.17, 0.26, 0.03, s * 0.15, 0.94, -0.06, LINE, 0.02, 0, s * 0.45, 0);   // tall collar
+    b.ball(0.07, 0.04, 0.1, s * 0.07, 0.04, 0.03, SUIT);                   // shoes
+  }
+  const parts = [];
+  for (const s of [-1, 1]) {
+    const w = new VB(TRAFFIC_D);
+    w.rbox(0.56, 0.64, 0.03, s * 0.28, -0.3, -0.02, CAPE, 0.03);          // a cape wing, held out...
+    w.rbox(0.5, 0.58, 0.02, s * 0.27, -0.3, 0.005, LINE, 0.03);           // ...red lining to the front
+    parts.push(part(w.geometry(), s * 0.12, 0.76, -0.04, 'flap', { axis: 'y', s, rate: 3, ph: 0, amp: 0.25 }));
+  }
+  return { geo: b.geometry(), parts, glow: glow.geometry(), noFlip: true };
+}
+function buildBats() {   // a swarm of four bats, wings flapping (the geese's length)
+  const b = new VB(TRAFFIC_D), glow = new VB(TRAFFIC_D), parts = [], BAT = 0x2a2033;
+  const wing = s => {
+    const v = new VB(TRAFFIC_D);
+    v.ball(0.13, 0.014, 0.17, 0.0, 0, s * 0.15, BAT);
+    v.ball(0.1, 0.014, 0.12, -0.06, 0, s * 0.3, BAT);
+    v.ball(0.07, 0.014, 0.08, 0.06, 0, s * 0.29, BAT);
+    return v.geometry();
+  };
+  const wings = [wing(-1), wing(1)];
+  [[0.75, 0.8, 0], [0.22, 1.1, 1.3], [-0.32, 0.65, 2.6], [-0.82, 0.98, 4]].forEach(([x, y, ph]) => {
+    b.ball(0.13, 0.11, 0.1, x, y, 0, BAT);                                // body
+    b.ball(0.09, 0.085, 0.085, x + 0.12, y + 0.05, 0, BAT);               // head
+    for (const s of [-1, 1]) {
+      b.cone(0.035, 0.09, x + 0.12, y + 0.16, s * 0.05, BAT);             // pointy ears
+      glow.ball(0.022, 0.022, 0.016, x + 0.2, y + 0.07, s * 0.04, 0xff3a3a);   // red eyes
+      parts.push(part(wings[s > 0 ? 1 : 0], x, y + 0.02, 0, 'flap', { axis: 'x', s, rate: 16, ph, amp: 0.8 }));
+    }
+  });
+  return { geo: b.geometry(), parts, glow: glow.geometry() };
+}
+const SPOOKY_TRACTORS = [[0x2b2433, 0xff8a1a], [0x3a1f4a, 0x9dff6a], [0x1c1824, 0xb070ff], [0x4a1a1a, 0xffb02a]];
+const SPOOKY_KAYAKS = [0x3a2a44, 0x5b3f8a, 0x4a1a2a, 0x2b4a3a];
+function buildSpooky(kind) {
+  if (kind === 'ghosts') return buildGhosts();
+  if (kind === 'mummies') return buildMummies();
+  if (kind === 'vampire') return buildVampire();
+  if (kind === 'bats') return buildBats();
+  if (kind.startsWith('tractor')) { const [c, h] = SPOOKY_TRACTORS[+kind.slice(7)]; return buildTractor(c, h, false, true); }
+  if (kind.startsWith('wagon')) { const [c, h] = SPOOKY_TRACTORS[+kind.slice(5)]; return buildTractor(c, h, true, true); }
+  if (kind.startsWith('kayak')) return buildKayak(+kind[5], SPOOKY_KAYAKS[+kind.slice(7)]);
+  if (kind === 'bull') return buildBull(true);
+  if (kind === 'combine') return buildCombine(true);
+  if (kind === 'plane') return buildPlane(true);
+  return buildLog(LEN[kind], true);
+}
+// Which stand-in a mover wears: its own skin roll mixes ghosts in with the tractors, mummies with vampires.
+function spookKind(m) {
+  if (m.kind.startsWith('tractor')) return m.skin < 0.45 ? 'sp:ghosts' : 'sp:' + m.kind;
+  if (m.kind === 'cow') return m.skin < 0.5 ? 'sp:mummies' : 'sp:vampire';
+  if (m.kind === 'geese') return 'sp:bats';
+  return 'sp:' + m.kind;
+}
+const GLOW_VMAT = new THREE.MeshBasicMaterial({ vertexColors: true });   // eyes and lamps that shine in the dark
 
 const LEN = { cow: 1.35, bull: 1.45, log2: 2, log3: 3, log4: 4, geese: 2.2, combine: 2.6, plane: 1.6 };
 const TRACTORS = [[0xd63a2f, 0xffd23f], [0x3aa340, 0xffd23f], [0x3b7be0, 0xffffff], [0xff8a2a, 0x333333]];
@@ -1373,7 +1498,8 @@ function model(kind) {
 }
 function buildModel(kind) {
   let m;
-  if (kind.startsWith('tractor')) { const [c, h] = TRACTORS[+kind.slice(7)]; m = buildTractor(c, h, false); }
+  if (kind.startsWith('sp:')) m = buildSpooky(kind.slice(3));
+  else if (kind.startsWith('tractor')) { const [c, h] = TRACTORS[+kind.slice(7)]; m = buildTractor(c, h, false); }
   else if (kind.startsWith('wagon')) { const [c, h] = TRACTORS[+kind.slice(5)]; m = buildTractor(c, h, true); }
   else if (kind.startsWith('kayak')) m = buildKayak(+kind[5], KAYAKS[+kind.slice(7)]);
   else if (kind === 'cow') m = buildCow();
@@ -1829,6 +1955,7 @@ const sfx = (() => {
       }
     },
     bump() { tone(220, 150, 0.07, 'square', 0.07); },
+    boo() { tone(520, 300, 1.1, 'sine', 0.09); tone(523, 290, 1.1, 'triangle', 0.05, 0.02); tone(780, 420, 0.9, 'sine', 0.04, 0.25); },   // the spooky farm wakes
     // these little tunes are in D too, so they move with the song's key
     pick() { tone(inKey(587), inKey(880), 0.08, 'triangle', 0.07); },
     place() { tone(inKey(880), null, 0.05, 'triangle', 0.07); tone(inKey(1175), null, 0.12, 'triangle', 0.06, 0.05); },
@@ -2019,6 +2146,56 @@ function reachOf(blocked, prev) {
   return reach;
 }
 
+// The spooky sunflower: the sunflower in negative. Picking it turns the road into a
+// ghostly farm for two minutes (the stand-ins above, a purple night, an eerie tune);
+// when that ends, another one turns up a few rows on.
+const SPOOKY_FLOWER_GEO = (() => {
+  const g = FLOWER_GEO.clone(), c = g.attributes.color;
+  for (let i = 0; i < c.count; i++) c.setXYZ(i, 1 - c.getX(i), 1 - c.getY(i), 1 - c.getZ(i));
+  return g;
+})();
+const SPOOKY_FLOWER_MAT = toon({ vertexColors: true, emissive: 0x24104a });
+const SPOOKY_SECS = 120;
+const spooky = { on: false, t: 0, k: 0, next: Infinity, flower: null };
+function plantSpooky(lane) {   // on a free spot of a grass lane that can be reached
+  const free = [...lane.reach].filter(c => !lane.coins.some(o => o.c === c));
+  if (!free.length) return false;
+  const c = free[Math.abs(lane.r * 7) % free.length];
+  const m = new THREE.Mesh(SPOOKY_FLOWER_GEO, SPOOKY_FLOWER_MAT);
+  m.position.set(c, LANE_Y[lane.type], 0);
+  m.castShadow = true;
+  lane.group.add(m);
+  lane.coins.push({ c, m, spooky: true });
+  spooky.flower = m;
+  spooky.next = Infinity;
+  return true;
+}
+function startSpooky(h) {
+  spooky.on = true;
+  spooky.t = SPOOKY_SECS;
+  spooky.flower = null;
+  for (const lane of lanes.values()) for (const m of lane.movers) dress(m);
+  sfx.boo();
+  burst(h.x, 0.6, h.z, [0x9b6bff, 0x6bff9b, 0xff8a1a, 0xffffff], 18, 2, 4, 0.1, 0.8);
+}
+function endSpooky() {
+  spooky.on = false;
+  for (const lane of lanes.values()) for (const m of lane.movers) dress(m);
+  spooky.next = game.score + 4 + Math.floor(Math.random() * 5);   // another one soon: a few rows on (in the next grass lane built, if those are built already)
+  for (let r = spooky.next; r < genRow; r++) { const lane = lanes.get(r); if (lane?.type === 'grass' && plantSpooky(lane)) break; }
+}
+function updateSpooky(dt) {
+  const road = game.where === 'road';
+  if (spooky.on && road && (game.state === 'play' || game.state === 'title')) { spooky.t -= dt; if (spooky.t <= 0) endSpooky(); }
+  spooky.k = clamp(spooky.k + (spooky.on && road ? dt : -dt) / 1.5, 0, 1);
+  if (spooky.flower?.parent) {   // the spooky sunflower turns and bobs, so you notice it
+    spooky.flower.rotation.y += dt * 2.2;
+    spooky.flower.position.y = Math.abs(Math.sin(game.time * 3)) * 0.12;
+  }
+  const pill = $('spookyPill'), show = spooky.on && road;
+  pill.hidden = !show;
+  if (show) { const s = Math.max(0, Math.ceil(spooky.t)); pill.textContent = t('spookyTime', { t: Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') }); }
+}
 function addSunflower(lane, c) {
   const m = new THREE.Mesh(FLOWER_GEO, FLOWER_MAT);
   m.position.set(c, LANE_Y[lane.type], 0);
@@ -2041,13 +2218,23 @@ function addMovers(lane, kindFn, gapMin, gapMax, y = 0) {
   for (const m of lane.movers) { m.x += shift; wrap(m); m.mesh.position.x = m.x; }
 }
 function spawnMover(lane, kind, x, y = 0) {
-  const mdl = model(kind);
-  const mesh = new THREE.Mesh(mdl.geo, VMAT);
+  const mesh = new THREE.Mesh(undefined, VMAT);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   mesh.position.set(x, y, 0);
-  if (lane.dir < 0) mesh.rotation.y = Math.PI;
-  const parts = mdl.parts.map(p => {   // legs, wheels, reel, propeller
+  lane.group.add(mesh);
+  const m = { kind, len: LEN[kind], x, y, mesh, parts: [], dir: lane.dir, skin: Math.random(), active: true, bob: 0, phase: rand(0, 6), walk: rand(0, 6), buzz: 0, t: 0 };
+  dress(m);
+  return m;
+}
+// Put a mover's model on (its own, or its spooky stand-in): the body, then its moving parts
+// (legs, wheels, reel, propeller, wings) and anything that glows.
+function dress(m) {
+  const mdl = model(spooky.on ? spookKind(m) : m.kind), mesh = m.mesh;
+  mesh.geometry = mdl.geo;
+  for (const c of [...mesh.children]) mesh.remove(c);
+  mesh.rotation.y = m.dir < 0 && !mdl.noFlip ? Math.PI : 0;
+  m.parts = mdl.parts.map(p => {
     const pm = new THREE.Mesh(p.geo, VMAT);
     pm.position.set(p.x, p.y, p.z);
     pm.castShadow = true;
@@ -2055,17 +2242,23 @@ function spawnMover(lane, kind, x, y = 0) {
     mesh.add(pm);
     return pm;
   });
-  lane.group.add(mesh);
-  return { kind, len: LEN[kind], x, y, mesh, parts, active: true, bob: 0, phase: rand(0, 6), walk: rand(0, 6), buzz: 0 };
+  if (mdl.glow) {
+    const g = new THREE.Mesh(mdl.glow, GLOW_VMAT);
+    g.layers.set(GLOW_LAYER);
+    mesh.add(g);
+  }
 }
 // Legs swing with distance travelled, wheels roll, spinners spin.
 function animateParts(m, speed, dt) {
   const gait = GAIT[m.kind];
   if (gait) m.walk += dt * Math.min(speed * gait[0], 30);
+  m.t += dt;
   for (const p of m.parts) {
     const u = p.userData;
-    if (u.role === 'leg') p.rotation.z = Math.sin(m.walk + u.ph) * gait[1];
+    if (u.role === 'leg') p.rotation.z = Math.sin(m.walk + u.ph) * (gait ? gait[1] : 0.4);
     else if (u.role === 'wheel') p.rotation.z -= dt * speed / u.r;
+    else if (u.role === 'flap') p.rotation[u.axis] = u.s * Math.sin(m.t * u.rate + u.ph) * u.amp;   // wings, a cape
+    else if (u.role === 'float') { p.position.y = u.y + Math.sin(m.t * u.rate + u.ph) * u.amp; p.rotation.z = Math.sin(m.t * u.rate * 0.5 + u.ph) * 0.08; }   // ghosts bob and sway
     else p.rotation[u.axis] += dt * u.rate;
   }
 }
@@ -2156,6 +2349,7 @@ function buildLane(r) {
         else if (rnd() < 0.18) flowers(vb, x);
       }
       if (r > 3 && rnd() < 0.16 && reach.size) addSunflower(lane, pick([...reach]));
+      if (r >= spooky.next && !spooky.on && reach.size) plantSpooky(lane);
     }
   } else if (type === 'road') {
     strip(vb, -0.02, 0x5f5c66, shade(0x5f5c66, 0.72));
@@ -2529,7 +2723,11 @@ function land(h = P) {
   h.jelly = 0;   // start the landing wobble
   hopPuff(h);
   const coin = !h.remote && lane.coins.find(c => c.c === h.x);   // a friend's device reports their own sunflowers
-  if (coin) {
+  if (coin?.spooky) {   // the spooky sunflower: only this screen's (each screen grows its own)
+    lane.group.remove(coin.m);
+    lane.coins.splice(lane.coins.indexOf(coin), 1);
+    startSpooky(h);
+  } else if (coin) {
     roadSend({ t: 'rc', r: h.r, c: coin.c });
     lane.group.remove(coin.m);
     lane.coins.splice(lane.coins.indexOf(coin), 1);
@@ -3077,6 +3275,12 @@ const PIECES = {
   drums: { build: buildDrumKit, decor: true, onStage: true, price: 1, bg: '#ffd6ec' },   // sits on the Jam Stage, not in the yard
   disco: { build: buildDiscoBall, decor: true, onStage: true, price: 100, bg: '#e6dcff' },   // turns on top of the Jam Stage's sign
   bigstage: { build: buildBigStageIcon, decor: true, onStage: true, needsStage: true, price: 200, bg: '#ffe0b8' },   // the Jam Stage, a third bigger
+  // Halloween
+  pumpkins: { build: buildPumpkins, foot: [-0.7, 0.7, -0.5, 0.5], decor: true, price: 15, bg: '#ffd9b0' },
+  tombstones: { build: buildTombstones, foot: [-0.6, 0.65, -0.45, 0.5], decor: true, price: 20, bg: '#e3dcf0' },
+  cauldron: { build: buildCauldron, foot: [-0.5, 0.5, -0.5, 0.5], decor: true, price: 30, bg: '#d9f5d0' },
+  ghost: { build: buildGhostDecor, foot: [-0.45, 0.45, -0.4, 0.4], decor: true, price: 40, bg: '#ece6ff' },
+  spookytree: { build: buildSpookyTree, foot: [-0.75, 0.75, -0.4, 0.4], decor: true, price: 25, bg: '#e0d6f0', icon: 0.8 },
 };
 const DECOR = Object.keys(PIECES).filter(id => PIECES[id].decor);
 const ownedDecor = new Set(store.get('bl-decor', []).filter(id => DECOR.includes(id)));
@@ -3480,6 +3684,145 @@ function buildMailbox(g) {
   g.add(vb.mesh());
 }
 // ---------- decorations ----------
+// ---------- Halloween decorations ----------
+// Glowing bits (a carved face, a bubbling brew, lanterns) are lit from inside, and light
+// up the dark around them at night like the torches.
+const PUMPKIN = (cx, cz) => (x, y, z) => (Math.floor((Math.atan2(z - cz, x - cx) + Math.PI) * 8 / Math.PI) % 2 ? 0xff8a1a : 0xe0670c);
+function buildPumpkins(g) {   // three pumpkins on a bed of straw, the big one carved and lit
+  const v = new VB(0.6), face = new VB(0.6);
+  v.ball(0.66, 0.035, 0.46, 0, 0.018, 0, 0xd9b45a);                          // straw
+  for (const [x, z, r] of [[0, -0.02, 0.32], [-0.44, 0.12, 0.18], [0.42, 0.16, 0.2]]) {
+    v.ball(r, r * 0.82, r, x, r * 0.82, z, PUMPKIN(x, z));
+    v.cyl(0.03, 0.045, r * 0.45, x, r * 1.64 + 0.03, z, 0x5a7a2a, 0, 0, 0.25);   // stem
+  }
+  v.cap(0.015, 0.3, 0.2, 0.08, 0.3, 0x4f8a2f, Math.PI / 2, 0, 1.1);        // a curly vine
+  v.ball(0.08, 0.02, 0.05, 0.32, 0.05, 0.36, 0x4f8a2f, 0, 0.4, 0);          // and a leaf
+  for (const s of [-1, 1]) face.ball(0.06, 0.05, 0.02, s * 0.11, 0.35, 0.29, 0xffd25a, 0, 0, s * 0.5);   // eyes
+  face.ball(0.035, 0.03, 0.02, 0, 0.27, 0.315, 0xffd25a);                   // nose
+  face.torus(0.12, 0.03, Math.PI, 0, 0.23, 0.29, 0xffb02a, 0, 0, Math.PI);  // grin
+  g.add(v.mesh());
+  const lit = new THREE.Mesh(face.geometry(), GLOW_VMAT);
+  g.add(lit);
+  lamps.push({ o: lit, r: 1.4, s: 0.85, torch: true, ph: Math.random() * 6 });
+}
+function buildTombstones(g) {   // two headstones and a cross; a little ghost peeks out now and then
+  const v = new VB(0.6), S = 0x9a96a8, S_D = 0x77738a, DIRT = 0x6b4a32;
+  v.rbox(0.42, 0.5, 0.12, -0.18, 0.27, -0.08, S, 0.05);                     // the big headstone...
+  v.cyl(0.21, 0.21, 0.12, -0.18, 0.52, -0.08, S, Math.PI / 2, 0, 0);         // ...round on top
+  v.rbox(0.05, 0.22, 0.02, -0.18, 0.4, -0.015, S_D, 0.01);                  // a carved cross
+  v.rbox(0.15, 0.05, 0.02, -0.18, 0.45, -0.015, S_D, 0.01);
+  v.ball(0.22, 0.05, 0.28, -0.18, 0.02, 0.24, DIRT);                        // its mound
+  v.rbox(0.07, 0.46, 0.07, 0.4, 0.23, -0.12, S_D, 0.02);                    // a stone cross
+  v.rbox(0.26, 0.07, 0.07, 0.4, 0.33, -0.12, S_D, 0.02);
+  v.rbox(0.26, 0.3, 0.09, 0.2, 0.14, 0.28, S, 0.05, -0.12, 0, 0.18);        // a little slab, leaning
+  for (const [x, z] of [[0.02, 0.38], [0.5, 0.2], [-0.45, 0.35]]) v.ball(0.04, 0.04, 0.04, x, 0.04, z, 0xb070ff);   // purple flowers
+  g.add(v.mesh());
+  const gh = new VB(0.6);
+  gh.ball(0.15, 0.16, 0.13, 0, 0, 0, SPOOK_W);
+  for (const s of [-1, 1]) gh.ball(0.025, 0.035, 0.015, s * 0.05, 0.03, 0.12, SPOOK_INK);
+  const ghost = gh.mesh();
+  ghost.position.set(-0.18, 0.5, -0.2);
+  g.add(ghost);
+  return t => {   // peeks up over the stone, then ducks back down
+    const k = Math.max(0, Math.sin(t * 0.7));
+    ghost.position.y = 0.5 + k * k * 0.32;
+    ghost.rotation.z = Math.sin(t * 2) * 0.12 * k;
+  };
+}
+function buildCauldron(g) {   // a witch's pot on its fire, the green brew bubbling
+  const v = new VB(0.6), K = 0x2a2433, brew = new VB(0.6);
+  v.ball(0.36, 0.3, 0.36, 0, 0.44, 0, K);                                   // pot
+  v.torus(0.3, 0.05, Math.PI * 2, 0, 0.68, 0, 0x3e3650, Math.PI / 2, 0, 0); // rim
+  for (let i = 0; i < 3; i++) { const a = i * Math.PI * 2 / 3 + 0.5; v.cyl(0.035, 0.025, 0.24, Math.cos(a) * 0.22, 0.12, Math.sin(a) * 0.22, K); }   // legs
+  for (const a of [0.5, -0.5]) v.cyl(0.055, 0.055, 0.7, 0, 0.05, 0, 0x6b4226, 0, a, Math.PI / 2);   // firewood
+  v.cap(0.025, 0.5, 0.18, 0.85, -0.05, 0x8a5a33, 0, 0, -0.6);               // a stirring stick
+  brew.cyl(0.28, 0.28, 0.03, 0, 0.67, 0, 0x7dff5a);
+  g.add(v.mesh());
+  const lit = new THREE.Mesh(brew.geometry(), GLOW_VMAT);
+  g.add(lit);
+  lamps.push({ o: lit, r: 1.5, s: 0.9, w: 0 });   // a green glow of its own
+  const fire = new THREE.Group();
+  fire.position.set(0, 0.12, 0);
+  for (const [x, s] of [[-0.08, 0.8], [0.08, 0.7], [0, 1]]) {
+    const f = new THREE.Mesh(FLAME_GEO, s === 1 ? FLAME_MAT : EMBER_MAT);
+    f.position.x = x;
+    f.scale.setScalar(s * 0.7);
+    fire.add(f);
+  }
+  g.add(fire);
+  const BUB = new THREE.SphereGeometry(0.05, 8, 6), bubMat = new THREE.MeshBasicMaterial({ color: 0xb8ff9a });
+  const bubbles = [0, 1, 2].map(i => { const b = new THREE.Mesh(BUB, bubMat); g.add(b); return { b, ph: i / 3, x: [-0.12, 0.1, 0.02][i], z: [0.05, -0.08, 0.12][i] }; });
+  return t => {
+    for (const { b, ph, x, z } of bubbles) {   // rise, swell and pop
+      const k = (t * 0.6 + ph) % 1;
+      b.position.set(x, 0.68 + k * 0.28, z);
+      b.scale.setScalar(k < 0.85 ? 0.6 + k : 0.01);
+    }
+    fire.scale.y = 1 + Math.sin(t * 13) * 0.12;
+  };
+}
+function buildGhostDecor(g) {   // a friendly ghost, floating and waving
+  const v = new VB(0.6);
+  v.ball(0.4, 0.035, 0.3, 0, 0.018, 0, 0x8a78b8);                          // a soft glow on the grass
+  g.add(v.mesh());
+  const b = new VB(0.6);
+  b.ball(0.32, 0.36, 0.3, 0, 0.34, 0, SPOOK_W);
+  b.cyl(0.32, 0.4, 0.38, 0, 0.06, 0, SPOOK_W);
+  for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI * 2; b.ball(0.1, 0.09, 0.1, Math.cos(a) * 0.35, -0.14, Math.sin(a) * 0.35, SPOOK_W); }   // wavy hem
+  for (const s of [-1, 1]) {
+    b.ball(0.05, 0.07, 0.03, s * 0.11, 0.42, 0.27, SPOOK_INK);              // eyes
+    b.ball(0.012, 0.016, 0.01, s * 0.11 + 0.015, 0.45, 0.295, 0xffffff);
+    b.ball(0.05, 0.03, 0.015, s * 0.19, 0.32, 0.26, 0xffb3d1);              // rosy cheeks
+  }
+  b.torus(0.06, 0.014, Math.PI, 0, 0.32, 0.29, SPOOK_INK, 0, 0, Math.PI);   // a smile
+  b.ball(0.1, 0.05, 0.06, -0.36, 0.14, 0.05, SPOOK_W, 0, 0, -0.5);          // one arm down
+  const body = new THREE.Group(), mesh = b.mesh();
+  body.add(mesh);
+  const arm = new VB(0.6);
+  arm.ball(0.06, 0.13, 0.06, 0, 0.1, 0, SPOOK_W);
+  const wave = arm.mesh();
+  wave.position.set(0.32, 0.3, 0.05);
+  body.add(wave);
+  body.position.y = 0.55;
+  g.add(body);
+  lamps.push({ o: body, r: 1.1, s: 0.55, w: 0 });
+  return t => {
+    body.position.y = 0.55 + Math.sin(t * 1.6) * 0.1;
+    body.rotation.z = Math.sin(t * 0.8) * 0.06;
+    wave.rotation.z = -0.4 + Math.sin(t * 5) * 0.45;   // waving hello
+  };
+}
+function buildSpookyTree(g) {   // a bare, twisted tree with two jack-o'-lanterns swinging from it
+  const v = new VB(0.6), BARK_D = 0x2e2633;
+  v.cyl(0.1, 0.17, 1.05, 0, 0.52, 0, BARK_D);
+  for (const s of [-1, 1]) v.cone(0.08, 0.3, s * 0.15, 0.1, 0.02, BARK_D, 0, 0, s * 1.1);   // roots
+  v.cap(0.055, 0.55, -0.28, 1.12, 0, BARK_D, 0, 0, 0.95);                  // branches...
+  v.cap(0.05, 0.55, 0.3, 1.2, 0, BARK_D, 0, 0, -1.0);
+  v.cap(0.035, 0.3, -0.62, 1.4, 0, BARK_D, 0, 0, 0.25);                    // ...twisting up at the ends
+  v.cap(0.035, 0.3, 0.62, 1.48, 0, BARK_D, 0, 0, -0.35);
+  v.cap(0.045, 0.42, 0.04, 1.32, 0, BARK_D, 0, 0, -0.15);
+  v.ball(0.07, 0.09, 0.03, 0, 0.62, 0.1, 0x15121a);                        // a knot hole
+  g.add(v.mesh());
+  const swings = [];
+  for (const [x, y, ph] of [[-0.5, 1.22, 0], [0.5, 1.3, 1.7]]) {
+    const hang = new THREE.Group();
+    hang.position.set(x, y, 0.05);
+    const s = new VB(0.6), face = new VB(0.6);
+    s.cyl(0.006, 0.006, 0.3, 0, -0.15, 0, 0x2a2033);                        // string
+    s.ball(0.11, 0.09, 0.11, 0, -0.38, 0, PUMPKIN(0, 0));
+    s.cyl(0.015, 0.02, 0.05, 0, -0.27, 0, 0x5a7a2a);
+    for (const k of [-1, 1]) face.ball(0.022, 0.02, 0.01, k * 0.04, -0.36, 0.1, 0xffd25a);
+    face.torus(0.04, 0.012, Math.PI, 0, -0.4, 0.1, 0xffb02a, 0, 0, Math.PI);
+    hang.add(s.mesh());
+    const lit = new THREE.Mesh(face.geometry(), GLOW_VMAT);
+    hang.add(lit);
+    g.add(hang);
+    lamps.push({ o: lit, r: 0.9, s: 0.7, torch: true, ph: Math.random() * 6 });
+    swings.push([hang, ph]);
+  }
+  return t => { for (const [h, ph] of swings) h.rotation.z = Math.sin(t * 1.4 + ph) * 0.18; };
+}
+
 function buildScarecrow(g) {   // straw hat, patched red shirt, a crow on one arm
   const vb = new VB(0.6), WOOD = 0x9c6b3c, STRAW = 0xe8c45c, SHIRT = 0xd8473a;
   vb.cyl(0.05, 0.06, 1.5, 0, 0.75, -0.05, WOOD);
@@ -4678,6 +5021,8 @@ function newWorld() {
   P.cam = null;
   P.key = GUEST ? guestKey : 'h';
   game.roadT = 0;
+  spooky.flower = null;
+  if (!spooky.on) spooky.next = 10 + Math.floor(Math.random() * 14);
   if (!GUEST) game.seed = (Math.random() * 2 ** 32) >>> 0;   // a guest gets the host's (see goRoadGuest)
   setupCrew();
   game.camZ = -roadView().lead;
@@ -5244,7 +5589,9 @@ function step(dt) {
   }
   game.dawn = Math.min(1, game.dawn + dt * 0.4);   // after the sunrise, the road brightens to full day
   game.light = game.where === 'farm' ? farmLight() : Math.min(game.day, game.dawn);
+  updateSpooky(dt);
   updateDay();
+  if (music && Math.abs(spooky.k - (music.spooky ?? -1)) > 0.02) { music.spooky = spooky.k; music.setSpooky(spooky.k); }
   if (music && Math.abs(game.light - (music.day ?? -1)) > 0.02) { music.day = game.light; music.setDay(game.light); }
   updateFlies(dt);
   hudDay();
@@ -8697,4 +9044,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover };
