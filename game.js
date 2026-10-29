@@ -44,7 +44,7 @@ const heroName = id => t('heroes.' + id);
 // before anything reads a setting, wait for the host to send it (guest.js). The
 // farm's settings then come from the host and are only kept in memory, so this
 // device's own farm is never touched.
-const FARM_KEYS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-coins', 'bl-top', 'bl-dnb'];
+const FARM_KEYS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-coins', 'bl-top', 'bl-dnb', 'bl-land'];
 const joinArgs = new URLSearchParams(location.hash.slice(1));
 const GUEST = /^[A-Za-z0-9_-]{22,64}$/.test(joinArgs.get('join') || '') ? joinArgs.get('join') : null;
 const guestNet = GUEST && window.FARMHOP_RELAY_URL
@@ -143,8 +143,19 @@ sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -24, right: 24, top: 24, bottom: -24, near: 1, far: 70 });
 sun.shadow.bias = -0.0006;
-sun.shadow.normalBias = 0.02;
 scene.add(sun, sun.target);
+// The sun's shadow covers ±half around what's in view, and its push off each surface
+// grows with the size of a shadow-map texel. Too little push and the ground fills with
+// stripes of false shadow ("acne"), and phones (smaller maps, less exact GPUs) show it first.
+function setShadowSpan(half = sun.shadow.camera.right) {
+  const sc = sun.shadow.camera;
+  if (sc.right !== half) {
+    Object.assign(sc, { left: -half, right: half, top: half, bottom: -half });
+    sc.updateProjectionMatrix();
+  }
+  sun.shadow.normalBias = Math.max(0.02, 2 * half / sun.shadow.mapSize.x * 1.5);
+}
+setShadowSpan();
 const SUN_OFF = new THREE.Vector3(-5, 12, 4);
 
 // ---------- graphics quality ----------
@@ -172,6 +183,7 @@ function applyQuality() {
     sun.shadow.mapSize.set(q.shadow, q.shadow);
     sun.shadow.map?.dispose();
     sun.shadow.map = null;   // three.js makes a new one at the new size
+    setShadowSpan();
   }
   resize();
 }
@@ -2712,11 +2724,7 @@ function updateSplit(dt, V) {
   useCamera(localCrew()[0].cam.c);
   game.camX = localCrew()[0].cam.x;
   game.camZ = Math.max(...localCrew().map(h => h.cam.z));   // the hindmost half, for anything that reads one camera
-  const sc = sun.shadow.camera;
-  if (sc.right !== V.shadow) {
-    Object.assign(sc, { left: -V.shadow, right: V.shadow, top: V.shadow, bottom: -V.shadow });
-    sc.updateProjectionMatrix();
-  }
+  setShadowSpan(V.shadow);
 }
 let splitShown = '';
 function markSplit() {   // the ink line between the halves
@@ -2760,11 +2768,7 @@ function updateCamera(dt) {
   }
   sun.position.copy(_t).add(SUN_OFF);
   sun.target.position.copy(_t);
-  const sc = sun.shadow.camera;
-  if (sc.right !== V.shadow) {
-    Object.assign(sc, { left: -V.shadow, right: V.shadow, top: V.shadow, bottom: -V.shadow });
-    sc.updateProjectionMatrix();
-  }
+  setShadowSpan(V.shadow);
   camera.updateMatrixWorld();
 }
 
@@ -2978,7 +2982,7 @@ const pieceToFarm = (p, lx, lz) => {   // a point in a piece's own space, in far
 function buildFarm() {
   const vb = new VB(0.45);
   const GRASS = 0x9bd85a, B = FARM_BOUNDS;
-  vb.rbox(64, 1, 64, 0, -0.5, 0, GRASS, 0.3);                               // the yard, big enough to zoom out over
+  vb.rbox(64, 1, 64, 0, -0.51, 0, GRASS, 0.3);                              // the yard, big enough to zoom out over (the land grid lies on top)
   for (let i = 0; i < 80; i++) vb.cone(0.035, 0.11, rand(-12, 12), 0.045, rand(-14, 10), 0x7cc24a);  // tufts
 
   // fence along the front, trees all round
@@ -2992,7 +2996,200 @@ function buildFarm() {
   for (let z = B.z0; z <= B.z1 + 1.5; z += 1.4) for (const x of [B.x1 + 1.2, B.x1 + 2.5, B.x1 + 3.9]) for (const sx of [-1, 1]) pick(ALL_TREES)(vb, sx * x + rand(-0.3, 0.3), z + rand(-0.3, 0.3));
   bush(vb, B.x0 - 0.5, 3.4); bush(vb, B.x1 + 0.5, -1.6);
   farm.group.add(vb.mesh());
+  farm.group.add(buildLand());
   for (const id of Object.keys(PIECES)) if (!PIECES[id].onStage && (!PIECES[id].decor || ownedDecor.has(id))) addPiece(id);
+}
+
+// ---------- the land around the farm ----------
+// Past the fence and the ring of trees: meadows of different grasses, ploughed
+// fields, rolling hills, a river with a footbridge, a lake or two, little groves
+// and rock gardens. It's all laid out from a seed made once for each farm, so every
+// farm's countryside is its own (and a visiting friend sees the host's).
+// Flat things are stacked a hair apart in height so they never flicker.
+const LAND_KEY = 'bl-land';
+const LAND = 30;                                                   // how far out it goes (the yard slab is 64 across)
+const FARM_ZONE = { x0: -12.8, x1: 12.8, z0: -15.5, z1: 8.8 };     // the farm, its fence and its ring of trees
+const LDISC = () => prim('ldisc', () => new THREE.CylinderGeometry(1, 1, 0.1, 22));
+// A hill: a bell turned on a lathe, easing out flat into the grass so it never has the
+// steep sides that the ink pass would hatch.
+const HILL = () => prim('hill', () => new THREE.LatheGeometry(Array.from({ length: 33 }, (_, i) => new THREE.Vector2(1 - i / 32, (1 - Math.cos(Math.PI * i / 32)) / 2)), 128));
+const MEADOW = [0x7fc049, 0x86c64c, 0x8fd052, 0x9ccf5e, 0xa8e06a, 0xb2e27a];   // darkest to palest: the ground blends along it
+const YARD_GREEN = 0x9bd85a;
+const HILLS = [0x6fb440, 0x78bd45, 0x66a93c, 0x82c34a];
+const STONES = [0x9aa0a6, 0xb4babf, 0x878d94, 0xc4c0b8];
+const BLOOMS = [0xff6fae, 0xffd93b, 0xffffff, 0xb48cff, 0xff8a5c];
+function landSeed() {
+  let s = store.get(LAND_KEY, null);
+  if (!Number.isInteger(s)) { s = (Math.random() * 2 ** 32) >>> 0; store.set(LAND_KEY, s); }
+  return s >>> 0;
+}
+// A flat oval lying on the ground with its top at y, turned `turn` about the vertical.
+const oval = (vb, rx, rz, x, z, y, col, turn = 0) => vb.add(LDISC(), col, x, y - 0.05, z, 0, turn, 0, rx, 1, rz);
+const nearFarm = (x, z, r) => x + r > FARM_ZONE.x0 && x - r < FARM_ZONE.x1 && z + r > FARM_ZONE.z0 && z - r < FARM_ZONE.z1;
+const inYard = (x, z, r) => x + r > FARM_BOUNDS.x0 - 0.6 && x - r < FARM_BOUNDS.x1 + 0.6 && z + r > FARM_BOUNDS.z0 - 0.6 && z - r < FARM_BOUNDS.z1 + 0.6;
+function buildLand() {
+  const vb = new VB(0.45), hills = new VB(0.45), was = rnd;
+  rnd = seeded(landSeed());
+  const used = [], wet = [];                                       // circles taken by things, and by water: [x, z, r]
+  const hits = (list, x, z, r) => list.some(([ux, uz, ur]) => Math.hypot(ux - x, uz - z) < ur + r);
+  const free = (x, z, r) => Math.abs(x) + r < LAND && Math.abs(z) + r < LAND && !nearFarm(x, z, r) && !hits(used, x, z, r);
+  const spot = (r, zone = () => true) => {                        // somewhere clear for a circle of radius r
+    for (let i = 0; i < 80; i++) {
+      const x = rand(-LAND, LAND), z = rand(-LAND, LAND);
+      if (free(x, z, r) && zone(x, z)) { used.push([x, z, r]); return [x, z]; }
+    }
+    return null;
+  };
+
+  // The river wanders right across the land in front of the farm, down one side, or behind it.
+  const way = ri(0, 2), side = rnd() < 0.5 ? -1 : 1;
+  const base = way === 0 ? rand(12, 14.5) : way === 1 ? side * rand(15.8, 18) : -rand(19, 23);
+  const amp = rand(0.7, 1.9), freq = rand(0.12, 0.2), ph = rand(0, 6.3), w = rand(0.85, 1.2);
+  const along = t => { const o = base + (Math.sin(t * freq + ph) + Math.sin(t * freq * 2.3 + ph) * 0.3) * amp; return way === 1 ? [o, t] : [t, o]; };
+  for (let t = -LAND - 2; t <= LAND + 2; t += 0.7) {
+    const [x, z] = along(t);
+    oval(vb, w + 0.45, w + 0.45, x, z, 0.03, 0xd9c48a);           // sandy banks
+    oval(vb, w, w, x, z, 0.036, 0x5ccaf0);                         // water
+    oval(vb, w * 0.45, w * 0.45, x, z, 0.04, 0x4ab4e4);            // the deeper middle
+    used.push([x, z, w + 0.5]); wet.push([x, z, w + 0.5]);
+  }
+  for (let i = 0; i < 14; i++) {                                   // glints on the water
+    const t = rand(-LAND, LAND), [x, z] = along(t), [x2, z2] = along(t + 0.2);
+    oval(vb, rand(0.35, 0.6), 0.1, x + rand(-0.3, 0.3), z + rand(-0.3, 0.3), 0.044, 0x8edcf6, -Math.atan2(z2 - z, x2 - x));
+  }
+  {                                                                // a footbridge somewhere along it
+    const t = rand(-14, 14) + (way === 1 ? 0 : side * 4), [x, z] = along(t), [x2, z2] = along(t + 0.2);
+    const a = -Math.atan2(z2 - z, x2 - x) + Math.PI / 2, len = 2 * w + 1.3, c = Math.cos(a), s = Math.sin(a);
+    vb.rbox(len, 0.08, 0.85, x, 0.2, z, 0xb88a5a, 0.02, 0, a, 0);
+    for (let k = -2; k <= 2; k++) vb.rbox(0.05, 0.02, 0.86, x + c * k * len / 5, 0.25, z - s * k * len / 5, 0x9a6f45, 0.01, 0, a, 0);   // plank lines
+    for (const e of [-1, 1]) {
+      const rx = x - s * e * 0.42, rz = z - c * e * 0.42;
+      vb.rbox(len, 0.05, 0.05, rx, 0.52, rz, 0xf4ead8, 0.02, 0, a, 0);           // rails
+      for (const k of [-1, 0, 1]) vb.cyl(0.04, 0.04, 0.36, rx + c * k * len * 0.45, 0.36, rz - s * k * len * 0.45, 0xf4ead8);
+    }
+  }
+
+  // A lake or two, with reeds, lily pads and sometimes a little rowing boat.
+  for (let n = ri(1, 2), i = 0; i < n; i++) {
+    const rx = rand(2.6, 4.2), rz = rx * rand(0.6, 0.85), turn = rand(0, Math.PI);
+    const at = spot(rx + 1);
+    if (!at) continue;
+    const [x, z] = at, c = Math.cos(turn), s = Math.sin(turn), on = (u, v) => [x + u * c + v * s, z - u * s + v * c];
+    wet.push([x, z, rx + 1]);
+    oval(vb, rx + 0.45, rz + 0.45, x, z, 0.03, 0xd9c48a, turn);
+    oval(vb, rx, rz, x, z, 0.036, 0x5ccaf0, turn);
+    oval(vb, rx * 0.55, rz * 0.5, x, z, 0.04, 0x4ab4e4, turn);
+    oval(vb, rx * 0.4, rz * 0.2, ...on(rx * 0.2, -rz * 0.3), 0.044, 0x8edcf6, turn);
+    for (let k = 0; k < 5; k++) {                                  // reeds and cattails in a clump
+      const a = rand(0, Math.PI * 2), [px, pz] = on(Math.cos(a) * rx, Math.sin(a) * rz);
+      for (let j = 0; j < 3; j++) {
+        const qx = px + rand(-0.25, 0.25), qz = pz + rand(-0.25, 0.25), h = rand(0.45, 0.7);
+        vb.cyl(0.015, 0.015, h, qx, h / 2, qz, 0x4f8f30);
+        vb.cap(0.03, 0.08, qx, h, qz, 0x7a4a1c);
+      }
+    }
+    for (let k = 0; k < ri(3, 6); k++) {                           // lily pads, some in flower
+      const a = rand(0, Math.PI * 2), d = rand(0.3, 0.75), [px, pz] = on(Math.cos(a) * rx * d, Math.sin(a) * rz * d);
+      oval(vb, 0.26, 0.26, px, pz, 0.05 + k * 0.001, 0x3fae49);
+      if (rnd() < 0.5) vb.ball(0.06, 0.05, 0.06, px + 0.06, 0.08, pz, 0xff8fc8);
+    }
+    if (rnd() < 0.5) {                                             // a rowing boat drifting
+      const [bx, bz] = on(rand(-0.4, 0.4) * rx, rand(-0.4, 0.4) * rz), ba = rand(0, Math.PI);
+      vb.ball(0.62, 0.2, 0.26, bx, 0.06, bz, 0xc9473a, 0, ba, 0);
+      vb.ball(0.54, 0.12, 0.2, bx, 0.15, bz, 0x8a5a33, 0, ba, 0);
+      vb.rbox(0.08, 0.04, 0.4, bx, 0.2, bz, 0xb88a5a, 0.01, 0, ba, 0);
+    }
+  }
+
+  // Rolling hills, tallest out behind and to the sides; only low ones in front.
+  for (let n = ri(4, 7), i = 0; i < n; i++) {
+    const rx = rand(3.5, 7), rz = rx * rand(0.55, 0.8), turn = rand(0, Math.PI);
+    const at = spot(rx * 0.85, (x, z) => z < 9 || rnd() < 0.3);
+    if (!at) continue;
+    const [x, z] = at, h = Math.min(z > 9 ? rand(0.7, 1.1) : rand(1.4, 2.6), rz * 0.3), y0 = -0.04;   // never so steep the camera sees a slope edge-on (the ink pass hatches it)
+    const foot = new THREE.Color(pick(HILLS)), top = foot.clone().multiplyScalar(1.18), _k = new THREE.Color();
+    hills.add(HILL(), (_x, y) => _k.copy(foot).lerp(top, clamp(y / h, 0, 1)), x, y0, z, 0, turn, 0, rx, h, rz);   // sunnier toward the top
+    const c = Math.cos(turn), s = Math.sin(turn);
+    for (let k = 0; k < ri(6, 14); k++) {                          // wildflowers up its sides
+      const u = rand(-0.75, 0.75), v = rand(-0.75, 0.75);
+      if (u * u + v * v > 0.6) continue;
+      const fy = y0 + h * (1 + Math.cos(Math.PI * Math.hypot(u, v))) / 2;
+      vb.ball(0.07, 0.04, 0.07, x + u * rx * c + v * rz * s, fy, z - u * rx * s + v * rz * c, pick(BLOOMS));
+    }
+  }
+
+  // Ploughed fields: furrows, some sprouting, some golden with wheat.
+  for (let n = ri(1, 3), i = 0; i < n; i++) {
+    const fw = rand(4, 6.5), fd = rand(3, 4.5), at = spot(Math.hypot(fw, fd) / 2 + 0.4);
+    if (!at) continue;
+    const [x, z] = at, turn = rand(-0.4, 0.4), c = Math.cos(turn), s = Math.sin(turn), crop = ri(0, 2);
+    vb.rbox(fw, 0.06, fd, x, 0.0, z, 0x9a6b3e, 0.03, 0, turn, 0);
+    for (let r = -fd / 2 + 0.3; r < fd / 2 - 0.1; r += 0.45) {
+      const rx = x + r * s, rz = z + r * c;
+      vb.rbox(fw - 0.3, 0.06, 0.16, rx, 0.04, rz, 0x84592f, 0.03, 0, turn, 0);
+      if (crop === 0) continue;                                    // bare earth, freshly ploughed
+      for (let u = -fw / 2 + 0.35; u < fw / 2 - 0.2; u += 0.4) {
+        const px = rx + u * c, pz = rz - u * s;
+        if (crop === 1) vb.ball(0.1, 0.08, 0.1, px, 0.1, pz, pick([0x5cb83a, 0x68c444]));
+        else vb.cone(0.07, 0.3, px, 0.2, pz, pick([0xe8c45c, 0xf0d070]));
+      }
+    }
+  }
+
+  // Little groves of trees.
+  for (let n = ri(2, 4), i = 0; i < n; i++) {
+    const at = spot(1.8);
+    if (at) for (let k = 0; k < ri(3, 6); k++) pick(ALL_TREES)(vb, at[0] + rand(-1.4, 1.4), at[1] + rand(-1.4, 1.4));
+  }
+
+  // Rock gardens: a gravel bed with stones big and small, moss, succulents and flowers.
+  for (let n = ri(5, 9), i = 0; i < n; i++) {
+    const r = rand(1.2, 2), at = spot(r + 0.2);
+    if (!at) continue;
+    const [x, z] = at, turn = rand(0, Math.PI);
+    oval(vb, r, r * 0.75, x, z, 0.026 + i * 0.0006, 0xe2dccb, turn);
+    for (let k = 0; k < 14; k++) {                                 // a ring of edging pebbles
+      const a = k / 14 * Math.PI * 2, px = Math.cos(a) * r, pz = Math.sin(a) * r * 0.75;
+      vb.ball(0.1, 0.06, 0.09, x + px * Math.cos(turn) + pz * Math.sin(turn), 0.03, z - px * Math.sin(turn) + pz * Math.cos(turn), pick(STONES));
+    }
+    for (let k = 0; k < ri(3, 6); k++) {
+      const s = rand(0.22, 0.6), px = x + rand(-0.5, 0.5) * r, pz = z + rand(-0.4, 0.4) * r;
+      vb.ball(s, s * rand(0.5, 0.8), s * rand(0.7, 1), px, s * 0.2, pz, pick(STONES), 0, rand(0, 3), 0);
+      if (rnd() < 0.5) vb.ball(s * 0.5, s * 0.2, s * 0.45, px - s * 0.2, s * 0.62, pz, 0x6fae4a);   // moss on top
+    }
+    for (let k = 0; k < ri(2, 4); k++) {                           // succulents
+      const px = x + rand(-0.6, 0.6) * r, pz = z + rand(-0.45, 0.45) * r;
+      for (let j = 0; j < 5; j++) vb.cone(0.06, 0.2, px, 0.08, pz, 0x7fc6a4, Math.cos(j * 1.26) * 0.6, 0, Math.sin(j * 1.26) * 0.6);
+    }
+    for (let k = 0; k < ri(3, 7); k++) {
+      const px = x + rand(-0.7, 0.7) * r, pz = z + rand(-0.5, 0.5) * r;
+      vb.cyl(0.012, 0.012, 0.14, px, 0.07, pz, 0x3f8f2f);
+      vb.ball(0.06, 0.035, 0.06, px, 0.15, pz, pick(BLOOMS));
+    }
+  }
+
+  // The ground itself: a fine grid tinted by gentle noise into meadows of different
+  // grasses, fading in from the yard's own green past the fence.
+  const p1 = rand(0, 6.3), p2 = rand(0, 6.3), p3 = rand(0, 6.3), B = FARM_BOUNDS, _g = new THREE.Color(), _h = new THREE.Color();
+  vb.add(prim('landGrid', () => new THREE.PlaneGeometry(2 * LAND + 4, 2 * LAND + 4, 132, 132)), (x, y, z) => {
+    const out = Math.hypot(Math.max(B.x0 - x, 0, x - B.x1), Math.max(B.z0 - z, 0, z - B.z1 - 0.6));
+    const n = (Math.sin(x * 0.21 + p1) * Math.cos(z * 0.17 + p2) + Math.sin((x + z) * 0.11 + p3) * 0.6 + Math.sin(x * 0.53 - z * 0.47 + p2) * 0.25) / 1.85;
+    const k = (clamp(n, -1, 1) + 1) / 2 * (MEADOW.length - 1), i = Math.min(Math.floor(k), MEADOW.length - 2);
+    _h.set(MEADOW[i]).lerp(_g.set(MEADOW[i + 1]), k - i);
+    return _g.set(YARD_GREEN).lerp(_h, clamp(out / 3, 0, 1));
+  }, 0, 0, 0, -Math.PI / 2, 0, 0);
+  for (let i = 0; i < 520; i++) {                                  // tufts, and flowers where it's a wildflower patch
+    const x = rand(-LAND, LAND), z = rand(-LAND, LAND);
+    if (inYard(x, z, 0.2) || hits(wet, x, z, 0.1) || hits(used, x, z, 0)) continue;
+    if (Math.sin(x * 0.31 + ph) * Math.cos(z * 0.27 - ph) > 0.55) vb.ball(0.06, 0.035, 0.06, x, 0.07, z, pick(BLOOMS));
+    else vb.cone(0.035, 0.11, x, 0.045, z, pick([0x7cc24a, 0x6fb440, 0x8fd052]));
+  }
+
+  rnd = was;
+  const g = new THREE.Group(), hm = hills.mesh();
+  hm.castShadow = false;   // a dome shading itself comes out as hatching
+  g.add(vb.mesh(), hm);
+  return g;
 }
 
 // farmhouse: cream walls, red gable roof, porch, door and windows, a path to the door
@@ -3932,7 +4129,7 @@ window.addEventListener('pointercancel', () => { press = null; P.held = false; }
 // ---------- exploring the farm: drag to look around, pinch or scroll to zoom, tap things ----------
 const FARM_ZOOM0 = 0.85;   // the farm starts a little zoomed out: there's a lot of it
 const farmCam = { x: 0, z: 0, zoom: FARM_ZOOM0 };
-const FARM_PAN = { x0: -7, x1: 7, z0: -9.5, z1: 7.5 }, FARM_ZOOM = [0.5, 1.7];
+const FARM_PAN = { x0: -12, x1: 12, z0: -12, z1: 10 }, FARM_ZOOM = [0.35, 1.7];   // room to look out over the countryside
 const touches = new Map();   // pointerId -> {x, y}
 let farmTap = null, pinch = 0;
 const _ray = new THREE.Raycaster(), _ndc = new THREE.Vector2(), GROUND = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -4909,11 +5106,7 @@ fishCamHook = dt => {
   camera.lookAt(fishCam.look);
   sun.position.copy(fishCam.look).add(SUN_OFF);
   sun.target.position.copy(fishCam.look);
-  const sc = sun.shadow.camera;   // close up, shadows only need to cover the pond side: far finer detail on the hoppers
-  if (sc.right !== FISH_SHADOW) {
-    Object.assign(sc, { left: -FISH_SHADOW, right: FISH_SHADOW, top: FISH_SHADOW, bottom: -FISH_SHADOW });
-    sc.updateProjectionMatrix();
-  }
+  setShadowSpan(FISH_SHADOW);   // close up, shadows only need to cover the pond side: far finer detail on the hoppers
   sun.updateMatrixWorld();
   sun.target.updateMatrixWorld();
   camera.updateMatrixWorld();
@@ -7205,4 +7398,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; } };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, farmCam, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; } };
