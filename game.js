@@ -44,7 +44,7 @@ const heroName = id => t('heroes.' + id);
 // before anything reads a setting, wait for the host to send it (guest.js). The
 // farm's settings then come from the host and are only kept in memory, so this
 // device's own farm is never touched.
-const FARM_KEYS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-coins', 'bl-top', 'bl-dnb', 'bl-land'];
+const FARM_KEYS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-coins', 'bl-top', 'bl-dnb', 'bl-land', 'bl-wide'];
 const joinArgs = new URLSearchParams(location.hash.slice(1));
 const GUEST = /^[A-Za-z0-9_-]{22,64}$/.test(joinArgs.get('join') || '') ? joinArgs.get('join') : null;
 const guestNet = GUEST && window.FARMHOP_RELAY_URL
@@ -2763,7 +2763,10 @@ function updateCamera(dt) {
   useCamera(V.ortho ? orthoCam : perspCam);
   const zoom = game.where === 'farm' ? farmCam.zoom : 1;
   if (orthoCam.zoom !== zoom) { orthoCam.zoom = zoom; orthoCam.updateProjectionMatrix(); }
-  if (game.where === 'farm') _t.set(farmCam.x, 0, FARM_Z - 1.4 + farmCam.z);   // the farm: framed, but you can drag and zoom to look around
+  if (game.where === 'farm') {   // the farm: framed, but you can drag and zoom to look around; zoomed right out, the whole farm sits in the middle
+    const out = clamp((FARM_ZOOM0 - zoom) / (FARM_ZOOM0 - FARM_ZOOM[0]), 0, 1);
+    _t.set(lerp(farmCam.x, viewMid(), out * out), 0, FARM_Z - 1.4 + farmCam.z);
+  }
   else {
     const F = roadFocus();
     const desired = F.z - V.lead;
@@ -2911,6 +2914,7 @@ const BUNK_COST = 10;
 farm.bunkBuilt = store.get('bl-bunk', false);
 // The Jam Stage: a plot until it's built, then a little stage where your hopper plays the banjo.
 const STAGE_COST = 1;
+const LAND_COST = 500;
 farm.stageBuilt = store.get('bl-stage', false);
 scene.add(farm.group);
 // Everything in the Farm Buildings menu (the Fish Pond has its own button). Each is
@@ -2918,6 +2922,7 @@ scene.add(farm.group);
 const BUILDINGS = [
   { id: 'bunk', flag: 'bunkBuilt', name: 'bunkhouse', cost: BUNK_COST, draw: () => buildBunk(), open: () => openBunk() },
   { id: 'stage', flag: 'stageBuilt', name: 'jamStage', cost: STAGE_COST, draw: () => buildStage(), open: () => farm.stageBuilt ? openJam() : openStage() },
+  { id: 'plot', flag: 'wide', name: 'moreLand', cost: LAND_COST, draw: () => drawPlotIcon(), open: () => openLand() },
 ];
 const buildLevel = b => farm[b.flag] ? 1 : 0;
 
@@ -2928,6 +2933,15 @@ const buildLevel = b => farm[b.flag] ? 1 : 0;
 // (+z) toward the camera: `foot` must stay clear of other pieces and inside the
 // fence; `block` (default: foot) is where the hoppers can't walk.
 const FARM_BOUNDS = { x0: -7.2, x1: 7.2, z0: -11, z1: 7.2 };   // inside the fence and trees: twice the old farm's area
+// More Land: the field to the right, as big again, bought for LAND_COST. Before then it
+// lies past the trees inside a faint rope fence; once bought the trees move round it
+// and the countryside reaches further out that way, so the farm stays in the middle.
+const WIDE_X1 = 21.6;
+farm.wide = store.get('bl-wide', false);
+if (farm.wide) FARM_BOUNDS.x1 = WIDE_X1;
+const farmMid = () => (FARM_BOUNDS.x0 + FARM_BOUNDS.x1) / 2;
+const PLOT = { x0: FARM_BOUNDS.x0 + 18.8, x1: WIDE_X1 + 0.6, z0: FARM_BOUNDS.z0 - 0.6, z1: FARM_BOUNDS.z1 + 0.6 };   // the field next door, past the trees
+const viewMid = () => (FARM_BOUNDS.x0 + (farm.wide ? FARM_BOUNDS.x1 : PLOT.x1)) / 2;   // zoomed right out: the farm, and the field for sale too
 const GRID = 0.5;
 const PIECES = {
   house: { build: buildHouse, foot: [-1.7, 1.7, -1.4, 4.2], block: [-1.7, 1.7, -1.4, 2.0], at: [-2.5, -7.5, 0] },
@@ -3005,24 +3019,99 @@ const pieceToFarm = (p, lx, lz) => {   // a point in a piece's own space, in far
 };
 
 function buildFarm() {
+  farm.scenery = new THREE.Group();
+  farm.group.add(farm.scenery);
+  buildScenery();
+  for (const id of Object.keys(PIECES)) if (!PIECES[id].onStage && (!PIECES[id].decor || ownedDecor.has(id))) addPiece(id);
+}
+// Everything round the pieces: the ground, the fence along the front, the trees all
+// round, and the countryside. Built again when the farm grows.
+function buildScenery() {
+  const g = farm.scenery;
+  for (const c of [...g.children]) {
+    g.remove(c);
+    c.traverse(o => { o.geometry?.dispose(); if (o.userData.tag) { o.material.map.dispose(); o.material.dispose(); } });
+  }
   const vb = new VB(0.45);
-  const GRASS = 0x9bd85a, B = FARM_BOUNDS;
-  vb.rbox(64, 1, 64, 0, -0.51, 0, GRASS, 0.3);                              // the yard, big enough to zoom out over (the land grid lies on top)
-  for (let i = 0; i < 80; i++) vb.cone(0.035, 0.11, rand(-12, 12), 0.045, rand(-14, 10), 0x7cc24a);  // tufts
+  const GRASS = 0x9bd85a, B = FARM_BOUNDS, [lx0, lx1] = landX(), mid = farmMid();
+  vb.rbox(lx1 - lx0 + 4, 1, 64, (lx0 + lx1) / 2, -0.51, 0, GRASS, 0.3);    // the ground, big enough to zoom out over (the land grid lies on top)
+  for (let i = 0; i < 80 * (B.x1 - B.x0) / 14.4; i++) vb.cone(0.035, 0.11, rand(B.x0 - 4.8, B.x1 + 4.8), 0.045, rand(-14, 10), 0x7cc24a);  // tufts
 
   // fence along the front, trees all round
-  const fz = B.z1 + 0.6, fx = B.x1 + 0.6;
-  for (let x = -Math.floor(fx); x <= Math.floor(fx); x += 1) {
+  const fz = B.z1 + 0.6, fx0 = Math.ceil(B.x0 - 0.6), fx1 = Math.floor(B.x1 + 0.6);
+  for (let x = fx0; x <= fx1; x += 1) {
     vb.cyl(0.05, 0.06, 0.6, x, 0.3, fz, 0xf4ead8);
     vb.ball(0.06, 0.04, 0.06, x, 0.62, fz, 0xf4ead8);
   }
-  for (const y of [0.25, 0.48]) vb.rbox(Math.floor(fx) * 2 + 0.2, 0.06, 0.05, 0, y, fz, 0xf4ead8, 0.02);
-  for (let x = -13; x <= 13; x += 1.3) for (const z of [B.z0 - 1.3, B.z0 - 2.9]) pick(ALL_TREES)(vb, x + rand(-0.3, 0.3), z + rand(-0.3, 0.3));
-  for (let z = B.z0; z <= B.z1 + 1.5; z += 1.4) for (const x of [B.x1 + 1.2, B.x1 + 2.5, B.x1 + 3.9]) for (const sx of [-1, 1]) pick(ALL_TREES)(vb, sx * x + rand(-0.3, 0.3), z + rand(-0.3, 0.3));
+  for (const y of [0.25, 0.48]) vb.rbox(fx1 - fx0 + 0.2, 0.06, 0.05, (fx0 + fx1) / 2, y, fz, 0xf4ead8, 0.02);
+  for (let x = B.x0 - 5.8; x <= B.x1 + 5.8; x += 1.3) for (const z of [B.z0 - 1.3, B.z0 - 2.9]) pick(ALL_TREES)(vb, x + rand(-0.3, 0.3), z + rand(-0.3, 0.3));
+  for (let z = B.z0; z <= B.z1 + 1.5; z += 1.4) for (const d of [1.2, 2.5, 3.9]) for (const x of [B.x0 - d, B.x1 + d]) pick(ALL_TREES)(vb, x + rand(-0.3, 0.3), z + rand(-0.3, 0.3));
   bush(vb, B.x0 - 0.5, 3.4); bush(vb, B.x1 + 0.5, -1.6);
-  farm.group.add(vb.mesh());
-  farm.group.add(buildLand());
-  for (const id of Object.keys(PIECES)) if (!PIECES[id].onStage && (!PIECES[id].decor || ownedDecor.has(id))) addPiece(id);
+  if (!farm.wide) {   // the field next door: a faint rope fence round it, and its price
+    const P = PLOT, posts = [];
+    for (let x = P.x0; x <= P.x1 + 0.01; x += (P.x1 - P.x0) / 10) posts.push([x, P.z0], [x, P.z1]);
+    for (let z = P.z0; z <= P.z1 + 0.01; z += (P.z1 - P.z0) / 12) posts.push([P.x0, z], [P.x1, z]);
+    for (const [x, z] of posts) vb.cyl(0.025, 0.03, 0.3, x, 0.15, z, 0xe6dcc2);
+    for (const z of [P.z0, P.z1]) vb.rbox(P.x1 - P.x0, 0.015, 0.015, (P.x0 + P.x1) / 2, 0.25, z, 0xd8ccb0, 0.005);
+    for (const x of [P.x0, P.x1]) vb.rbox(0.015, 0.015, P.z1 - P.z0, x, 0.25, (P.z0 + P.z1) / 2, 0xd8ccb0, 0.005);
+    costTag(g, LAND_COST, (P.x0 + P.x1) / 2, 1.3, (P.z0 + P.z1) / 2);
+  }
+  g.add(vb.mesh());
+  g.add(buildLand());
+}
+const inPlot = (x, z) => x > PLOT.x0 && x < PLOT.x1 && z > PLOT.z0 && z < PLOT.z1;
+// For the Farm Buildings card: a little fenced field with a sign.
+function drawPlotIcon() {
+  const g = farm.plot, v = new VB(0.6);
+  v.rbox(2.6, 0.08, 2.0, 0, 0.04, 0, 0x9bd85a, 0.06);
+  for (let i = 0; i < 9; i++) v.cone(0.05, 0.16, -1 + (i % 3) * 1, 0.14, -0.6 + Math.floor(i / 3) * 0.6, 0x7cc24a);
+  for (let i = 0; i <= 6; i++) for (const z of [-0.95, 0.95]) v.cyl(0.03, 0.035, 0.35, -1.25 + i * 2.5 / 6, 0.2, z, 0xe6dcc2);
+  for (let i = 0; i <= 4; i++) for (const x of [-1.25, 1.25]) v.cyl(0.03, 0.035, 0.35, x, 0.2, -0.95 + i * 1.9 / 4, 0xe6dcc2);
+  v.cyl(0.04, 0.04, 0.9, 0.5, 0.45, 0.3, 0x9c6b3c);                                // a sign with a sunflower on it
+  v.rbox(0.7, 0.42, 0.06, 0.5, 0.95, 0.32, 0xfff1d8, 0.06);
+  v.cyl(0.11, 0.11, 0.03, 0.5, 0.95, 0.36, 0xffcc1a, Math.PI / 2, 0, 0);
+  v.cyl(0.05, 0.05, 0.035, 0.5, 0.95, 0.37, 0x7a4a1c, Math.PI / 2, 0, 0);
+  g.add(v.mesh());
+}
+// The More Land panel: the price and a Buy button; once it's bought, just a happy note.
+const landOpen = () => $('land').classList.contains('show');
+function refreshLand() {
+  $('landSay').textContent = t(farm.wide ? 'landDone' : 'landPlan');
+  $('landBuy').hidden = farm.wide;
+  $('landCost').textContent = LAND_COST;
+  $('landBuy').disabled = game.coins < LAND_COST;
+  $('landNeed').textContent = farm.wide ? '' : needText(LAND_COST - game.coins);
+}
+function openLand() {
+  if (GUEST || game.state !== 'farm') return;
+  closeHeroes(); closePond(); closeBunk(); closeStage();
+  refreshLand();
+  $('land').classList.add('show');
+  game.picking = true;
+}
+function closeLand() {
+  $('land').classList.remove('show');
+  game.picking = anyPanel();
+}
+function buyLand() {
+  if (farm.wide) return;
+  if (game.coins < LAND_COST) { sfx.bump(); return; }
+  game.coins -= LAND_COST;
+  store.set('bl-coins', game.coins);
+  farm.wide = true;
+  store.set('bl-wide', true);
+  growFarm();
+  sfx.upgrade();
+  cheer((PLOT.x0 + PLOT.x1) / 2, (PLOT.z0 + PLOT.z1) / 2);
+  hud();
+  closeLand();
+  Object.assign(farmCam, { x: farmMid(), z: 0, zoom: FARM_ZOOM[0] });   // look out over the whole farm
+}
+function growFarm() {   // the bounds, the yard and the scenery
+  FARM_BOUNDS.x1 = WIDE_X1;
+  YARD.x1 = FARM_BOUNDS.x1 - 0.3;
+  buildScenery();
+  settleWalkers();
 }
 
 // ---------- the land around the farm ----------
@@ -3032,8 +3121,10 @@ function buildFarm() {
 // farm's countryside is its own (and a visiting friend sees the host's).
 // Flat things are stacked a hair apart in height so they never flicker.
 const LAND_KEY = 'bl-land';
-const LAND = 30;                                                   // how far out it goes (the yard slab is 64 across)
-const FARM_ZONE = { x0: -12.8, x1: 12.8, z0: -15.5, z1: 8.8 };     // the farm, its fence and its ring of trees
+const LAND = 30;                                                   // how far out it goes, front to back
+// ...and side to side: a little further right once the farm is bigger, so it stays in the middle
+const landX = () => [-LAND, LAND + 2 * farmMid()];
+const FARM_ZONE = { x0: -12.8, x1: WIDE_X1 + 5.6, z0: -15.5, z1: 8.8 };   // the farm, the field next door, and their trees
 const LDISC = () => prim('ldisc', () => new THREE.CylinderGeometry(1, 1, 0.1, 22));
 // A hill: a bell turned on a lathe, easing out flat into the grass so it never has the
 // steep sides that the ink pass would hatch.
@@ -3053,14 +3144,14 @@ const oval = (vb, rx, rz, x, z, y, col, turn = 0) => vb.add(LDISC(), col, x, y -
 const nearFarm = (x, z, r) => x + r > FARM_ZONE.x0 && x - r < FARM_ZONE.x1 && z + r > FARM_ZONE.z0 && z - r < FARM_ZONE.z1;
 const inYard = (x, z, r) => x + r > FARM_BOUNDS.x0 - 0.6 && x - r < FARM_BOUNDS.x1 + 0.6 && z + r > FARM_BOUNDS.z0 - 0.6 && z - r < FARM_BOUNDS.z1 + 0.6;
 function buildLand() {
-  const vb = new VB(0.45), hills = new VB(0.45), was = rnd;
+  const vb = new VB(0.45), hills = new VB(0.45), was = rnd, [LX0, LX1] = landX();
   rnd = seeded(landSeed());
   const used = [], wet = [];                                       // circles taken by things, and by water: [x, z, r]
   const hits = (list, x, z, r) => list.some(([ux, uz, ur]) => Math.hypot(ux - x, uz - z) < ur + r);
-  const free = (x, z, r) => Math.abs(x) + r < LAND && Math.abs(z) + r < LAND && !nearFarm(x, z, r) && !hits(used, x, z, r);
+  const free = (x, z, r) => x - r > LX0 && x + r < LX1 && Math.abs(z) + r < LAND && !nearFarm(x, z, r) && !hits(used, x, z, r);
   const spot = (r, zone = () => true) => {                        // somewhere clear for a circle of radius r
     for (let i = 0; i < 80; i++) {
-      const x = rand(-LAND, LAND), z = rand(-LAND, LAND);
+      const x = rand(LX0, LX1), z = rand(-LAND, LAND);
       if (free(x, z, r) && zone(x, z)) { used.push([x, z, r]); return [x, z]; }
     }
     return null;
@@ -3068,10 +3159,11 @@ function buildLand() {
 
   // The river wanders right across the land in front of the farm, down one side, or behind it.
   const way = ri(0, 2), side = rnd() < 0.5 ? -1 : 1;
-  const base = way === 0 ? rand(12, 14.5) : way === 1 ? side * rand(15.8, 18) : -rand(19, 23);
+  const base = way === 0 ? rand(12, 14.5) : way === 1 ? -rand(15.8, 18) : -rand(19, 23);   // (down the left side: the right is kept for the field next door)
   const amp = rand(0.7, 1.9), freq = rand(0.12, 0.2), ph = rand(0, 6.3), w = rand(0.85, 1.2);
   const along = t => { const o = base + (Math.sin(t * freq + ph) + Math.sin(t * freq * 2.3 + ph) * 0.3) * amp; return way === 1 ? [o, t] : [t, o]; };
-  for (let t = -LAND - 2; t <= LAND + 2; t += 0.7) {
+  const [t0, t1] = way === 1 ? [-LAND, LAND] : [LX0, LX1];
+  for (let t = t0 - 2; t <= t1 + 2; t += 0.7) {
     const [x, z] = along(t);
     oval(vb, w + 0.45, w + 0.45, x, z, 0.03, 0xd9c48a);           // sandy banks
     oval(vb, w, w, x, z, 0.036, 0x5ccaf0);                         // water
@@ -3079,7 +3171,7 @@ function buildLand() {
     used.push([x, z, w + 0.5]); wet.push([x, z, w + 0.5]);
   }
   for (let i = 0; i < 14; i++) {                                   // glints on the water
-    const t = rand(-LAND, LAND), [x, z] = along(t), [x2, z2] = along(t + 0.2);
+    const t = rand(t0, t1), [x, z] = along(t), [x2, z2] = along(t + 0.2);
     oval(vb, rand(0.35, 0.6), 0.1, x + rand(-0.3, 0.3), z + rand(-0.3, 0.3), 0.044, 0x8edcf6, -Math.atan2(z2 - z, x2 - x));
   }
   {                                                                // a footbridge somewhere along it
@@ -3196,15 +3288,16 @@ function buildLand() {
   // The ground itself: a fine grid tinted by gentle noise into meadows of different
   // grasses, fading in from the yard's own green past the fence.
   const p1 = rand(0, 6.3), p2 = rand(0, 6.3), p3 = rand(0, 6.3), B = FARM_BOUNDS, _g = new THREE.Color(), _h = new THREE.Color();
-  vb.add(prim('landGrid', () => new THREE.PlaneGeometry(2 * LAND + 4, 2 * LAND + 4, 132, 132)), (x, y, z) => {
+  const gw = LX1 - LX0 + 4;
+  vb.add(prim('landGrid' + gw, () => new THREE.PlaneGeometry(gw, 2 * LAND + 4, Math.round(132 * gw / (2 * LAND + 4)), 132)), (x, y, z) => {
     const out = Math.hypot(Math.max(B.x0 - x, 0, x - B.x1), Math.max(B.z0 - z, 0, z - B.z1 - 0.6));
     const n = (Math.sin(x * 0.21 + p1) * Math.cos(z * 0.17 + p2) + Math.sin((x + z) * 0.11 + p3) * 0.6 + Math.sin(x * 0.53 - z * 0.47 + p2) * 0.25) / 1.85;
     const k = (clamp(n, -1, 1) + 1) / 2 * (MEADOW.length - 1), i = Math.min(Math.floor(k), MEADOW.length - 2);
     _h.set(MEADOW[i]).lerp(_g.set(MEADOW[i + 1]), k - i);
     return _g.set(YARD_GREEN).lerp(_h, clamp(out / 3, 0, 1));
-  }, 0, 0, 0, -Math.PI / 2, 0, 0);
-  for (let i = 0; i < 520; i++) {                                  // tufts, and flowers where it's a wildflower patch
-    const x = rand(-LAND, LAND), z = rand(-LAND, LAND);
+  }, (LX0 + LX1) / 2, 0, 0, -Math.PI / 2, 0, 0);
+  for (let i = 0; i < 520 * (LX1 - LX0) / (2 * LAND); i++) {       // tufts, and flowers where it's a wildflower patch
+    const x = rand(LX0, LX1), z = rand(-LAND, LAND);
     if (inYard(x, z, 0.2) || hits(wet, x, z, 0.1) || hits(used, x, z, 0)) continue;
     if (Math.sin(x * 0.31 + ph) * Math.cos(z * 0.27 - ph) > 0.55) vb.ball(0.06, 0.035, 0.06, x, 0.07, z, pick(BLOOMS));
     else vb.cone(0.035, 0.11, x, 0.045, z, pick([0x7cc24a, 0x6fb440, 0x8fd052]));
@@ -4406,7 +4499,7 @@ window.addEventListener('pointercancel', () => { press = null; P.held = false; }
 // ---------- exploring the farm: drag to look around, pinch or scroll to zoom, tap things ----------
 const FARM_ZOOM0 = 0.85;   // the farm starts a little zoomed out: there's a lot of it
 const farmCam = { x: 0, z: 0, zoom: FARM_ZOOM0 };
-const FARM_PAN = { x0: -12, x1: 12, z0: -12, z1: 10 }, FARM_ZOOM = [0.35, 1.7];   // room to look out over the countryside
+const FARM_PAN = { x0: -12, x1: WIDE_X1 + 4.8, z0: -12, z1: 10 }, FARM_ZOOM = [0.35, 1.7];   // room to look out over the countryside
 const touches = new Map();   // pointerId -> {x, y}
 let farmTap = null, pinch = 0;
 const _ray = new THREE.Raycaster(), _ndc = new THREE.Vector2(), GROUND = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -4520,6 +4613,7 @@ function tapFarm(x, y) {
     if (hit(farm.pieces.bunk.group)) { openBunk(); return; }
     if (hit(farm.pieces.stage.group)) { stageAct(); return; }
     if (hit(farm.pieces.pond.group)) { openPond(); return; }
+    if (!farm.wide && groundAt(x, y, _a) && inPlot(_a.x - farm.group.position.x, _a.z - farm.group.position.z)) { openLand(); return; }
   }
   if (groundAt(x, y, _a)) hopToward(myKey(), _a.x - farm.group.position.x, _a.z - farm.group.position.z);
 }
@@ -4578,6 +4672,12 @@ window.addEventListener('keydown', e => {
   }
   if (game.picking && bookOpen()) { if (e.code === 'Escape' || e.code === 'Enter') closeBook(); e.preventDefault(); return; }
   if (game.picking && bagOpen()) { bagKey(e.code); e.preventDefault(); return; }
+  if (game.picking && landOpen()) {   // More Land: Enter buys, Escape closes
+    if (e.code === 'Enter' || e.code === 'Space') buyLand();
+    else if (e.code === 'Escape') closeLand();
+    e.preventDefault();
+    return;
+  }
   if (game.picking && pondOpen()) {   // Fish Pond panel: Enter buys, F goes fishing, B opens the backpack, Escape closes
     if (e.code === 'Enter' || e.code === 'Space') buyPond();
     else if (e.code === 'KeyF') goFish(myKey(), 'keys');
@@ -6047,6 +6147,9 @@ function buildJamStage() {
 $('stageBuy').addEventListener('click', buildJamStage);
 $('stageClose').addEventListener('click', closeStage);
 $('stage').addEventListener('click', e => { if (e.target.id === 'stage') closeStage(); });
+$('landBuy').addEventListener('click', buyLand);
+$('landClose').addEventListener('click', closeLand);
+$('land').addEventListener('click', e => { if (e.target.id === 'land') closeLand(); });
 
 const SCALE = [1, 1.1225, 1.2599, 1.4983, 1.6818, 2];   // D E F# A B D
 const JAM_ROWS = 3;   // top row an octave up, bottom row an octave down
@@ -7165,6 +7268,7 @@ function applyLang() {
   if (buildsOpen()) refreshBuilds();
   if (bookOpen()) refreshBook();
   if (bagOpen() && !asking()) refreshBag();
+  if (landOpen()) refreshLand();
   if (shopOpen()) refreshShop();
   if (stageOpen()) refreshStage();
   if (settingsOpen()) renderSettings();
@@ -7559,6 +7663,7 @@ function pollPad() {
     return;
   }
   if (game.picking && bookOpen()) { if (pressed(0) || pressed(1) || pressed(9)) closeBook(); return; }
+  if (game.picking && landOpen()) { if (pressed(0) || pressed(9)) buyLand(); else if (pressed(1)) closeLand(); return; }
   if (game.picking && bagOpen()) {   // d-pad chooses a fish, A one more, X one fewer, Y all, Start sells, B closes; asked to be sure: A sells, B keeps them
     if (asking()) { if (pressed(0) || pressed(9)) sellFish(); else if (pressed(1)) showSure(false); return; }
     const id = bagCards()[bagFocus]?.dataset.id;
@@ -7712,7 +7817,7 @@ if (guestNet) {
   };
   const keepHero = () => { try { sessionStorage.setItem('bl-guest-hero', heroId); } catch {} };   // the same hopper after a reload
   keepHero();
-  const LOOKS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage'];
+  const LOOKS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-wide'];
   guestNet.on(m => {
     if (m.t === 'leap') { const w = walkerOf(m.k); if (w && m.k !== myKey()) landLeap(w, +m.x, +m.z, +m.up, isFinite(m.y) ? clamp(+m.y, 0, 0.5) : null); }
     else if (m.t === 'crew') applyCrew(m.walkers || []);
