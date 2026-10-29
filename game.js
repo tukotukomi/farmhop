@@ -45,7 +45,7 @@ const heroName = id => t('heroes.' + id);
 // before anything reads a setting, wait for the host to send it (guest.js). The
 // farm's settings then come from the host and are only kept in memory, so this
 // device's own farm is never touched.
-const FARM_KEYS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-coins', 'bl-top', 'bl-dnb', 'bl-land', 'bl-wide', 'bl-key', 'bl-scale'];
+const FARM_KEYS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-coins', 'bl-top', 'bl-dnb', 'bl-land', 'bl-wide', 'bl-key', 'bl-scale', 'bl-pumpkins'];
 const joinArgs = new URLSearchParams(location.hash.slice(1));
 const GUEST = /^[A-Za-z0-9_-]{22,64}$/.test(joinArgs.get('join') || '') ? joinArgs.get('join') : null;
 const guestNet = GUEST && window.FARMHOP_RELAY_URL
@@ -829,6 +829,44 @@ function buildTuko() {
   return finishHero(group, inner, [wobble(inner, t, 0, 0.24, 0.12, 1)]);
 }
 
+// The Pumpking: a jack-o'-lantern head (the face lit from inside) under a little gold
+// crown, a royal purple robe trimmed with ermine, vine arms, and a pumpkin sceptre.
+function buildPumpking() {
+  const ROBE = 0x5b2a8a, ROBE_D = 0x45206a, ERM = 0xf6f2ea, VINE = 0x4f8a2f, GOLD = 0xffcf3a;
+  const group = new THREE.Group(), inner = new THREE.Group();
+  group.add(inner);
+  const b = new VB(), face = new VB();
+  for (const s of [-1, 1]) {
+    b.ball(0.08, 0.06, 0.11, s * 0.09, 0.05, -0.02, 0x2e2633);              // boots
+    b.cap(0.055, 0.08, s * 0.09, 0.15, 0, VINE);                            // legs
+    b.cap(0.04, 0.22, s * 0.22, 0.4, -0.02, VINE, 0, 0, s * 0.5);           // vine arms
+    b.ball(0.06, 0.03, 0.08, s * 0.31, 0.29, -0.04, 0x6fb84a, 0.3, 0, s * 0.3);   // leaf hands
+    face.ball(0.07, 0.055, 0.02, s * 0.11, 0.84, -0.265, 0xffd25a, 0, 0, -s * 0.45);   // carved eyes
+  }
+  b.cyl(0.15, 0.25, 0.42, 0, 0.36, 0, ROBE);                                // robe
+  b.rbox(0.08, 0.36, 0.03, 0, 0.36, -0.2, ROBE_D, 0.02);                    // a front panel
+  b.torus(0.235, 0.035, Math.PI * 2, 0, 0.16, 0, ERM, Math.PI / 2, 0, 0);   // ermine hem...
+  b.torus(0.15, 0.04, Math.PI * 2, 0, 0.56, 0, ERM, Math.PI / 2, 0, 0);     // ...and collar
+  for (const [x, y, z] of [[-0.12, 0.16, -0.19], [0.12, 0.16, -0.19], [0, 0.16, -0.235], [0.07, 0.565, -0.15], [-0.07, 0.565, -0.15]]) b.ball(0.012, 0.018, 0.01, x, y, z, 0x2a2033);   // its black tips
+  b.rbox(0.42, 0.44, 0.03, 0, 0.36, 0.18, 0xa3122e, 0.04, 0.12, 0, 0);     // a red cape behind
+  b.ball(0.3, 0.26, 0.29, 0, 0.8, 0, PUMPKIN(0, 0));                        // the pumpkin head
+  b.cyl(0.035, 0.05, 0.09, 0, 1.08, 0.02, 0x5a7a2a, 0, 0, 0.2);             // stem
+  b.cap(0.012, 0.2, 0.1, 1.06, 0.05, VINE, 0, 0, 1.2);                      // a curl of vine
+  face.ball(0.03, 0.025, 0.015, 0, 0.77, -0.285, 0xffd25a);                 // nose
+  face.torus(0.11, 0.025, Math.PI, 0, 0.72, -0.255, 0xffb02a, 0, 0, Math.PI);   // a jolly grin
+  b.cyl(0.13, 0.12, 0.08, 0, 1.06, 0.04, GOLD, -0.15, 0, 0.1);              // crown band
+  for (let i = 0; i < 5; i++) {
+    const a = i / 5 * Math.PI * 2;
+    b.cone(0.03, 0.08, Math.cos(a) * 0.115, 1.13, 0.04 + Math.sin(a) * 0.11, GOLD);
+    b.ball(0.018, 0.018, 0.018, Math.cos(a) * 0.125, 1.06, 0.04 + Math.sin(a) * 0.12, i % 2 ? 0xd8233a : 0x3a7fe0);   // jewels
+  }
+  b.cap(0.018, 0.4, 0.33, 0.42, -0.06, GOLD, 0, 0, -0.1);                   // the sceptre...
+  b.ball(0.06, 0.05, 0.06, 0.35, 0.66, -0.06, PUMPKIN(0.35, -0.06));        // ...topped with a little pumpkin
+  inner.add(b.mesh());
+  inner.add(new THREE.Mesh(face.geometry(), GLOW_VMAT));                    // the face, lit from inside
+  return finishHero(group, inner, []);
+}
+
 // Captain Awesome: a big 55-year-old with a white beard and a stern brow who turns out
 // to be the friendliest guy on the farm. A baseball cap worn forwards, a black shirt,
 // jeans and work boots, and his acoustic guitar slung on his back.
@@ -1146,6 +1184,7 @@ const HEROES = [
   { id: 'ribbit', name: 'DJ Ribbit', build: buildRibbit, bg: '#dcf7c8', pad: '#6fd24a', supporter: true },
   { id: 'moonbun', name: 'Moonbun', build: buildMoonbun, bg: '#efe6ff', pad: '#cdb8ff', supporter: true },
   { id: 'captain', name: 'Captain Awesome', build: buildCaptain, bg: '#ffe0d6', price: 20, pad: '#d8473a' },
+  { id: 'pumpking', name: 'Pumpking', build: buildPumpking, bg: '#ffd9b0', pad: '#ff8a1a', event: true },   // the Pumpkin Harvest's: traded for pumpkins, not invited
 ];
 const SUP_HEROES = HEROES.filter(h => h.supporter).map(h => h.id);   // live on every supporter's farm
 const STARTERS = ['betty'];   // owned from the start; everyone else is invited from the Bunkhouse
@@ -1855,6 +1894,11 @@ const sfx = (() => {
         sweep('sine', n / 2, n / 2, t, 0.07, 0.09);
         sweep('sine', n * 2, n * 2, t, 0.5, 0.1);
         sweep('sine', n * 3, n * 3, t, 0.35, 0.03);
+      } else if (id === 'pumpking') {                           // the Pumpking: a pipe-organ stab, the note with its octave and twelfth
+        sweep('sine', n, n, t, 0.5, 0.08);
+        sweep('sine', n * 2, n * 2, t, 0.4, 0.05);
+        sweep('sine', n * 3, n * 3, t, 0.3, 0.03);
+        sweep('square', n / 2, n / 2, t, 0.22, 0.015);
       } else if (id === 'captain') {                            // Captain Awesome: a strum down his acoustic, root, fifth, octave, fifth
         [[n / 2, 0.09], [n * 0.75, 0.07], [n, 0.08], [n * 1.5, 0.05]].forEach(([f, v], i) => guitar(f, t + i * 0.013, 0.6, v));
       } else {                                                  // Betty Lou: a banjo pluck
@@ -1869,7 +1913,7 @@ const sfx = (() => {
     hold(id, n, amt, delay = 0, len = 0) {
       if (!ctx || muted || amt <= 0) return null;
       const t = ctx.currentTime + Math.max(0, delay), o = ctx.createOscillator(), f1 = ctx.createBiquadFilter(), g = ctx.createGain();
-      const V = { captain: ['triangle', 1, 0], betty: ['pulse', 1, 0], axolotl: ['sine', 1, 5], catstar: ['triangle', 1, 6.5], leafwish: ['triangle', 2, 0], tuko: ['sawtooth', 2, 0], siracha: ['sawtooth', 1, 0], ribbit: ['triangle', 0.5, 14], moonbun: ['sine', 2, 4], spider: ['sine', 2, 9], lyla: ['triangle', 0.5, 0], carla: ['sine', 2, 3] }[id] || ['triangle', 1, 0];
+      const V = { pumpking: ['sine', 1, 4], captain: ['triangle', 1, 0], betty: ['pulse', 1, 0], axolotl: ['sine', 1, 5], catstar: ['triangle', 1, 6.5], leafwish: ['triangle', 2, 0], tuko: ['sawtooth', 2, 0], siracha: ['sawtooth', 1, 0], ribbit: ['triangle', 0.5, 14], moonbun: ['sine', 2, 4], spider: ['sine', 2, 9], lyla: ['triangle', 0.5, 0], carla: ['sine', 2, 3] }[id] || ['triangle', 1, 0];
       const [wave, oct, wob] = V;
       if (wave === 'pulse') o.setPeriodicWave(pulseWave()); else o.type = wave;
       o.frequency.value = n * oct;   // octaves of the pad's note, so it stays in key
@@ -2199,9 +2243,41 @@ function updateSpooky(dt) {
   }
   const pill = $('spookyPill'), show = spooky.on && road;
   pill.hidden = !show;
-  if (show) { const s = Math.max(0, Math.ceil(spooky.t)); pill.textContent = t('spookyTime', { t: Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') }); }
+  if (show) { const s = Math.max(0, Math.ceil(spooky.t)); pill.textContent = t('spookyTime', { t: Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') }) + (eventOn() ? '  🎃 ' + pumpkins : ''); }
+}
+// ---------- the Pumpkin Harvest ----------
+// Until the end of November 7 (Pacific time), the spooky farm grows pumpkins: its
+// sunflowers come up as pumpkins, with more besides. 300 trade for the Pumpking; when
+// the harvest is over, any pumpkins left turn into sunflowers, one for one.
+const EVENT_END = Date.UTC(2026, 10, 8, 8);   // midnight at the end of Nov 7, PST (UTC-8)
+const PUMPKING_PRICE = 300;
+const eventOn = () => Date.now() < EVENT_END;
+let pumpkins = store.get('bl-pumpkins', 0);
+let pumpkinGeo = null;
+const PUMPKIN_COIN_MAT = toon({ vertexColors: true, emissive: 0x3a1a00 });
+function addPumpkin(lane, c) {
+  if (!pumpkinGeo) {
+    const v = new VB(0.6);
+    v.ball(0.2, 0.16, 0.2, 0, 0.17, 0, PUMPKIN(0, 0));
+    v.cyl(0.025, 0.035, 0.08, 0, 0.36, 0, 0x5a7a2a, 0, 0, 0.25);
+    v.ball(0.07, 0.015, 0.045, 0.07, 0.35, 0, 0x4f8a2f, 0, 0.3, 0.3);
+    pumpkinGeo = v.geometry();
+  }
+  const m = new THREE.Mesh(pumpkinGeo, PUMPKIN_COIN_MAT);
+  m.position.set(c, LANE_Y[lane.type], 0);
+  m.castShadow = true;
+  lane.group.add(m);
+  lane.coins.push({ c, m, pumpkin: true });
+}
+function gainPumpkin(h) {
+  pumpkins++;
+  store.set('bl-pumpkins', pumpkins);
+  sfx.coin();
+  burst(h.x, 0.6, h.z, [0xff8a1a, 0xffb02a, 0x4f8a2f], 10, 1.5, 4, 0.08, 0.5);
+  markEvent();
 }
 function addSunflower(lane, c) {
+  if (spooky.on && eventOn()) return addPumpkin(lane, c);   // on the spooky farm, during the harvest
   const m = new THREE.Mesh(FLOWER_GEO, FLOWER_MAT);
   m.position.set(c, LANE_Y[lane.type], 0);
   m.castShadow = true;
@@ -2355,6 +2431,10 @@ function buildLane(r) {
       }
       if (r > 3 && rnd() < 0.16 && reach.size) addSunflower(lane, pick([...reach]));
       if (r >= spooky.next && !spooky.on && reach.size) plantSpooky(lane);
+      if (spooky.on && eventOn() && reach.size && Math.random() < 0.5) {   // more pumpkins besides (off the row's own dice, so the rest stays the same)
+        const free = [...reach].filter(c => !lane.coins.some(o => o.c === c));
+        if (free.length) addPumpkin(lane, free[Math.floor(Math.random() * free.length)]);
+      }
     }
   } else if (type === 'road') {
     strip(vb, -0.02, 0x5f5c66, shade(0x5f5c66, 0.72));
@@ -2732,6 +2812,10 @@ function land(h = P) {
     lane.group.remove(coin.m);
     lane.coins.splice(lane.coins.indexOf(coin), 1);
     startSpooky(h);
+  } else if (coin?.pumpkin) {   // a harvest pumpkin: this screen's own too
+    lane.group.remove(coin.m);
+    lane.coins.splice(lane.coins.indexOf(coin), 1);
+    gainPumpkin(h);
   } else if (coin) {
     roadSend({ t: 'rc', r: h.r, c: coin.c });
     lane.group.remove(coin.m);
@@ -4701,7 +4785,7 @@ function nextLeap(w) {
 // Sitting bends a hopper at the waist: while seated it wears a copy of its body with
 // everything below the hips swung forward, so its legs stick out over the front of
 // the seat. HIPS: where each one's legs meet its body (model units, before the 1.3 scale).
-const HIPS = { captain: 0.265, betty: 0.265, axolotl: 0.18, catstar: 0.235, leafwish: 0.2, tuko: 0.235, spider: 0.235, lyla: 0.24, carla: 0.15, siracha: 0.17, ribbit: 0.235, moonbun: 0.235 };   // (Carla's at her skirt's hem: the dress sits on the seat, legs out from under it)
+const HIPS = { pumpking: 0.2, captain: 0.265, betty: 0.265, axolotl: 0.18, catstar: 0.235, leafwish: 0.2, tuko: 0.235, spider: 0.235, lyla: 0.24, carla: 0.15, siracha: 0.17, ribbit: 0.235, moonbun: 0.235 };   // (Carla's at her skirt's hem: the dress sits on the seat, legs out from under it)
 const TAIL_UP = -0.95;   // a low tail tips up and back over the back of the seat while sitting
 const SIT_BEND = 1.35;   // how far forward the legs swing (radians)
 const hipOf = w => (HIPS[w.id] ?? 0.22) * 1.3;
@@ -5441,6 +5525,7 @@ window.addEventListener('keydown', e => {
   }
   if (game.picking && bookOpen()) { if (e.code === 'Escape' || e.code === 'Enter') closeBook(); e.preventDefault(); return; }
   if (game.picking && photoOpen()) { if (e.code === 'Escape') closePhoto(); return; }
+  if (game.picking && eventOpen()) { if (e.code === 'Escape') closeEvent(); else if (e.code === 'Enter' || e.code === 'Space') tradePumpking(); e.preventDefault(); return; }
   if (game.picking && bagOpen()) { bagKey(e.code); e.preventDefault(); return; }
   if (game.picking && landOpen()) {   // More Land: Enter buys, Escape closes
     if (e.code === 'Enter' || e.code === 'Space') buyLand();
@@ -6564,7 +6649,7 @@ function refreshBunk(msg) {
     c.classList.toggle('locked', !have);
     c.classList.toggle('short', !have && !h.supporter && game.coins < h.price);
     c.classList.toggle('focus', nav && i === bunkFocus);
-    c.hidden = h.supporter && !SUPPORT_URL && !have;
+    c.hidden = (h.supporter && !SUPPORT_URL && !have) || (h.event && !have);
     const tag = c.querySelector('.tag');
     tag.className = 'tag ' + (have ? 'check' : h.supporter ? 'cost sup' : 'cost');
     tag.innerHTML = have ? CHECK_SVG : h.supporter ? HEART_SVG + `<span>${t('sup.tag')}</span>` : FLOWER_SVG + `<span>${h.price}</span>`;
@@ -6577,7 +6662,7 @@ function openBunk() {
   if (game.state !== 'farm') return;
   closeHeroes();
   closePond();
-  bunkFocus = Math.max(0, HEROES.findIndex(h => !owned.has(h.id)));
+  bunkFocus = Math.max(0, HEROES.findIndex(h => !owned.has(h.id) && !h.event));
   refreshBunk();
   $('bunk').classList.add('show');
   game.picking = true;
@@ -6602,12 +6687,13 @@ function buildBunkhouse() {
   sfx.upgrade();
   cheer(farm.pieces.bunk.x, farm.pieces.bunk.z);
   hud();
-  bunkFocus = Math.max(0, HEROES.findIndex(h => !owned.has(h.id)));
+  bunkFocus = Math.max(0, HEROES.findIndex(h => !owned.has(h.id) && !h.event));
   refreshBunk();
 }
 function unlockHero(id) {
   const h = HEROES.find(x => x.id === id);
   if (h.supporter) { if (!owned.has(id)) { closeBunk(); openSupport(); } return; }
+  if (h.event) { if (!owned.has(id)) { closeBunk(); openEvent(); } return; }
   if (!farm.bunkBuilt || owned.has(id)) return;
   if (game.coins < h.price) { sfx.bump(); refreshBunk(needText(h.price - game.coins)); return; }
   game.coins -= h.price;
@@ -7165,6 +7251,74 @@ function photoFile() {
   const d = new Date(), p = n => String(n).padStart(2, '0');
   return new File([photoBlob], `farm-hop-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.png`, { type: 'image/png' });
 }
+// The Pumpkin Harvest panel: how it works, your pumpkins, and the Pumpking to trade them for.
+const eventOpen = () => $('event').classList.contains('show');
+function markEvent() {
+  document.body.classList.toggle('event', eventOn() && !GUEST);
+  $('eventCount').textContent = pumpkins || '';
+  if (eventOpen()) refreshEvent();
+}
+function refreshEvent(msg) {
+  const have = owned.has('pumpking'), i = HEROES.findIndex(h => h.id === 'pumpking');
+  $('eventSay').textContent = t('event.say', { n: PUMPKING_PRICE });
+  $('eventN').textContent = pumpkins;
+  $('eventKing').src = shots.cards[i];
+  $('eventKingName').textContent = heroName('pumpking');
+  $('eventEnds').textContent = t('event.ends', { date: new Date(EVENT_END - 60000).toLocaleString((LANGS.find(l => l.id === lang) || LANGS[0]).html, { month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles', timeZoneName: 'short' }) });
+  $('eventTradeLabel').textContent = t(have ? 'event.have' : 'event.trade');
+  $('eventPrice').hidden = have;
+  $('eventTrade').disabled = have || pumpkins < PUMPKING_PRICE;
+  $('eventNeed').textContent = msg ?? (have || pumpkins >= PUMPKING_PRICE ? '' : t('event.need', { n: PUMPKING_PRICE - pumpkins }));
+}
+function openEvent() {
+  if (GUEST || game.state !== 'farm') return;
+  closeHeroes(); closePond(); closeBunk(); closeBuilds(); closeStage();
+  refreshEvent();
+  $('event').classList.add('show');
+  game.picking = true;
+}
+function closeEvent() {
+  $('event').classList.remove('show');
+  game.picking = anyPanel();
+}
+function tradePumpking() {
+  if (owned.has('pumpking')) return;
+  if (pumpkins < PUMPKING_PRICE) { sfx.bump(); refreshEvent(t('event.need', { n: PUMPKING_PRICE - pumpkins })); return; }
+  pumpkins -= PUMPKING_PRICE;
+  store.set('bl-pumpkins', pumpkins);
+  owned.add('pumpking');
+  store.set('bl-owned', [...owned].filter(x => !STARTERS.includes(x) && !SUP_HEROES.includes(x)));
+  heroGrid.querySelector('[data-id="pumpking"]').hidden = false;
+  const h = HEROES.find(x => x.id === 'pumpking'), w = addWalker(h, [0, 1.5]);   // he hops in, front and centre
+  w.hop = 0.5;
+  w.wait = 1.2;
+  sfx.upgrade();
+  sfx.hop('pumpking');
+  cheer(w.x, w.z);
+  markEvent();
+  refreshEvent(t('event.done'));
+}
+// When the harvest is over: the pumpkins left over become sunflowers.
+function settleEvent() {
+  if (eventOn() || GUEST || !pumpkins) return markEvent();
+  const n = pumpkins;
+  pumpkins = 0;
+  store.set('bl-pumpkins', 0);
+  game.coins += n;
+  store.set('bl-coins', game.coins);
+  hud();
+  const note = $('homeNote');
+  note.querySelector('span').textContent = t('event.cashed', { n });
+  note.hidden = false;
+  markEvent();
+}
+$('eventBtn').addEventListener('click', () => { sfx.ensure(); openEvent(); });
+$('eventTrade').addEventListener('click', tradePumpking);
+$('eventClose').addEventListener('click', closeEvent);
+$('event').addEventListener('click', e => { if (e.target.id === 'event') closeEvent(); });
+$('homeNoteX').addEventListener('click', () => { $('homeNote').hidden = true; });
+setTimeout(settleEvent);
+setInterval(settleEvent, 60000);
 function closePhoto() {
   $('photo').classList.remove('show');
   game.picking = anyPanel() || jam.open;
@@ -8391,6 +8545,7 @@ function applyLang() {
   document.querySelectorAll('[data-i18n-aria]').forEach(el => el.setAttribute('aria-label', t(el.dataset.i18nAria)));
   document.querySelectorAll('#heroGrid .heroCard, #bunkGrid .heroCard').forEach(c => { c.querySelector('.heroName').textContent = heroName(c.dataset.id); });
   showKeyBtn();
+  if (eventOpen()) refreshEvent();
   hud();
   setHint();
   if (pondOpen()) refreshPond();
@@ -8838,6 +8993,7 @@ function pollPad() {
   }
   if (game.picking && bookOpen()) { if (pressed(0) || pressed(1) || pressed(9)) closeBook(); return; }
   if (game.picking && photoOpen()) { if (pressed(0)) savePhoto(); else if (pressed(1)) closePhoto(); return; }
+  if (game.picking && eventOpen()) { if (pressed(0) || pressed(9)) tradePumpking(); else if (pressed(1)) closeEvent(); return; }
   if (game.picking && landOpen()) { if (pressed(0) || pressed(9)) buyLand(); else if (pressed(1)) closeLand(); return; }
   if (game.picking && bagOpen()) {   // d-pad chooses a fish, A one more, X one fewer, Y all, Start sells, B closes; asked to be sure: A sells, B keeps them
     if (asking()) { if (pressed(0) || pressed(9)) sellFish(); else if (pressed(1)) showSure(false); return; }
@@ -9060,4 +9216,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent };

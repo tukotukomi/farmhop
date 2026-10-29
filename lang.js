@@ -22,6 +22,11 @@ export const STRINGS = {
       hopperPad: 'Press Y to switch hoppers!',
       fish: 'Go fishing at the Fish Pond!', fishPad: 'Press X, then Y to go fishing!', fishGuest: 'Tap the pond to go fishing!', fishGuestPad: 'Press X to go fishing!',
     },
+    event: {
+      title: 'Pumpkin Harvest', trade: 'Trade for the Pumpking', have: 'The Pumpking lives on your farm!', need: '{n} more pumpkins to go', done: 'The Pumpking moved in!',
+      say: 'Find the spooky sunflower while you hop, then pick up pumpkins on the spooky farm. Trade {n} pumpkins for the Pumpking! When the harvest ends, every pumpkin left turns into a sunflower.',
+      ends: 'The harvest ends {date}.', cashed: 'The Pumpkin Harvest is over: your {n} pumpkins turned into {n} sunflowers!',
+    },
     photo: {
       title: 'Say cheese!', save: 'Save', share: 'Share',
       text: "Hopping around on Betty Lou's Farm Hop!", alt: 'Your photo from the farm',
@@ -65,7 +70,7 @@ export const STRINGS = {
       splash: "Splash! {name} can't swim!", swept: 'Swept down the creek!', night: 'The sun set on the farming day!',
       goose: 'Chased off by geese!', harvest: 'Baled up by a combine!', dusted: 'Buzzed by a crop duster!', other: 'Oh no!',
     },
-    heroes: { betty: 'Betty Lou', axolotl: 'Axolotl Princess', catstar: 'Catstar', leafwish: 'LeafWish', tuko: 'Tuko', spider: 'Spicy Spider', lyla: 'Lyla', carla: 'Carla', siracha: 'Sir Racha', ribbit: 'DJ Ribbit', moonbun: 'Moonbun', captain: 'Captain Awesome' },
+    heroes: { betty: 'Betty Lou', axolotl: 'Axolotl Princess', catstar: 'Catstar', leafwish: 'LeafWish', tuko: 'Tuko', spider: 'Spicy Spider', lyla: 'Lyla', carla: 'Carla', siracha: 'Sir Racha', ribbit: 'DJ Ribbit', moonbun: 'Moonbun', captain: 'Captain Awesome', pumpking: 'Pumpking' },
     buildings: 'Farm Buildings', buildLevel: 'Level {n}', notBuilt: '???', arrange: 'Rearrange', decorShop: 'Decor Shop',
     bunkhouse: 'Bunkhouse', bunkPlan: 'Build a cozy cabin so new hoppers can move in.', build: 'Build',
     bunkWho: 'Tap a hopper to invite them to the farm.', movedIn: '{name} moved in!',
@@ -160,6 +165,11 @@ export const STRINGS = {
       hopperPad: '¡Pulsa Y para cambiar de saltarín!',
       fish: '¡Ve a pescar al estanque!', fishPad: '¡Pulsa X y luego Y para pescar!', fishGuest: '¡Toca el estanque para pescar!', fishGuestPad: '¡Pulsa X para pescar!',
     },
+    event: {
+      title: 'Cosecha de calabazas', trade: 'Cambiar por el Rey Calabaza', have: '¡El Rey Calabaza vive en tu granja!', need: 'Faltan {n} calabazas', done: '¡El Rey Calabaza se mudó!',
+      say: 'Busca el girasol embrujado mientras saltas y recoge calabazas en la granja embrujada. ¡Cambia {n} calabazas por el Rey Calabaza! Cuando termine la cosecha, cada calabaza que te quede se convierte en un girasol.',
+      ends: 'La cosecha termina el {date}.', cashed: 'Terminó la Cosecha de calabazas: ¡tus {n} calabazas se convirtieron en {n} girasoles!',
+    },
     photo: {
       title: '¡Sonríe!', save: 'Guardar', share: 'Compartir',
       text: "¡Saltando por Betty Lou's Farm Hop!", alt: 'Tu foto de la granja',
@@ -203,7 +213,7 @@ export const STRINGS = {
       splash: '¡Chof! ¡{name} no sabe nadar!', swept: '¡El arroyo te arrastró!', night: '¡Se puso el sol sobre la granja!',
       goose: '¡Los gansos te echaron!', harvest: '¡Una cosechadora te hizo paca!', dusted: '¡Una avioneta fumigadora te pasó rozando!', other: '¡Ay, no!',
     },
-    heroes: { betty: 'Betty Lou', axolotl: 'Princesa Ajolote', catstar: 'Catstar', leafwish: 'LeafWish', tuko: 'Tuko', spider: 'Araña Picante', lyla: 'Lyla', carla: 'Carla', siracha: 'Sir Racha', ribbit: 'DJ Ribbit', moonbun: 'Conejita Luna', captain: 'Capitán Genial' },
+    heroes: { betty: 'Betty Lou', axolotl: 'Princesa Ajolote', catstar: 'Catstar', leafwish: 'LeafWish', tuko: 'Tuko', spider: 'Araña Picante', lyla: 'Lyla', carla: 'Carla', siracha: 'Sir Racha', ribbit: 'DJ Ribbit', moonbun: 'Conejita Luna', captain: 'Capitán Genial', pumpking: 'Rey Calabaza' },
     buildings: 'Edificios de la granja', buildLevel: 'Nivel {n}', notBuilt: '???', arrange: 'Reorganizar', decorShop: 'Tienda de adornos',
     bunkhouse: 'La cabaña', bunkPlan: 'Construye una cabaña acogedora para que lleguen nuevos saltarines.', build: 'Construir',
     bunkWho: 'Toca un saltarín para invitarlo a la granja.', movedIn: '¡{name} se mudó a la granja!',
@@ -298,6 +308,11 @@ export const STRINGS = {
       hopperPad: '按 Y 换个伙伴！',
       fish: '去鱼塘钓鱼吧！', fishPad: '按 X 再按 Y 去钓鱼！', fishGuest: '点鱼塘去钓鱼吧！', fishGuestPad: '按 X 去钓鱼！',
     },
+    event: {
+      title: '南瓜丰收节', trade: '换南瓜王', have: '南瓜王住在你的农场啦！', need: '还差 {n} 个南瓜', done: '南瓜王搬来啦！',
+      say: '跳跃时找找闹鬼向日葵，然后在闹鬼农场上捡南瓜。用 {n} 个南瓜换南瓜王！丰收节结束时，剩下的南瓜都会变成向日葵。',
+      ends: '丰收节在 {date} 结束。', cashed: '南瓜丰收节结束啦：你的 {n} 个南瓜变成了 {n} 朵向日葵！',
+    },
     photo: {
       title: '笑一个！', save: '保存', share: '分享',
       text: "在 Betty Lou's Farm Hop 里蹦蹦跳跳！", alt: '你在农场拍的照片',
@@ -341,7 +356,7 @@ export const STRINGS = {
       splash: '扑通！{name}不会游泳！', swept: '被小溪冲走了！', night: '太阳下山，农场的一天结束了！',
       goose: '被大鹅赶跑了！', harvest: '被收割机打成了草捆！', dusted: '被喷药飞机扫到了！', other: '哎呀！',
     },
-    heroes: { betty: '贝蒂·露', axolotl: '六角恐龙公主', catstar: '星星猫', leafwish: '许愿叶', tuko: '图科', spider: '辣辣蜘蛛', lyla: '莱拉', carla: '卡拉', siracha: '是拉差', ribbit: 'DJ 呱呱', moonbun: '月亮兔', captain: '超棒船长' },
+    heroes: { betty: '贝蒂·露', axolotl: '六角恐龙公主', catstar: '星星猫', leafwish: '许愿叶', tuko: '图科', spider: '辣辣蜘蛛', lyla: '莱拉', carla: '卡拉', siracha: '是拉差', ribbit: 'DJ 呱呱', moonbun: '月亮兔', captain: '超棒船长', pumpking: '南瓜王' },
     buildings: '农场建筑', buildLevel: '等级 {n}', notBuilt: '???', arrange: '重新布置', decorShop: '装饰商店',
     bunkhouse: '小木屋', bunkPlan: '盖一间温馨的小木屋，让新伙伴搬进来。', build: '建造',
     bunkWho: '点一个伙伴，邀请它来农场。', movedIn: '{name}搬进来了！',

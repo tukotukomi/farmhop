@@ -131,6 +131,24 @@ body.farm.decor #fullBtn, body.noFull #fullBtn { display: none; }
   background: var(--leaf); color: #fff; border: 2px solid var(--ink); font-size: 12px; line-height: 16px;
 }
 body.farm #phonesBtn { display: grid; }
+/* the Pumpkin Harvest: a pumpkin beside the co-op button while the event is on */
+#eventBtn {
+  position: fixed; top: calc(env(safe-area-inset-top) + 64px); left: calc(env(safe-area-inset-left) + 76px);
+  width: 50px; height: 50px; display: none; --c1: #ffd08a; --c2: #f0962a;
+}
+#eventBtn svg { width: 32px; height: 32px; }
+#eventBtn b:not(:empty) {
+  position: absolute; right: -8px; top: -6px; min-width: 20px; padding: 0 5px; border-radius: 999px;
+  background: #ff8a1a; color: #fff; border: 2px solid var(--ink); font-size: 12px; line-height: 16px;
+}
+body.farm.event #eventBtn { display: grid; }
+body.farm.decor #eventBtn, body.guest #eventBtn { display: none; }
+.eventCount { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 34px; font-weight: 700; }
+.eventCount svg { width: 44px; height: 44px; }
+.eventKing { background: #ffd9b0; width: 150px; cursor: default; }
+.eventKing img { max-width: 130px; }
+.eventEnds { margin: 0; font-size: 13px; opacity: .75; }
+#eventPrice[hidden] { display: none; }
 body.farm.decor #phonesBtn { display: none; }
 #sound svg, #gear svg { width: 28px; height: 28px; }
 .decorBtn { --c1: var(--leaf); --c2: var(--leaf-d); }
@@ -1104,6 +1122,8 @@ body.guest #phonesBtn, body.guest #partyBtn, body.guest #play { display: none !i
   #keyBtn { top: calc(env(safe-area-inset-top) + 12px); right: calc(env(safe-area-inset-right) + 380px); }
   body.noFull #keyBtn { right: calc(env(safe-area-inset-right) + 320px); }
   #phonesBtn { top: calc(env(safe-area-inset-top) + 12px); left: auto; right: calc(env(safe-area-inset-right) + 260px); }
+  #eventBtn { top: calc(env(safe-area-inset-top) + 12px); left: auto; right: calc(env(safe-area-inset-right) + 440px); }
+  body.noFull #eventBtn { right: calc(env(safe-area-inset-right) + 380px); }
   #decorBar { bottom: calc(env(safe-area-inset-bottom) + 14px); }
   .shopBtn, .rotateBtn { width: 64px; height: 64px; }
   .playBtn { width: 84px; height: 84px; }
