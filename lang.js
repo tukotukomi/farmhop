@@ -22,6 +22,10 @@ export const STRINGS = {
       hopperPad: 'Press Y to switch hoppers!',
       fish: 'Go fishing at the Fish Pond!', fishPad: 'Press X, then Y to go fishing!', fishGuest: 'Tap the pond to go fishing!', fishGuestPad: 'Press X to go fishing!',
     },
+    notice: {
+      halloween: 'HALLOWEEN HOP', tap: 'Tap for the Pumpkin Harvest!', welcome: 'Welcome to the farm!',
+      days: '{n} days left', day: '1 day left', hours: '{n} hours left', hour: '1 hour left', minutes: '{n} minutes left', minute: '1 minute left',
+    },
     event: {
       title: 'Pumpkin Harvest', trade: 'Trade for the Pumpking', have: 'The Pumpking lives on your farm!', need: '{n} more pumpkins to go', done: 'The Pumpking moved in!',
       say: 'Find the spooky sunflower while you hop, then pick up pumpkins on the spooky farm. Trade {n} for the Pumpking, {m} for the Spooky Organ to play on the Jam Stage, or {g} to fill your pond with Glowing Goo! When the harvest ends, every pumpkin left turns into a sunflower.',
@@ -172,6 +176,10 @@ export const STRINGS = {
       hopperPad: '¡Pulsa Y para cambiar de saltarín!',
       fish: '¡Ve a pescar al estanque!', fishPad: '¡Pulsa X y luego Y para pescar!', fishGuest: '¡Toca el estanque para pescar!', fishGuestPad: '¡Pulsa X para pescar!',
     },
+    notice: {
+      halloween: 'SALTOS DE HALLOWEEN', tap: '¡Toca para la Cosecha de calabazas!', welcome: '¡Bienvenidos a la granja!',
+      days: 'Quedan {n} días', day: 'Queda 1 día', hours: 'Quedan {n} horas', hour: 'Queda 1 hora', minutes: 'Quedan {n} minutos', minute: 'Queda 1 minuto',
+    },
     event: {
       title: 'Cosecha de calabazas', trade: 'Cambiar por el Rey Calabaza', have: '¡El Rey Calabaza vive en tu granja!', need: 'Faltan {n} calabazas', done: '¡El Rey Calabaza se mudó!',
       say: 'Busca el girasol embrujado mientras saltas y recoge calabazas en la granja embrujada. ¡Cambia {n} por el Rey Calabaza, {m} por el Órgano tenebroso para tocar en el escenario, o {g} para llenar tu estanque de baba brillante! Cuando termine la cosecha, cada calabaza que te quede se convierte en un girasol.',
@@ -321,6 +329,10 @@ export const STRINGS = {
       bunkPad: '按 B 打开农场建筑！', stagePad: '按 LB 打开舞台！', decorPad: '按 RB 装饰农场！',
       hopperPad: '按 Y 换个伙伴！',
       fish: '去鱼塘钓鱼吧！', fishPad: '按 X 再按 Y 去钓鱼！', fishGuest: '点鱼塘去钓鱼吧！', fishGuestPad: '按 X 去钓鱼！',
+    },
+    notice: {
+      halloween: '万圣节蹦蹦跳', tap: '点我看南瓜丰收节！', welcome: '欢迎来到农场！',
+      days: '还剩 {n} 天', day: '还剩 1 天', hours: '还剩 {n} 小时', hour: '还剩 1 小时', minutes: '还剩 {n} 分钟', minute: '还剩 1 分钟',
     },
     event: {
       title: '南瓜丰收节', trade: '换南瓜王', have: '南瓜王住在你的农场啦！', need: '还差 {n} 个南瓜', done: '南瓜王搬来啦！',

@@ -3479,6 +3479,7 @@ const PIECES = {
   },
   flowers: { build: buildFlowers, foot: [-0.75, 0.75, -0.75, 0.75], at: [-4.5, 2.5, 0] },
   mailbox: { build: buildMailbox, foot: [-0.35, 0.35, -0.35, 0.35], at: [-3, 6, 0] },
+  noticeboard: { build: buildNoticeboard, foot: [-1.05, 1.05, -0.35, 0.35], at: [3.4, -4.4, 0] },   // always on the farm: the season's poster
   scarecrow: { build: buildScarecrow, foot: [-0.75, 0.75, -0.45, 0.45], decor: true, price: 10, bg: '#fff1b8' },
   swing: { build: buildSwing, foot: [-1.1, 1.1, -0.9, 0.9], decor: true, price: 10, bg: '#d9f2ff', icon: 0.78 },   // icon: smaller in the shop, it's tall
   drums: { build: buildDrumKit, decor: true, onStage: true, price: 1, bg: '#ffd6ec' },   // sits on the Jam Stage, not in the yard
@@ -3892,7 +3893,130 @@ function buildMailbox(g) {
   vb.rbox(0.05, 0.16, 0.04, 0.2, 1.0, 0, 0xff4b4b, 0.02);
   g.add(vb.mesh());
 }
-// ---------- decorations ----------
+// ---------- the noticeboard ----------
+// A big wooden board that's always on the farm, with a poster for whatever's on: an event
+// with its own art and a countdown (tap it for the event page), or a welcome when nothing
+// is. Each poster has an end; the first one still running is shown. Christmas, spring and
+// the rest go in POSTERS too, each with its own draw().
+const POSTER_W = 512, POSTER_H = 384;
+const POSTERS = [
+  { until: EVENT_END, draw: drawHalloweenPoster, tap: () => openEvent() },
+];
+const posterNow = () => POSTERS.find(p => Date.now() < p.until) || { until: Infinity, draw: drawWelcomePoster, tap: null };
+function timeLeft(until) {   // "7 days left", then "23 hours left", then "59 minutes left"
+  const ms = Math.max(0, until - Date.now()), d = Math.floor(ms / 864e5), h = Math.floor(ms / 36e5);
+  if (d >= 1) return t(d === 1 ? 'notice.day' : 'notice.days', { n: d });
+  if (h >= 1) return t(h === 1 ? 'notice.hour' : 'notice.hours', { n: h });
+  const m = Math.max(1, Math.ceil(ms / 6e4));
+  return t(m === 1 ? 'notice.minute' : 'notice.minutes', { n: m });
+}
+const posterFont = (px, w = 700) => `${w} ${px}px Fredoka, 'Noto Sans SC', sans-serif`;
+function posterText(c, text, x, y, px, fill, maxW, rot = 0) {   // big outlined poster lettering
+  c.save();
+  c.translate(x, y);
+  c.rotate(rot);
+  c.font = posterFont(px);
+  const w = c.measureText(text).width;
+  if (w > maxW) c.scale(maxW / w, maxW / w);
+  c.textAlign = 'center'; c.textBaseline = 'middle'; c.lineJoin = 'round';
+  c.lineWidth = px * 0.2; c.strokeStyle = '#2a1838'; c.strokeText(text, 0, px * 0.06);
+  c.fillStyle = fill; c.fillText(text, 0, 0);
+  c.restore();
+}
+function posterPill(c, text, x, y, px, bg, fg) {
+  c.font = posterFont(px);
+  const w = c.measureText(text).width + px * 1.4, h = px * 1.55;
+  c.fillStyle = 'rgba(42, 24, 56, .45)'; c.beginPath(); c.roundRect(x - w / 2, y - h / 2 + 5, w, h, h / 2); c.fill();
+  c.fillStyle = bg; c.strokeStyle = '#2a1838'; c.lineWidth = 4;
+  c.beginPath(); c.roundRect(x - w / 2, y - h / 2, w, h, h / 2); c.fill(); c.stroke();
+  c.fillStyle = fg; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(text, x, y + px * 0.05);
+}
+function posterGhost(c, x, y, s, rot) {   // a little sheet ghost, waving its hem
+  c.save();
+  c.translate(x, y); c.rotate(rot); c.scale(s, s);
+  c.beginPath();
+  c.moveTo(-30, 10);
+  c.bezierCurveTo(-30, -45, 30, -45, 30, 10);
+  c.lineTo(30, 38);
+  for (let i = 0; i < 4; i++) c.quadraticCurveTo(22 - i * 15, 30 + (i % 2 ? -10 : 10), 15 - i * 15, 38);
+  c.lineTo(-30, 38);
+  c.closePath();
+  c.fillStyle = '#f3f0ff'; c.strokeStyle = '#2a1838'; c.lineWidth = 4 / s;
+  c.fill(); c.stroke();
+  c.fillStyle = '#2a1838';
+  for (const ex of [-11, 11]) { c.beginPath(); c.ellipse(ex, -8, 5, 8, 0, 0, Math.PI * 2); c.fill(); }
+  c.beginPath(); c.ellipse(0, 12, 5, 7, 0, 0, Math.PI * 2); c.fill();
+  c.restore();
+}
+function posterPumpkin(c, x, y, r) {
+  c.save();
+  c.translate(x, y);
+  c.fillStyle = '#ff8a1a'; c.strokeStyle = '#2a1838'; c.lineWidth = 4;
+  for (const dx of [-0.45, 0.45, 0]) { c.beginPath(); c.ellipse(dx * r, 0, r * 0.62, r * 0.8, 0, 0, Math.PI * 2); c.fill(); c.stroke(); }
+  c.fillStyle = '#4f7a2a'; c.fillRect(-r * 0.1, -r * 1.05, r * 0.2, r * 0.32);
+  c.fillStyle = '#ffd25a';
+  for (const s of [-1, 1]) { c.beginPath(); c.moveTo(s * r * 0.4, -r * 0.1); c.lineTo(s * r * 0.15, -r * 0.1); c.lineTo(s * r * 0.28, -r * 0.38); c.closePath(); c.fill(); }
+  c.beginPath(); c.moveTo(-r * 0.45, r * 0.2); c.quadraticCurveTo(0, r * 0.65, r * 0.45, r * 0.2); c.quadraticCurveTo(0, r * 0.4, -r * 0.45, r * 0.2); c.fill();
+  c.restore();
+}
+function drawHalloweenPoster(c, w, h, t0) {
+  const g = c.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, '#2a1240'); g.addColorStop(1, '#5b2a6a');
+  c.fillStyle = g; c.fillRect(0, 0, w, h);
+  c.fillStyle = '#fff3c4'; c.beginPath(); c.arc(w * 0.82, h * 0.2, 42, 0, Math.PI * 2); c.fill();   // the moon...
+  c.fillStyle = '#2a1240'; c.beginPath(); c.arc(w * 0.82 - 18, h * 0.2 - 8, 38, 0, Math.PI * 2); c.fill();   // ...a crescent
+  c.fillStyle = 'rgba(255, 255, 255, .7)';
+  for (const [sx, sy] of [[60, 40], [140, 90], [300, 30], [460, 120], [240, 70], [30, 150]]) { c.beginPath(); c.arc(sx, sy, 2.2, 0, Math.PI * 2); c.fill(); }
+  c.fillStyle = '#1a0d26';                                                     // the hills
+  c.beginPath(); c.moveTo(0, h); c.lineTo(0, h * 0.82); c.quadraticCurveTo(w * 0.3, h * 0.68, w * 0.55, h * 0.82); c.quadraticCurveTo(w * 0.8, h * 0.94, w, h * 0.78); c.lineTo(w, h); c.fill();
+  posterGhost(c, 70, 120 + Math.sin(t0) * 4, 1.05, -0.15);
+  posterGhost(c, w - 64, 218 + Math.sin(t0 + 2) * 4, 0.9, 0.18);
+  posterPumpkin(c, 64, h - 50, 34);
+  posterPumpkin(c, w - 70, h - 46, 28);
+  posterText(c, t('notice.halloween'), w / 2, 112, 64, '#ff8a1a', w - 150, -0.04);
+  posterText(c, t('event.title'), w / 2, 182, 34, '#b8ff9a', w - 170, 0.02);
+  posterPill(c, timeLeft(EVENT_END), w / 2, 262, 32, '#fff8ec', '#d24a8a');
+  c.font = posterFont(20, 600); c.fillStyle = '#e9dcff'; c.textAlign = 'center';
+  c.fillText(t('notice.tap'), w / 2, h - 34);
+}
+function drawWelcomePoster(c, w, h) {
+  const g = c.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, '#a8dcff'); g.addColorStop(1, '#fff3c4');
+  c.fillStyle = g; c.fillRect(0, 0, w, h);
+  c.fillStyle = '#6bd864'; c.beginPath(); c.moveTo(0, h); c.lineTo(0, h * 0.75); c.quadraticCurveTo(w / 2, h * 0.6, w, h * 0.75); c.lineTo(w, h); c.fill();
+  posterText(c, t('notice.welcome'), w / 2, h * 0.42, 52, '#ff7fb8', w - 80, -0.03);
+}
+function buildNoticeboard(g) {
+  const v = new VB(0.6), WOOD = 0x9c6b3c, WOOD_D = 0x7a4f2c;
+  for (const s of [-1, 1]) v.rbox(0.12, 2.2, 0.12, s * 0.95, 1.1, -0.06, WOOD_D, 0.03);   // posts
+  v.rbox(2.1, 1.56, 0.08, 0, 1.36, -0.08, WOOD, 0.03);                                   // the board
+  v.rbox(2.3, 0.1, 0.36, 0, 2.2, -0.04, 0xc9473a, 0.03, -0.25, 0, 0);                     // a little roof
+  v.rbox(2.3, 0.1, 0.36, 0, 2.2, -0.2, 0xa83a2f, 0.03, 0.25, 0, 0);
+  for (const [x, y] of [[-0.82, 2.04], [0.82, 2.04], [-0.82, 0.68], [0.82, 0.68]]) v.ball(0.035, 0.035, 0.02, x, y, -0.02, 0xd9d9d9);   // pins
+  g.add(v.mesh());
+  const can = document.createElement('canvas');
+  can.width = POSTER_W; can.height = POSTER_H;
+  const tex = new THREE.CanvasTexture(can);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  const poster = new THREE.Mesh(new THREE.PlaneGeometry(1.86, 1.4), new THREE.MeshBasicMaterial({ map: tex }));
+  poster.position.set(0, 1.36, -0.03);
+  g.add(poster);
+  farm.notice = { can, tex, at: 0 };
+  drawNotice();
+  return () => { if (Date.now() - farm.notice.at > 20000) drawNotice(); };   // the countdown keeps itself up to date
+}
+function drawNotice() {
+  const n = farm.notice;
+  if (!n) return;
+  n.at = Date.now();
+  const c = n.can.getContext('2d');
+  c.clearRect(0, 0, POSTER_W, POSTER_H);
+  posterNow().draw(c, POSTER_W, POSTER_H, n.at / 900);
+  n.tex.needsUpdate = true;
+}
+document.fonts?.ready.then(() => drawNotice());
+
 // ---------- Halloween decorations ----------
 // Glowing bits (a carved face, a bubbling brew, lanterns) are lit from inside, and light
 // up the dark around them at night like the torches.
@@ -5622,6 +5746,7 @@ function tapFarm(x, y) {
   if (!GUEST) {   // a guest's taps on buildings just hop there
     if (hit(farm.pieces.bunk.group)) { openBunk(); return; }
     if (hit(farm.pieces.stage.group)) { stageAct(); return; }
+    if (farm.pieces.noticeboard && hit(farm.pieces.noticeboard.group)) { const p = posterNow(); if (p.tap) { sfx.ensure(); p.tap(); } return; }
     if (hit(farm.pieces.pond.group)) { openPond(); return; }
     if (!farm.wide && groundAt(x, y, _a) && inPlot(_a.x - farm.group.position.x, _a.z - farm.group.position.z)) { openLand(); return; }
   }
@@ -8821,6 +8946,7 @@ function applyLang() {
   document.querySelectorAll('[data-i18n-aria]').forEach(el => el.setAttribute('aria-label', t(el.dataset.i18nAria)));
   document.querySelectorAll('#heroGrid .heroCard, #bunkGrid .heroCard').forEach(c => { c.querySelector('.heroName').textContent = heroName(c.dataset.id); });
   showKeyBtn();
+  drawNotice();
   if (eventOpen()) refreshEvent();
   hud();
   setHint();
