@@ -917,6 +917,17 @@ body.guest #phonesBtn, body.guest #partyBtn, body.guest #play { display: none !i
 /* ---------- settings ---------- */
 .setPanel { display: grid; gap: 14px; max-width: 380px !important; }
 .setPanel h2 { margin-bottom: 0 !important; }
+/* Two tabs: Settings, and Updates (the developer log) */
+.setTabs { flex: none; display: flex; justify-content: center; gap: 6px; padding: 2px; margin: 0 auto; background: #ece4d6; border: 2.5px solid var(--ink-soft); border-radius: 999px; }
+.setTab { border: 0; background: none; cursor: pointer; padding: 5px 16px 6px; border-radius: 999px; font: inherit; font-size: 15px; font-weight: 700; color: var(--ink); opacity: .7; }
+.setTab.on { background: #fff; opacity: 1; box-shadow: 0 2px 0 var(--ink-soft); }
+.setPanel:not(.upd) .updList, .setPanel.upd .setRow { display: none !important; }
+.updList { grid-column: 1 / -1; display: grid; gap: 12px; }
+.updDay { padding: 10px 14px 12px; border-radius: 18px; background: #fff; border: 3px solid var(--ink-soft); }
+.updDay time { display: block; font-size: 13px; font-weight: 600; opacity: .65; }
+.updDay h3 { margin: 2px 0 6px; font-size: 17px; line-height: 1.25; }
+.updDay ul { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.updDay li { font-size: 14px; font-weight: 500; line-height: 1.35; }
 @media (min-width: 760px) and (orientation: landscape) {   /* wide windows: Settings in two columns, so less of it needs scrolling */
   .setPanel { max-width: 720px !important; grid-template-columns: 1fr 1fr; }
   .setRow[data-row="lang"], .setRow[data-row="view"] { grid-column: 1 / -1; }

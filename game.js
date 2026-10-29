@@ -8,6 +8,7 @@ import { createMusic, breakHit } from './music.js';
 import { STRINGS, LANGS } from './lang.js';
 import { joinFarm } from './guest.js';
 import { createAccount } from './account/tuko-account.js';
+import { UPDATES } from './updates.js';
 
 // ---------- moving house ----------
 // Each website keeps its own saves, so the old address (tuckermills.com/farmhop)
@@ -4663,9 +4664,11 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
     return;
   }
-  if (game.picking && settingsOpen()) {   // Settings: arrows change things, Escape or Enter closes
+  if (game.picking && settingsOpen()) {   // Settings: arrows change things, Tab / Q / E switch tabs, Escape or Enter closes
     const nav = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[e.code];
-    if (nav) { document.body.classList.add('keys'); settingsNav(nav); }
+    if (/^(Tab|KeyQ|KeyE)$/.test(e.code)) setSettingsTab(setTab === 'set' ? 'upd' : 'set');
+    else if (setTab === 'upd' && nav) { if (nav === 'up' || nav === 'down') document.querySelector('.setPanel .panelBody').scrollBy({ top: nav === 'down' ? 80 : -80 }); }
+    else if (nav) { document.body.classList.add('keys'); settingsNav(nav); }
     else if (e.code === 'Escape' || e.code === 'Enter') closeSettings();
     e.preventDefault();
     return;
@@ -7288,14 +7291,44 @@ function applyLang() {
   if (landOpen()) refreshLand();
   if (shopOpen()) refreshShop();
   if (stageOpen()) refreshStage();
-  if (settingsOpen()) renderSettings();
+  if (settingsOpen()) { renderSettings(); if (setTab === 'upd') renderUpdates(); }
 }
+// Settings has two tabs: the settings, and Updates (the developer log in updates.js),
+// in the player's language. Tab, Q / E or LB / RB switch tabs; on Updates the arrows scroll.
+let setTab = 'set';
+function setSettingsTab(tab) {
+  setTab = tab;
+  document.querySelector('.setPanel').classList.toggle('upd', tab === 'upd');
+  for (const [id, on] of [['tabSet', tab === 'set'], ['tabUpd', tab === 'upd']]) {
+    $(id).classList.toggle('on', on);
+    $(id).setAttribute('aria-selected', String(on));
+  }
+  if (tab === 'upd') renderUpdates();
+  document.querySelector('.setPanel .panelBody').scrollTop = 0;
+}
+function renderUpdates() {
+  const html = (LANGS.find(l => l.id === lang) || LANGS[0]).html;
+  $('updList').replaceChildren(...UPDATES.map(u => {
+    const tr = u[lang] || u, day = document.createElement('article'), when = document.createElement('time');
+    day.className = 'updDay';
+    when.dateTime = u.date;
+    when.textContent = new Date(u.date + 'T12:00:00').toLocaleDateString(html, { year: 'numeric', month: 'long', day: 'numeric' });
+    const h = document.createElement('h3'), ul = document.createElement('ul');
+    h.textContent = tr.title || u.title;
+    for (const n of tr.notes || u.notes) { const li = document.createElement('li'); li.textContent = n; ul.append(li); }
+    day.append(when, h, ul);
+    return day;
+  }));
+}
+$('tabSet').addEventListener('click', () => setSettingsTab('set'));
+$('tabUpd').addEventListener('click', () => setSettingsTab('upd'));
 function openSettings() {
   if (game.state !== 'farm') return;
   closeHeroes();
   closePond();
   closeBunk();
   setFocus = 0;
+  setSettingsTab('set');
   renderSettings();
   $('settings').classList.add('show');
   game.picking = true;
@@ -7686,7 +7719,9 @@ function pollPad() {
   if (game.picking && nudgeOpen()) { if (pressed(0)) startNudge(); else if (pressed(1)) closeNudge(true); return; }
   if (game.picking && tapOpen()) { if (pressed(0)) { if ($('tapGo').hidden) tapHit(performance.now() / 1000); else tapStart(); } if (pressed(1)) closeTap(); return; }
   if (game.picking && settingsOpen()) {
-    if (dir) settingsNav(dir);
+    if (pressed(4) || pressed(5)) setSettingsTab(setTab === 'set' ? 'upd' : 'set');   // LB / RB: the other tab
+    if (setTab === 'upd') { if (dir === 'up' || dir === 'down') document.querySelector('.setPanel .panelBody').scrollBy({ top: dir === 'down' ? 80 : -80 }); }
+    else if (dir) settingsNav(dir);
     if (pressed(1) || pressed(8) || pressed(9)) closeSettings();
     return;
   }

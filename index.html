@@ -280,7 +280,12 @@
 <div id="settings" class="sheet" role="dialog" aria-modal="true" aria-labelledby="setTitle">
   <div class="panel setPanel">
     <h2 id="setTitle" data-i18n="settings">Settings</h2>
+    <div class="setTabs" role="tablist">
+      <button id="tabSet" class="setTab on" role="tab" aria-selected="true" data-i18n="settings">Settings</button>
+      <button id="tabUpd" class="setTab" role="tab" aria-selected="false" data-i18n="updates">Updates</button>
+    </div>
     <div class="panelBody">
+    <div id="updList" class="updList" role="tabpanel" aria-labelledby="tabUpd"></div>
     <div class="setRow" data-row="acct" id="acctRow" hidden>
       <div class="setLabel" data-i18n="acct.row">Account</div>
       <div id="acctOut" class="acctBox">
