@@ -329,15 +329,23 @@ body.farm:not(.decor) #hint { display: none; }   /* on the farm, Betty Lou gives
   background: rgba(58, 36, 66, .5);
   display: none; align-items: center; justify-content: center;
   padding: calc(env(safe-area-inset-top) + 26px) calc(env(safe-area-inset-right) + 16px) calc(env(safe-area-inset-bottom) + 16px) calc(env(safe-area-inset-left) + 16px);
-  /* panels taller than the screen (phones on their side) scroll; "safe" keeps the top reachable */
-  overflow-y: auto; align-items: safe center; touch-action: pan-y; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
 }
 .sheet.show { display: flex; animation: pop .3s cubic-bezier(.3, 1.6, .5, 1); }
+/* Every panel fits the window: its title and ✕ stay put and only the panelBody
+   between them scrolls. The body takes on the panel's own layout (grid, gap, columns). */
 .sheet .panel {
-  position: relative; width: 100%; max-width: 420px;
+  position: relative; width: 100%; max-width: 420px; max-height: 100%; box-sizing: border-box;
+  display: flex; flex-direction: column;
   background: var(--cream); border: 4px solid var(--ink); border-radius: 30px;
   box-shadow: 0 8px 0 var(--ink-soft); padding: 34px 14px 16px;
 }
+.sheet .panel > h2 { flex: none; }
+.panelBody {
+  flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y;
+  display: grid; gap: inherit; justify-items: inherit; align-content: start; text-align: inherit; grid-template-columns: inherit;
+  margin: 0 -10px; padding: 8px 10px 10px;   /* room for focus rings and card shadows */
+}
+.sheet .panel:not(:is(.pondPanel, .bunkPanel, .setPanel, .tapPanel, .pickPanel, .supPanel)) .panelBody { display: block; }
 .sheet .panel::before {
   content: ''; position: absolute; left: 0; right: 0; top: 0; height: 20px;
   background: var(--gingham); border-bottom: 3px solid var(--ink);
@@ -900,8 +908,12 @@ body.guest #phonesBtn, body.guest #partyBtn, body.guest #play { display: none !i
 .lane.dnb .ring { border-color: #7fffd8; box-shadow: 0 0 0 2px #3a2442, 0 0 10px #7fffd8; }
 
 /* ---------- settings ---------- */
-.setPanel { display: grid; gap: 14px; max-width: 380px !important; margin-top: 12px; }
+.setPanel { display: grid; gap: 14px; max-width: 380px !important; }
 .setPanel h2 { margin-bottom: 0 !important; }
+@media (min-width: 760px) and (orientation: landscape) {   /* wide windows: Settings in two columns, so less of it needs scrolling */
+  .setPanel { max-width: 720px !important; grid-template-columns: 1fr 1fr; }
+  .setRow[data-row="lang"], .setRow[data-row="view"] { grid-column: 1 / -1; }
+}
 .setRow {
   display: grid; gap: 7px;
   padding: 10px 12px 12px; border-radius: 18px;
