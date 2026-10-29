@@ -1430,6 +1430,15 @@ function pentHz(i, [k, sc] = keyNow()) {
   const p = SCALES[sc].pent, o = Math.floor(i / p.length);
   return 293.66 * 2 ** ((k + p[i - o * p.length] + 12 * o) / 12);
 }
+// The pads play the whole scale: a major or minor key's seven notes (each a step of D major,
+// moved by the scale's deg), or a scale's own five if it has no seven.
+const MAJOR_STEPS = [0, 2, 4, 5, 7, 9, 11];
+const padSteps = (sc = keyNow()[1]) => { const s = SCALES[sc]; return s.deg ? MAJOR_STEPS.map((m, i) => m + s.deg[i]) : s.pent; };
+// Step i of the key's whole scale (0 = the key note near D4, 7 = an octave up in major), in Hz.
+function scaleHz(i, [k, sc] = keyNow()) {
+  const p = padSteps(sc), o = Math.floor(i / p.length);
+  return 293.66 * 2 ** ((k + p[i - o * p.length] + 12 * o) / 12);
+}
 // A sound effect's little tune, written in D major, in the song's key and scale.
 function inKey(f) {
   const [k, sc] = keyNow(), m = Math.round(69 + 12 * Math.log2(f / 440));
@@ -5088,7 +5097,7 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
     return;
   }
-  if (jam.open) {   // Jam Stage: Q-Y / A-H / Z-N play, +/- octave, Escape leaves
+  if (jam.open) {   // Jam Stage: Q-I / A-K / Z-, play (as many as the scale has), +/- octave, Escape leaves
     if (e.repeat) { e.preventDefault(); return; }
     if (partyOpen()) { if (e.code === 'Escape' || e.code === 'Enter') closeParty(); e.preventDefault(); return; }
     setJamInput('keys');
@@ -5096,7 +5105,7 @@ window.addEventListener('keydown', e => {
     const drum = jam.drums ? +Object.keys(DRUM_KEYS).find(d => DRUM_KEYS[d] === e.code) : NaN;
     if (e.code === 'Tab') setDrums(!jam.drums);
     else if (jam.drums) { if (!isNaN(drum)) playDrum(drum); else if (e.code === 'Escape') closeJam(); }
-    else if (row >= 0) playPad(row, JAM_KEYS[row].indexOf(e.code), 'k' + e.code);
+    else if (row >= 0) { const col = JAM_KEYS[row].indexOf(e.code); if (col < padCols()) playPad(row, col, 'k' + e.code); }
     else if (e.code === 'Equal' || e.code === 'NumpadAdd' || e.code === 'BracketRight' || e.code === 'ArrowRight') setOctave(1);
     else if (e.code === 'Minus' || e.code === 'NumpadSubtract' || e.code === 'BracketLeft' || e.code === 'ArrowLeft') setOctave(-1);
     else if (e.code === 'Escape') closeJam();
@@ -5689,7 +5698,7 @@ function judge(f, nt, ok, perfect) {
   const g = f.g;
   nt.done = ok ? 1 : -1;
   nt.el.classList.add(ok ? 'hit' : 'missed');
-  if (ok) { g.hits++; sfx.note(f.w.id, padFreq(1, g.sung++ % SCALE.length)); }
+  if (ok) { g.hits++; sfx.note(f.w.id, pentHz(g.sung++ % 6) * 2 ** jam.oct); }   // up the pentatonic, never a sour note
   else g.miss++;
   say(f, ok ? (perfect ? 'perfect' : 'good') : 'miss');
   f.msgT = 0.5;
@@ -6810,10 +6819,13 @@ $('landBuy').addEventListener('click', buyLand);
 $('landClose').addEventListener('click', closeLand);
 $('land').addEventListener('click', e => { if (e.target.id === 'land') closeLand(); });
 
-const SCALE = [0, 1, 2, 3, 4, 5];   // pad columns: pentHz() steps, the key's pentatonic and its octave (D E F# A B D in D major)
+const padCols = () => padSteps().length + 1;   // pad columns: the scale up to its octave (8 for major and minor: D E F# G A B C# D in D major)
 const JAM_ROWS = 3;   // top row an octave up, bottom row an octave down
-const JAM_KEYS = ['KeyQ KeyW KeyE KeyR KeyT KeyY', 'KeyA KeyS KeyD KeyF KeyG KeyH', 'KeyZ KeyX KeyC KeyV KeyB KeyN'].map(r => r.split(' '));
-const PAD_BTNS = [4, 2, 0, 3, 1, 5], PAD_LABELS = ['LB', 'X', 'A', 'Y', 'B', 'RB'];   // controller button for each column
+const JAM_KEYS = ['KeyQ KeyW KeyE KeyR KeyT KeyY KeyU KeyI', 'KeyA KeyS KeyD KeyF KeyG KeyH KeyJ KeyK', 'KeyZ KeyX KeyC KeyV KeyB KeyN KeyM Comma'].map(r => r.split(' '));
+const padKeyLabel = code => (code.startsWith('Key') ? code.slice(3) : ',');
+// Controller button for each column: six for a five-note scale; eight take LT and RT too (sustain is then the slider's).
+const padBtns = () => (padCols() > 6 ? [6, 4, 2, 0, 3, 1, 5, 7] : [4, 2, 0, 3, 1, 5]);
+const PAD_LABELS = { 6: 'LT', 4: 'LB', 2: 'X', 0: 'A', 3: 'Y', 1: 'B', 5: 'RB', 7: 'RT' };
 const jam = { open: false, drums: false, oct: 0, row: 1, input: null, t: 0, kick: 0, r: null, scene: null, cam: null, model: null, spread: 0,
   sustain: store.get('bl-sustain', 0.35), held: new Map(),
   song: store.get('bl-jam-song', 1),   // the farm tune's volume on the stage, on this device: 0 leaves just the instruments   // held: finger / key / button -> release()
@@ -6823,9 +6835,16 @@ const jam = { open: false, drums: false, oct: 0, row: 1, input: null, t: 0, kick
 const bandOf = () => GUEST ? [...jam.band.entries()] : [...party.players.entries()];
 const bandN = ([k, pl]) => pl.n ?? k;
 const jamPads = $('jamPads');
-for (let row = 0; row < JAM_ROWS; row++) SCALE.forEach((_, col) => {
+function buildPads() {   // three rows of the scale, built afresh if the scale has changed
+  const cols = padCols();
+  if (jamPads.children.length === cols * JAM_ROWS) return;
+  jamPads.replaceChildren();
+  jamPads.style.setProperty('--cols', cols);
+  for (let row = 0; row < JAM_ROWS; row++) for (let col = 0; col < cols; col++) makePad(row, col, cols);
+}
+function makePad(row, col, cols) {
   const pad = document.createElement('button');
-  pad.className = 'pad' + (col === 0 || col === 5 ? ' root' : '');
+  pad.className = 'pad' + (col === 0 || col === cols - 1 ? ' root' : '');
   pad.dataset.row = row;
   pad.dataset.col = col;
   pad.innerHTML = '<span class="k"></span>';
@@ -6839,7 +6858,8 @@ for (let row = 0; row < JAM_ROWS; row++) SCALE.forEach((_, col) => {
   for (const type of ['pointerup', 'pointercancel', 'pointerleave']) pad.addEventListener(type, e => letGo('p' + e.pointerId));
   pad.addEventListener('click', e => { if (e.detail === 0) playPad(row, col); });   // Enter / Space on a focused pad
   jamPads.append(pad);
-});
+}
+buildPads();
 // The drum pads: two rows of four. Bottom row kick, snare, closed and open hi-hat;
 // top row clap, low tom, high tom, cowbell. Index = the sfx.drum() sound.
 const DRUM_GRID = [4, 5, 6, 7, 0, 1, 2, 3];   // pad order, top-left first
@@ -6893,7 +6913,7 @@ function setDrums(on) {
 }
 $('instBtn').addEventListener('click', () => { sfx.ensure(); setDrums(!jam.drums); });
 const padAt = (row, col) => jamPads.querySelector(`.pad[data-row="${row}"][data-col="${col}"]`);
-const noteFreq = (oct, row, col) => pentHz(SCALE[col]) * 2 ** (oct + 1 - row);
+const noteFreq = (oct, row, col) => scaleHz(col) * 2 ** (oct + 1 - row);
 const padFreq = (row, col) => noteFreq(jam.oct, row, col);
 function playPad(row, col, by) {
   sfx.ensure();
@@ -6962,10 +6982,10 @@ function markJamHints() {
   $('jam').dataset.input = m;
   jamPads.querySelectorAll('.pad').forEach(p => {
     const row = +p.dataset.row, col = +p.dataset.col;
-    p.querySelector('.k').textContent = m === 'keys' ? JAM_KEYS[row][col].slice(3) : m === 'pad' && row === jam.row ? PAD_LABELS[col] : '';
+    p.querySelector('.k').textContent = m === 'keys' ? padKeyLabel(JAM_KEYS[row][col]) : m === 'pad' && row === jam.row ? PAD_LABELS[padBtns()[col]] : '';
     p.classList.toggle('live', m === 'pad' && row === jam.row);
   });
-  const hints = { keys: ['=', '−', 'Esc', '', 'Tab'], pad: ['▶', '◀', 'Start', 'LT · RT', 'Select'], touch: ['', '', '', '', ''] }[m];
+  const hints = { keys: ['=', '−', 'Esc', '', 'Tab'], pad: ['▶', '◀', 'Start', padCols() > 6 ? '' : 'LT · RT', 'Select'], touch: ['', '', '', '', ''] }[m];
   ['octUp', 'octDown', 'jamClose', 'sustainRow', 'instBtn'].forEach((id, i) => { $(id).dataset.hint = hints[i]; });
   const names = t('drumNames');
   drumPads.querySelectorAll('.pad').forEach(p => {
@@ -7038,6 +7058,8 @@ function openJam() {
   stopAllFishing();
   jamSetup();
   if (jam.model) { jam.scene.remove(jam.model.group); disposeHero(jam.model); }
+  buildPads();
+  if (jam.input) markJamHints();
   jam.model = hero().build();
   jam.banjo = holdInstrument(jam.model);
   jam.scene.add(jam.model.group);
@@ -7370,7 +7392,7 @@ function onPlayer(slot, m, direct = false) {
   else if (m.t === 'mode') { pl.drums = !!m.drums && ownedDecor.has('drums'); showInstrument(pl.banjo, !pl.drums); tellBand(); }
   else if (!jam.open) return;   // notes only sound while the Jam Stage is open
   else if (m.t === 'note') {
-    const r = clamp(m.r | 0, 0, JAM_ROWS - 1), c = clamp(m.c | 0, 0, SCALE.length - 1), key = 'r' + slot + '-' + r + '-' + c;
+    const r = clamp(m.r | 0, 0, JAM_ROWS - 1), c = clamp(m.c | 0, 0, padCols() - 1), key = 'r' + slot + '-' + r + '-' + c;
     if (!m.on) { letGo(key); toGuests({ t: 'jn', k, by: key, on: false }, others); return; }
     sfx.ensure();
     const f = noteFreq(pl.oct, r, c);
@@ -7580,7 +7602,7 @@ function pollLocalPads(list) {
     if (jam.open) {   // the six buttons play the row the d-pad picked; left/right shift the octave
       if (dir === 'up' || dir === 'down') pl.row = clamp((pl.row ?? 1) + (dir === 'down' ? 1 : -1), 0, JAM_ROWS - 1);
       if (dir === 'left' || dir === 'right') send({ t: 'oct', v: clamp(pl.oct + (dir === 'right' ? 1 : -1), -1, 1) });
-      PAD_BTNS.forEach((b, col) => {
+      padBtns().forEach((b, col) => {
         if (pressed(b)) { st[b] = pl.row ?? 1; send({ t: 'note', r: st[b], c: col, on: true }); }
         if (released(b)) send({ t: 'note', r: st[b] ?? 1, c: col, on: false });
       });
@@ -8444,12 +8466,13 @@ function pollPad() {
       if (pressed(9)) closeJam();
       return;
     }
-    PAD_BTNS.forEach((b, col) => {
+    const btns = padBtns();
+    btns.forEach((b, col) => {
       if (pressed(b)) playPad(jam.row, col, 'b' + b);
       if (released(b)) letGo('b' + b);
     });
-    if (pressed(6)) setSustain(jam.sustain - 0.1);   // LT / RT: less or more sustain
-    if (pressed(7)) setSustain(jam.sustain + 0.1);
+    if (btns.length === 6 && pressed(6)) setSustain(jam.sustain - 0.1);   // LT / RT: less or more sustain (when they aren't notes)
+    if (btns.length === 6 && pressed(7)) setSustain(jam.sustain + 0.1);
     if (pressed(8) || pressed(9)) closeJam();
     return;
   }
