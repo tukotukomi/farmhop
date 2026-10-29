@@ -1911,6 +1911,32 @@ const sfx = (() => {
     if (len > 0) release(t + len);
     return release;
   }
+  // A ghost's laugh: five breathy, wobbling "ha"s, each a little lower, off to one side and echoing in the organ's hall.
+  function ghostLaugh(t, f0, pan) {
+    const out = ctx.createGain();
+    if (ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = pan; out.connect(p).connect(master); } else out.connect(master);
+    if (organHall) out.connect(organHall);
+    for (let i = 0; i < 5; i++) {
+      const at = t + i * 0.13, f = f0 * (1 - i * 0.06);
+      const o = ctx.createOscillator(), bp = ctx.createBiquadFilter(), g = ctx.createGain(), vib = ctx.createOscillator(), vd = ctx.createGain();
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(f * 1.15, at);
+      o.frequency.exponentialRampToValueAtTime(f * 0.85, at + 0.11);
+      vib.frequency.value = 11;
+      vd.gain.value = f * 0.04;
+      vib.connect(vd).connect(o.frequency);
+      bp.type = 'bandpass';
+      bp.frequency.value = 900 + (i % 2) * 300;   // between an "ah" and an "eh"
+      bp.Q.value = 3;
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(0.07, at + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + 0.12);
+      o.connect(bp).connect(g).connect(out);
+      o.start(at); o.stop(at + 0.14);
+      vib.start(at); vib.stop(at + 0.14);
+    }
+    noise(0.7, 0.025, 'highpass', 3000, Math.max(0, t - ctx.currentTime));   // a breath of air under it
+  }
   function noise(dur, vol, type, freq, delay = 0) {
     if (!ctx || muted) return;
     const t = ctx.currentTime + delay;
@@ -2101,7 +2127,18 @@ const sfx = (() => {
       }
     },
     bump() { tone(220, 150, 0.07, 'square', 0.07); },
-    boo() { tone(520, 300, 1.1, 'sine', 0.09); tone(523, 290, 1.1, 'triangle', 0.05, 0.02); tone(780, 420, 0.9, 'sine', 0.04, 0.25); },   // the spooky farm wakes
+    // The spooky farm wakes: an organ blast in the song's key (a flourish up top, then a big
+    // minor chord over the 16' pipe), a rush of wind with the mist, and ghosts laughing as it rolls on.
+    spookyWave() {
+      if (!ctx || muted) return;
+      const t = ctx.currentTime + 0.02, r = 293.66 * 2 ** (keyNow()[0] / 12), st = n => r * 2 ** (n / 12);
+      [[7, 0, 0.1], [5, 0.1, 0.08], [7, 0.18, 0.14]].forEach(([n, at, len]) => pipes(st(n + 12), t + at, 0.026, len));   // the flourish
+      for (const n of [-12, 0, 3, 7, 12]) pipes(st(n), t + 0.34, n < 0 ? 0.03 : 0.022, 2.4);                       // the chord
+      noise(1.5, 0.1, 'lowpass', 520, 0.3);                                                                            // the mist's rush
+      ghostLaugh(t + 0.55, 640, -0.6);
+      ghostLaugh(t + 0.95, 780, 0.6);
+      ghostLaugh(t + 1.4, 560, 0.1);
+    },
     // these little tunes are in D too, so they move with the song's key
     pick() { tone(inKey(587), inKey(880), 0.08, 'triangle', 0.07); },
     place() { tone(inKey(880), null, 0.05, 'triangle', 0.07); tone(inKey(1175), null, 0.12, 'triangle', 0.06, 0.05); },
@@ -2393,7 +2430,7 @@ function startSpooky(h) {
   spooky.t = SPOOKY_SECS;
   spooky.flower = null;
   spooky.wave = { row: h.r, t: 0 };   // out from here
-  sfx.boo();
+  sfx.spookyWave();
   burst(h.x, 0.6, h.z, [0x9b6bff, 0x6bff9b, 0xff8a1a, 0xffffff], 18, 2, 4, 0.1, 0.8);
 }
 function endSpooky() {
