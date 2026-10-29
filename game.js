@@ -4280,6 +4280,12 @@ window.addEventListener('keydown', e => {
   if (partyOpen()) { if (e.code === 'Escape' || e.code === 'Enter') closeParty(); e.preventDefault(); return; }
   if (game.picking && supportOpen()) { if (e.code === 'Escape') closeSupport(); return; }
   if (game.picking && pickOpen()) { if (e.code === 'Escape') closePick(); return; }
+  if (game.picking && nudgeOpen()) {   // Feeling off beat? Enter starts the helper, Escape is "Later"
+    if (e.code === 'Enter' || e.code === 'Space') startNudge();
+    else if (e.code === 'Escape') closeNudge(true);
+    e.preventDefault();
+    return;
+  }
   if (game.picking && tapOpen()) {   // Latency Helper: Space or Enter taps, Escape closes
     if (e.code === 'Escape') closeTap();
     else if ((e.code === 'Space' || e.code === 'Enter') && !e.repeat) { if ($('tapGo').hidden) tapHit(e.timeStamp / 1000); else tapStart(); }   // tapping along, or starting
@@ -4867,7 +4873,7 @@ function startReel(f) {
     notes, ahead: fast * BEAT,
     win: Math.min(0.2 - k * 0.11, SIXTEENTH * 0.48),            // 0.2 s either side down to under half a sixteenth
     need: Math.ceil(notes.length * (0.5 + k * 0.35)),           // half the notes, up to 85%
-    hits: 0, miss: 0, sung: 0, offs: [],
+    hits: 0, miss: 0, sung: 0, offs: [], off: 0,
   };
   setSt(f, 'reel');
 }
@@ -4904,13 +4910,14 @@ function reelGame(f, tap) {
     const at = (f.tapAt ?? songNow()) - beatLag;
     const near = g.notes.filter(n => !n.done).sort((a, b) => Math.abs(a.at - at) - Math.abs(b.at - at))[0];
     if (near && Math.abs(near.at - at) < 0.25) g.offs.push(beatLag - (near.at - at));   // how late the tap really was (before the offset)
+    if (near && Math.abs(near.at - at) > g.win && Math.abs(near.at - at) < 0.5) g.off++;   // there, but off the beat
     const nt = g.notes.find(n => !n.done && Math.abs(n.at - at) <= g.win);
     if (nt) judge(f, nt, true, Math.abs(nt.at - at) <= g.win * 0.45);
     else { const next = g.notes.find(n => !n.done && n.at - at < 0.5); if (next) judge(f, next, false); else sfx.bump(); }
   }
   for (const nt of g.notes) if (!nt.done && now - nt.at > g.win) judge(f, nt, false);
-  if (g.notes.length - g.miss < g.need) { learnLag(g); say(f, 'away'); sfx.lost(); setSt(f, 'ready'); }   // can't be caught now
-  else if (g.notes.every(n => n.done)) { learnLag(g); landFish(f); }
+  if (g.notes.length - g.miss < g.need) { learnLag(g); offBeat(f); say(f, 'away'); sfx.lost(); setSt(f, 'ready'); }   // can't be caught now
+  else if (g.notes.every(n => n.done)) { learnLag(g); offBeat(f); landFish(f); }
 }
 function logFish(id, cm) {   // into this device's Fish Book: is it a new kind, or the biggest yet?
   const was = fishBook[id];
@@ -6721,7 +6728,7 @@ if (RELAY && !GUEST) try { if (sessionStorage.getItem('bl-party-room')) partySta
 // Book, Hop Supporter, settings) is copied to the player's Google account, and comes
 // down again on another device. See account/tuko-account.js; the farm saves on the
 // device first, as always.
-const DEVICE_ONLY = ['bl-gfx-auto', 'bl-beat-lag', 'bl-beat-auto', 'bl-fishcam'];   // measured on this device: not worth carrying over
+const DEVICE_ONLY = ['bl-gfx-auto', 'bl-beat-lag', 'bl-beat-auto', 'bl-fishcam', 'bl-lat-nudge'];   // measured on this device: not worth carrying over
 const savedKeys = () => Object.keys(localStorage).filter(k => k.startsWith('bl-') && !DEVICE_ONLY.includes(k));
 const account = window.TUKO_FIREBASE && !GUEST ? createAccount({
   app: 'farmhop',
@@ -7030,9 +7037,48 @@ function tapFinish() {
   $('tapGo').textContent = t('lat.again');
   sfx.upgrade();
 }
+// Feeling off beat? When your taps keep landing near the notes but outside them (a
+// reel's worth of them, twice), a little pop-up suggests the Latency Helper, your
+// hopper hopping along in it. Once per visit; never again once you've tried the helper.
+const NUDGE_KEY = 'bl-lat-nudge';
+const nudge = { reels: 0, shown: false };
+const nudgeOpen = () => $('latNudge').classList.contains('show');
+function offBeat(f) {
+  const g = f.g;
+  if (f.key !== myKey() || nudge.shown || store.get(NUDGE_KEY, false)) return;
+  if (g.off < Math.max(3, g.notes.length * 0.3)) return;
+  if (++nudge.reels < 2) return;
+  nudge.shown = true;
+  setTimeout(openNudge, 1200);   // once the fish has got away (or come in)
+}
+function openNudge() {
+  if (game.state !== 'farm' || anyPanel()) { nudge.shown = false; nudge.reels = 1; return; }   // busy: ask after the next off-beat reel
+  const i = HEROES.findIndex(h => h.id === heroId);
+  $('nudgeHopper').src = shots.cards[Math.max(0, i)];
+  $('latNudge').classList.add('show');
+  game.picking = true;
+}
+function closeNudge(later) {
+  $('latNudge').classList.remove('show');
+  game.picking = anyPanel();
+  if (!later) return;
+  const f = fishers.get(myKey());
+  if (f) { f.msg = t('lat.laterSay'); f.msgT = 3.5; }
+  else { bettySays(t('lat.laterSay')); tip.w = walkerOf(myKey()) || tip.w; }   // said by your own hopper, not Betty Lou
+}
+function startNudge() {
+  store.set(NUDGE_KEY, true);
+  closeNudge(false);
+  openTap();
+}
+$('nudgeLater').addEventListener('click', () => closeNudge(true));
+$('nudgeClose').addEventListener('click', () => closeNudge(true));
+$('latNudge').addEventListener('click', e => { if (e.target.id === 'latNudge') closeNudge(true); });
+$('nudgeGo').addEventListener('click', () => { sfx.ensure(); startNudge(); });
 $('tapGo').addEventListener('click', tapStart);
 $('tapUse').addEventListener('click', () => {
   if (tap.result == null) return;
+  store.set(NUDGE_KEY, true);   // they know the helper now
   setBeatLag(tap.result);
   closeTap();
   openSettings();
@@ -7211,6 +7257,7 @@ function pollPad() {
   if (partyOpen()) { if (pressed(0) || pressed(1) || pressed(9)) closeParty(); return; }
   if (game.picking && supportOpen()) { if (pressed(1) || pressed(9)) closeSupport(); return; }
   if (game.picking && pickOpen()) { if (pressed(1)) closePick(); return; }
+  if (game.picking && nudgeOpen()) { if (pressed(0)) startNudge(); else if (pressed(1)) closeNudge(true); return; }
   if (game.picking && tapOpen()) { if (pressed(0)) { if ($('tapGo').hidden) tapHit(performance.now() / 1000); else tapStart(); } if (pressed(1)) closeTap(); return; }
   if (game.picking && settingsOpen()) {
     if (dir) settingsNav(dir);
@@ -7427,4 +7474,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, farmCam, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; } };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, farmCam, offBeat, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; } };

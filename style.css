@@ -936,6 +936,9 @@ body.guest #phonesBtn, body.guest #partyBtn, body.guest #play { display: none !i
 .tapStage img { width: 150px; height: 150px; position: relative; z-index: 1; transform-origin: 50% 100%; }
 .tapShadow { position: absolute; bottom: 6px; width: 90px; height: 14px; border-radius: 50%; background: rgba(58, 36, 66, .18); }
 .tapStage img.hop { animation: tapHop .32s cubic-bezier(.3, .7, .4, 1); }
+.tapStage img.hopLoop { animation: tapHopLoop .72s cubic-bezier(.3, .7, .4, 1) infinite; }   /* the Latency Helper nudge: hopping along to a steady beat */
+@keyframes tapHopLoop { 0% { translate: 0 0; } 20% { translate: 0 -46px; } 41% { translate: 0 0; scale: 1 1; } 46% { scale: 1.08 .9; } 56%, 100% { translate: 0 0; scale: 1 1; } }
+#nudgeLater { --c1: var(--berry); --c2: var(--berry-d); padding: 8px 18px 10px; }
 @keyframes tapHop { 0% { translate: 0 0; } 45% { translate: 0 -46px; } 92% { translate: 0 0; scale: 1 1; } 100% { scale: 1.08 .9; } }
 .tapCount { position: absolute; top: 0; left: 50%; translate: -50% 0; z-index: 2; font-size: 34px; color: var(--berry); text-shadow: 0 3px 0 var(--ink-soft); }
 .tapDots { display: flex; gap: 6px; }
