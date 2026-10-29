@@ -5072,6 +5072,7 @@ window.addEventListener('keydown', e => {
     return;
   }
   if (game.picking && bookOpen()) { if (e.code === 'Escape' || e.code === 'Enter') closeBook(); e.preventDefault(); return; }
+  if (game.picking && photoOpen()) { if (e.code === 'Escape') closePhoto(); return; }
   if (game.picking && bagOpen()) { bagKey(e.code); e.preventDefault(); return; }
   if (game.picking && landOpen()) {   // More Land: Enter buys, Escape closes
     if (e.code === 'Enter' || e.code === 'Space') buyLand();
@@ -6625,6 +6626,117 @@ function buyDecor(id) {
 }
 $('shopClose').addEventListener('click', closeShop);
 $('shop').addEventListener('click', e => { if (e.target.id === 'shop') closeShop(); });
+
+// ---------- Photos ----------
+// In the Close Up views (fishing, the swing) the camera button takes a photo of just the
+// game: no buttons, the logo in the top-right corner and farmhop.fun along the bottom.
+// Then it can be saved, shared with the photo (where the device can), or posted as a link.
+const SITE = 'https://farmhop.fun';
+const photoOpen = () => $('photo').classList.contains('show');
+const closeUp = () => game.state === 'farm' && /\b(fishing|swinging)\b/.test(document.body.className) && !document.body.classList.contains('reeling');
+let photoBlob = null, photoUrl = '';
+const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const LOGO_FONT = "Fredoka, 'Noto Sans SC', sans-serif";
+function photoPill(c, x, y, text, size, rot, align = 'center') {   // a cream pill like the logo's "Betty Lou's" and "Alpha"
+  c.save();
+  c.font = `700 ${size}px ${LOGO_FONT}`;
+  const w = c.measureText(text).width + size * 1.3, h = size * 1.45;
+  c.translate(align === 'right' ? x - w / 2 : x, y);
+  c.rotate(rot);
+  c.fillStyle = cssVar('--ink-soft');
+  c.beginPath(); c.roundRect(-w / 2, -h / 2 + size * 0.17, w, h, h / 2); c.fill();
+  c.fillStyle = cssVar('--cream');
+  c.beginPath(); c.roundRect(-w / 2, -h / 2, w, h, h / 2); c.fill();
+  c.lineWidth = size * 0.13; c.strokeStyle = cssVar('--ink'); c.stroke();
+  c.fillStyle = cssVar('--berry-d'); c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillText(text, 0, size * 0.05);
+  c.restore();
+}
+function photoWord(c, x, y, word, size, colors) {   // the logo's puffy letters: an ink rim, an ink "thickness" below, each letter tipped
+  c.save();
+  c.font = `700 ${size}px ${LOGO_FONT}`;
+  c.textAlign = 'center'; c.textBaseline = 'alphabetic'; c.lineJoin = 'round';
+  const o = size / 21, ws = [...word].map(ch => c.measureText(ch).width - o * 0.7), total = ws.reduce((a, b) => a + b, 0);
+  let at = x - total / 2;
+  [...word].forEach((ch, i) => {
+    c.save();
+    c.translate(at + ws[i] / 2, y);
+    c.rotate((i % 2 ? 4 : -4) * Math.PI / 180);
+    c.fillStyle = 'rgba(58, 36, 66, .3)'; c.fillText(ch, 0, o * 5);
+    c.fillStyle = c.strokeStyle = cssVar('--ink'); c.lineWidth = o * 2;
+    for (const dy of [o * 2.7, o * 1.4, 0]) { c.strokeText(ch, 0, dy); c.fillText(ch, 0, dy); }
+    c.fillStyle = colors[i % colors.length]; c.fillText(ch, 0, 0);
+    c.restore();
+    at += ws[i];
+  });
+  c.restore();
+}
+function drawLogo(c, x, y, s) {   // the title logo, top centre at x, y, s times its 200-wide design size
+  c.save();
+  c.translate(x, y); c.scale(s, s); c.rotate(-5 * Math.PI / 180);
+  photoPill(c, 0, 18, "Betty Lou's", 24, 3 * Math.PI / 180);
+  photoWord(c, 0, 96, 'FARM', 64, ['#ff6b6b', '#ffa24a', '#ffd84a', '#6bd864']);
+  photoWord(c, 0, 168, 'HOP!', 80, ['#ff7fb8', '#ffd84a', '#5bb4ff', '#6bd864']);
+  photoPill(c, 0, 200, 'Alpha', 16, -2 * Math.PI / 180);
+  c.restore();
+}
+async function takePhoto() {
+  if (!closeUp() || photoOpen()) return;
+  sfx.ensure();
+  await document.fonts.load(`700 64px Fredoka`).catch(() => {});
+  renderCel();   // a fresh frame, copied before the browser clears it
+  const shot = document.createElement('canvas');
+  shot.width = canvas.width; shot.height = canvas.height;
+  const c = shot.getContext('2d'), w = shot.width, h = shot.height, short = Math.min(w, h), m = short * 0.035;
+  c.drawImage(canvas, 0, 0);
+  const s = Math.min(short * 0.36, w * 0.42) / 230;
+  drawLogo(c, w - m - 118 * s, m + 4 * s, s);
+  photoPill(c, w - m, h - m - short * 0.03, 'farmhop.fun', Math.max(14, short * 0.032), 0, 'right');
+  $('flash').classList.remove('go'); void $('flash').offsetWidth; $('flash').classList.add('go');
+  shot.toBlob(b => {
+    if (!b) return;
+    photoBlob = b;
+    if (photoUrl) URL.revokeObjectURL(photoUrl);
+    photoUrl = URL.createObjectURL(b);
+    $('photoImg').src = photoUrl;
+    $('photoImg').alt = t('photo.alt');
+    $('photoShare').hidden = !navigator.canShare?.({ files: [photoFile()] });
+    $('photo').classList.add('show');
+    game.picking = true;
+  }, 'image/png');
+}
+function photoFile() {
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return new File([photoBlob], `farm-hop-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.png`, { type: 'image/png' });
+}
+function closePhoto() {
+  $('photo').classList.remove('show');
+  game.picking = anyPanel();
+}
+function savePhoto() {
+  if (!photoBlob) return;
+  const a = document.createElement('a');
+  a.href = photoUrl; a.download = photoFile().name;
+  document.body.append(a); a.click(); a.remove();
+}
+async function sharePhoto() {
+  if (!photoBlob) return;
+  try { await navigator.share({ files: [photoFile()], title: "Betty Lou's Farm Hop", text: t('photo.text') + ' ' + SITE }); } catch {}   // (cancelled: nothing to do)
+}
+const SHARE_TO = {
+  x: () => 'https://x.com/intent/post?text=' + encodeURIComponent(t('photo.text')) + '&url=' + encodeURIComponent(SITE),
+  fb: () => 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(SITE),
+  bsky: () => 'https://bsky.app/intent/compose?text=' + encodeURIComponent(t('photo.text') + ' ' + SITE),
+};
+document.querySelectorAll('.photoSocial [data-net]').forEach(b => b.addEventListener('click', () => window.open(SHARE_TO[b.dataset.net](), '_blank', 'noopener')));
+$('photoCopy').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(SITE); $('photoCopy').textContent = t('photo.copied'); setTimeout(() => { $('photoCopy').textContent = t('photo.copy'); }, 1600); } catch {}
+});
+$('camBtn').addEventListener('click', takePhoto);
+$('photoSave').addEventListener('click', savePhoto);
+$('photoShare').addEventListener('click', sharePhoto);
+$('photoClose').addEventListener('click', closePhoto);
+$('photo').addEventListener('click', e => { if (e.target.id === 'photo') closePhoto(); });
 
 // ---------- Jam Stage ----------
 // Build it once (one sunflower); after that a tap opens the jam: your hopper on a
@@ -8263,6 +8375,7 @@ function pollPad() {
     return;
   }
   if (game.picking && bookOpen()) { if (pressed(0) || pressed(1) || pressed(9)) closeBook(); return; }
+  if (game.picking && photoOpen()) { if (pressed(0)) savePhoto(); else if (pressed(1)) closePhoto(); return; }
   if (game.picking && landOpen()) { if (pressed(0) || pressed(9)) buyLand(); else if (pressed(1)) closeLand(); return; }
   if (game.picking && bagOpen()) {   // d-pad chooses a fish, A one more, X one fewer, Y all, Start sells, B closes; asked to be sure: A sells, B keeps them
     if (asking()) { if (pressed(0) || pressed(9)) sellFish(); else if (pressed(1)) showSure(false); return; }

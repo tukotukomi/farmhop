@@ -22,6 +22,11 @@ export const STRINGS = {
       hopperPad: 'Press Y to switch hoppers!',
       fish: 'Go fishing at the Fish Pond!', fishPad: 'Press X, then Y to go fishing!', fishGuest: 'Tap the pond to go fishing!', fishGuestPad: 'Press X to go fishing!',
     },
+    photo: {
+      title: 'Say cheese!', save: 'Save', share: 'Share', copy: 'Copy link', copied: 'Link copied!',
+      note: 'These post a link to the game. Save your photo first to add it to the post.',
+      text: "Hopping around on Betty Lou's Farm Hop!", alt: 'Your photo from the farm',
+    },
     bag: {
       title: 'Fish Backpack', who: 'Tap a fish to choose it for selling.', empty: 'No fish yet! Everything you catch goes in here.',
       all: 'Choose all', none: 'Choose none', sell: 'Sell', keep: 'Keep them', sure1: 'Sell this fish?', sureN: 'Sell these {n} fish?',
@@ -130,7 +135,7 @@ export const STRINGS = {
       supHero: '{name}: for Hop Supporters', chooseHopper: 'Choose hopper', startDay: 'Start the day', fishPond: 'Fish Pond', bunkhouse: 'Bunkhouse', buildings: 'Farm buildings', fishBook: 'Fish Book', stopFishing: 'Stop fishing', cast: 'Cast',
       building: '{name}, level {n}', unbuilt: 'Not built yet: {n} sunflowers',
       unlock: 'Invite {name} for {n} sunflowers', lives: '{name} lives on the farm',
-      decorate: 'Decorate the farm', done: 'Done', rotate: 'Turn', shop: 'Market', octUp: 'Octave up', octDown: 'Octave down', phones: 'Play with phones', instDrums: 'Play the drums', instHopper: 'Play {name}\'s sounds',
+      decorate: 'Decorate the farm', done: 'Done', rotate: 'Turn', shop: 'Market', photo: 'Take a photo', octUp: 'Octave up', octDown: 'Octave down', phones: 'Play with phones', instDrums: 'Play the drums', instHopper: 'Play {name}\'s sounds',
       buyItem: 'Buy the {name} for {n} sunflowers', ownItem: 'The {name} is on your farm', keyOn: '{name}: playing now', keyHave: 'Play in {name}', keyBuy: 'Buy {name} for {n} sunflowers', backFarm: 'Back to the farm',
       close: 'Close', fullscreen: 'Full screen', sound: 'Sound on or off', settings: 'Settings', daylight: 'Daylight left',
     },
@@ -155,6 +160,11 @@ export const STRINGS = {
       bunkPad: '¡Pulsa B para ver los edificios!', stagePad: '¡Pulsa LB para el escenario!', decorPad: '¡Pulsa RB para decorar la granja!',
       hopperPad: '¡Pulsa Y para cambiar de saltarín!',
       fish: '¡Ve a pescar al estanque!', fishPad: '¡Pulsa X y luego Y para pescar!', fishGuest: '¡Toca el estanque para pescar!', fishGuestPad: '¡Pulsa X para pescar!',
+    },
+    photo: {
+      title: '¡Sonríe!', save: 'Guardar', share: 'Compartir', copy: 'Copiar enlace', copied: '¡Enlace copiado!',
+      note: 'Estos publican un enlace al juego. Guarda tu foto primero para añadirla a la publicación.',
+      text: "¡Saltando por Betty Lou's Farm Hop!", alt: 'Tu foto de la granja',
     },
     bag: {
       title: 'Mochila de peces', who: 'Toca un pez para elegirlo y venderlo.', empty: '¡Aún no hay peces! Todo lo que pesques se guarda aquí.',
@@ -264,7 +274,7 @@ export const STRINGS = {
       supHero: '{name}: para Hop Supporters', chooseHopper: 'Elegir saltarín', startDay: 'Empezar el día', fishPond: 'Estanque de peces', bunkhouse: 'La cabaña', buildings: 'Edificios de la granja', fishBook: 'Libro de peces', stopFishing: 'Dejar de pescar', cast: 'Lanzar',
       building: '{name}, nivel {n}', unbuilt: 'Sin construir: {n} girasoles',
       unlock: 'Invitar a {name} por {n} girasoles', lives: '{name} vive en la granja',
-      decorate: 'Decorar la granja', done: 'Listo', rotate: 'Girar', shop: 'Mercado', octUp: 'Subir una octava', octDown: 'Bajar una octava', phones: 'Jugar con teléfonos', instDrums: 'Tocar la batería', instHopper: 'Tocar los sonidos de {name}',
+      decorate: 'Decorar la granja', done: 'Listo', rotate: 'Girar', shop: 'Mercado', photo: 'Tomar una foto', octUp: 'Subir una octava', octDown: 'Bajar una octava', phones: 'Jugar con teléfonos', instDrums: 'Tocar la batería', instHopper: 'Tocar los sonidos de {name}',
       buyItem: 'Comprar {name} por {n} girasoles', ownItem: '{name} ya está en tu granja', keyOn: '{name}: sonando ahora', keyHave: 'Tocar en {name}', keyBuy: 'Comprar {name} por {n} girasoles', backFarm: 'Volver a la granja',
       close: 'Cerrar', fullscreen: 'Pantalla completa', sound: 'Activar o silenciar el sonido', settings: 'Ajustes', daylight: 'Luz del día restante',
     },
@@ -289,6 +299,11 @@ export const STRINGS = {
       bunkPad: '按 B 打开农场建筑！', stagePad: '按 LB 打开舞台！', decorPad: '按 RB 装饰农场！',
       hopperPad: '按 Y 换个伙伴！',
       fish: '去鱼塘钓鱼吧！', fishPad: '按 X 再按 Y 去钓鱼！', fishGuest: '点鱼塘去钓鱼吧！', fishGuestPad: '按 X 去钓鱼！',
+    },
+    photo: {
+      title: '笑一个！', save: '保存', share: '分享', copy: '复制链接', copied: '链接已复制！',
+      note: '这些会分享游戏的链接。先保存照片，再把它加到帖子里。',
+      text: "在 Betty Lou's Farm Hop 里蹦蹦跳跳！", alt: '你在农场拍的照片',
     },
     bag: {
       title: '鱼背包', who: '点一条鱼，选它来卖。', empty: '还没有鱼！钓到的鱼都会放在这里。',
@@ -398,7 +413,7 @@ export const STRINGS = {
       supHero: '{name}：支持者专属', chooseHopper: '选择角色', startDay: '开始新的一天', fishPond: '鱼塘', bunkhouse: '小木屋', buildings: '农场建筑', fishBook: '鱼类图鉴', stopFishing: '不钓了', cast: '抛竿',
       building: '{name}，等级 {n}', unbuilt: '还没建造：需要 {n} 朵向日葵',
       unlock: '用 {n} 朵向日葵邀请{name}', lives: '{name}住在农场里',
-      decorate: '装饰农场', done: '完成', rotate: '转动', shop: '集市', octUp: '升高八度', octDown: '降低八度', phones: '用手机一起玩', instDrums: '打架子鼓', instHopper: '演奏{name}的声音',
+      decorate: '装饰农场', done: '完成', rotate: '转动', shop: '集市', photo: '拍照', octUp: '升高八度', octDown: '降低八度', phones: '用手机一起玩', instDrums: '打架子鼓', instHopper: '演奏{name}的声音',
       buyItem: '用 {n} 朵向日葵买{name}', ownItem: '{name}已经在农场里了', keyOn: '{name}：正在播放', keyHave: '用{name}演奏', keyBuy: '用 {n} 朵向日葵买{name}', backFarm: '回到农场',
       close: '关闭', fullscreen: '全屏', sound: '开关声音', settings: '设置', daylight: '剩余日光',
     },
