@@ -2934,12 +2934,13 @@ const PIECES = {
   barn: { build: buildBarn, foot: [-2.05, 1.6, -1.6, 1.95], at: [4, -8.5, 0] },
   pond: { build: g => { farm.pond = g; buildPond(); }, foot: [-2.8, 2.8, -2.1, 2.1], at: [2, 2, 0], pond: true },   // room for its biggest size
   bunk: { build: g => { farm.bunk = g; buildBunk(); }, foot: [-1.3, 1.3, -1.1, 1.45], block: [-1.3, 1.3, -1.1, 1.0], at: [0.5, -3.5, 0] },
-  stage: { build: g => { farm.stage = g; buildStage(); }, foot: [-1.3, 1.3, -1.0, 1.25], block: [-1.3, 1.3, -1.0, 1.0], at: [-4.5, -1.5, 0] },
+  stage: { build: g => { farm.stage = g; buildStage(); return stageTick; }, foot: [-1.3, 1.3, -1.0, 1.25], block: [-1.3, 1.3, -1.0, 1.0], at: [-4.5, -1.5, 0] },
   flowers: { build: buildFlowers, foot: [-0.75, 0.75, -0.75, 0.75], at: [-4.5, 2.5, 0] },
   mailbox: { build: buildMailbox, foot: [-0.35, 0.35, -0.35, 0.35], at: [-3, 6, 0] },
   scarecrow: { build: buildScarecrow, foot: [-0.75, 0.75, -0.45, 0.45], decor: true, price: 10, bg: '#fff1b8' },
   swing: { build: buildSwing, foot: [-1.05, 1.05, -0.9, 0.9], decor: true, price: 10, bg: '#d9f2ff' },
   drums: { build: buildDrumKit, decor: true, onStage: true, price: 1, bg: '#ffd6ec' },   // sits on the Jam Stage, not in the yard
+  disco: { build: buildDiscoBall, decor: true, onStage: true, price: 100, bg: '#e6dcff' },   // hangs over the Jam Stage
 };
 const DECOR = Object.keys(PIECES).filter(id => PIECES[id].decor);
 const ownedDecor = new Set(store.get('bl-decor', []).filter(id => DECOR.includes(id)));
@@ -3383,17 +3384,26 @@ function buildStage() {
   v.rbox(2.4, 1.5, 0.12, 0, 1.05, -0.85, CURTAIN, 0.04);                       // curtain at the back, in folds
   for (let i = 0; i < 9; i++) v.cyl(0.11, 0.11, 1.45, -1.05 + i * 0.26, 1.03, -0.76, i % 2 ? CURTAIN : CURTAIN_L);
   v.rbox(1.5, 0.36, 0.08, 0, 1.92, -0.74, 0xfff1d8, 0.08);                     // a sign over the stage, with stars
-  [[-0.5, 0xff7fb8], [-0.17, 0x7fd0ff], [0.17, 0xffd24a], [0.5, 0x7ad653]].forEach(([x, c]) => v.ball(0.07, 0.07, 0.03, x, 1.92, -0.69, c));
   for (const s of [-1, 1]) {
     v.cyl(0.05, 0.05, 1.8, s * 1.13, 1.1, 0.82, WOOD_D);                       // front posts
     v.rbox(0.38, 0.55, 0.32, s * 0.82, 0.58, -0.4, 0x3a2f45, 0.05);            // speakers
     v.cyl(0.12, 0.12, 0.03, s * 0.82, 0.5, -0.23, 0x1d1626, Math.PI / 2, 0, 0);
     v.cyl(0.06, 0.06, 0.03, s * 0.82, 0.73, -0.23, 0x1d1626, Math.PI / 2, 0, 0);
   }
-  for (let i = 0; i <= 10; i++) {                                              // string lights between the posts
-    const x = -1.13 + i * 0.226, y = 1.95 - Math.sin(i / 10 * Math.PI) * 0.22;
-    v.ball(0.045, 0.06, 0.045, x, y, 0.82, [0xffd24a, 0xff7fb8, 0x7fd0ff, 0x7ad653][i % 4]);
+  // The lights: bulbs strung between the posts and the four on the sign. Unlit, so
+  // they keep their colours, and after dark each one glows softly in its own colour.
+  const bulbs = new VB(0.6), lit = [];
+  for (let i = 0; i <= 10; i++) {
+    const x = -1.13 + i * 0.226, y = 1.95 - Math.sin(i / 10 * Math.PI) * 0.22, c = [0xffd24a, 0xff7fb8, 0x7fd0ff, 0x7ad653][i % 4];
+    bulbs.ball(0.045, 0.06, 0.045, x, y, 0.82, c);
+    lit.push([x, y, 0.82, c, 0.46]);
   }
+  [[-0.5, 0xff7fb8], [-0.17, 0x7fd0ff], [0.17, 0xffd24a], [0.5, 0x7ad653]].forEach(([x, c]) => { bulbs.ball(0.07, 0.07, 0.03, x, 1.92, -0.69, c); lit.push([x, 1.92, -0.66, c, 0.42]); });
+  const glow = bulbs.mesh(MARKER_MAT);
+  glow.castShadow = false;
+  glow.layers.set(GLOW_LAYER);
+  g.add(glow);
+  for (const [x, y, z, c, size] of lit) glowAt(g, x, y, z, c, size);
   v.cyl(0.015, 0.015, 0.9, 0.4, 0.75, 0.35, 0x9aa0a6);                        // a mic on a stand
   v.cyl(0.12, 0.14, 0.03, 0.4, 0.31, 0.35, 0x9aa0a6);
   v.ball(0.05, 0.065, 0.05, 0.4, 1.23, 0.35, 0x3a2f45);
@@ -3404,6 +3414,76 @@ function buildStage() {
     kit.position.set(-0.15, 0.3, -0.3);
     kit.scale.setScalar(0.85);
     g.add(kit);
+  }
+  farm.disco = farm.discoDots = null;
+  if (ownedDecor.has('disco')) {   // the disco ball, turning on top of the sign, and its specks of light after dark
+    const ball = new THREE.Group();
+    buildDiscoBall(ball);
+    ball.position.set(0, 1.85, -0.72);   // clear of whoever's performing
+    g.add(ball);
+    farm.disco = ball;
+    glowAt(g, 0, 2.4, -0.68, 0xf4f8ff, 0.75);
+    farm.discoDots = Array.from({ length: 18 }, (_, i) => {
+      const m = new THREE.Mesh(DOT_GEO, new THREE.MeshBasicMaterial({ color: [0xffffff, 0xffc8ec, 0xc8ecff, 0xfff1b8][i % 4] }));
+      m.layers.set(GLOW_LAYER);
+      m.rotation.x = -Math.PI / 2;
+      m.userData = { a: i * 2.4, r: 0.35 + (i * 0.37) % 2 };
+      g.add(m);
+      return m;
+    });
+  }
+}
+// A mirrored disco ball: little silver tiles all over, a few catching colour, on a stand.
+function buildDiscoBall(g) {
+  const v = new VB(0.6), R = 0.2;
+  v.ball(R * 0.95, R * 0.95, R * 0.95, 0, 0.55, 0, 0x6a7280);
+  for (let i = 1; i < 8; i++) {
+    const th = i / 8 * Math.PI, n = Math.max(4, Math.round(16 * Math.sin(th)));
+    for (let j = 0; j < n; j++) {
+      const ph = (j + (i % 2) * 0.5) / n * Math.PI * 2, x = Math.sin(th) * Math.cos(ph) * R, z = Math.sin(th) * Math.sin(ph) * R;
+      const c = (i * 7 + j * 3) % 11 === 0 ? pick([0xffc8ec, 0xc8ecff, 0xfff1b8]) : [0xe8edf3, 0xc4ccd6, 0xf8fbff, 0xaab4c2][(i + j) % 4];
+      v.box(0.07, 0.07, 0.07, x, 0.55 + Math.cos(th) * R, z, c, th, -ph, 0);
+    }
+  }
+  v.cyl(0.025, 0.035, 0.2, 0, 0.27, 0, 0x9aa0a6);   // the stand it turns on
+  v.cyl(0.08, 0.09, 0.04, 0, 0.17, 0, 0x6a7280);
+  g.add(v.mesh());
+}
+const DOT_GEO = new THREE.CircleGeometry(0.045, 8);
+// A light's own glow: a soft dot of its colour, added on top, that fades in after dark.
+// One material per colour, shared, so they all brighten together.
+const GLOW_TEX = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const k = c.getContext('2d'), gr = k.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(255,255,255,1)');
+  gr.addColorStop(0.25, 'rgba(255,255,255,0.55)');
+  gr.addColorStop(1, 'rgba(255,255,255,0)');
+  k.fillStyle = gr;
+  k.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+})();
+const GLOW_MATS = new Map();
+function glowAt(g, x, y, z, color, size) {
+  if (!GLOW_MATS.has(color)) GLOW_MATS.set(color, new THREE.SpriteMaterial({ map: GLOW_TEX, color, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, opacity: 0 }));
+  const sp = new THREE.Sprite(GLOW_MATS.get(color));
+  sp.position.set(x, y, z);
+  sp.scale.setScalar(size);
+  sp.layers.set(GLOW_LAYER);
+  g.add(sp);
+}
+// The lights glow after dark; the disco ball turns, and its specks of light sweep over
+// the boards and the grass.
+function stageTick(t) {
+  const k = nightK();
+  for (const m of GLOW_MATS.values()) { m.opacity = k; m.visible = k > 0.02; }
+  if (!farm.disco) return;
+  farm.disco.rotation.y = t * 0.8;
+  const on = nightK() > 0.05;
+  for (const m of farm.discoDots) {
+    const a = m.userData.a + t * 0.8, x = Math.cos(a) * m.userData.r * 1.1, z = 0.4 + Math.sin(a) * m.userData.r;
+    m.visible = on && z > -0.7;
+    m.position.set(x, Math.abs(x) < 1.18 && z < 0.88 ? 0.315 : 0.02, z);   // on the stage floor, or down on the grass
   }
 }
 // A little red drum kit: bass drum with a star on it, snare, a tom, hi-hat and a crash.
@@ -3641,7 +3721,96 @@ function updateFarm(dt) {
   }
   for (const p of Object.values(farm.pieces)) p.update?.(t);
   updateTorches(t);
+  stageShows(dt);
   updateWalkers(dt, t);
+}
+
+// ---------- shows on the Jam Stage ----------
+// Now and then a farm hopper (or two) wanders up onto the Jam Stage and puts on a
+// show, bouncing to the beat with notes flying off, and a couple of others come and
+// watch from the front. The host runs it; friends' screens see the climb up and down.
+const STAGE_Y = 0.3;
+const show = { next: rand(20, 40), until: 0, cast: [] };
+const stageAt = (lx, lz) => pieceToFarm(farm.pieces.stage, lx, lz);
+function stageOut() {   // which way a hopper faces to look out from the stage
+  const [x0, z0] = stageAt(0, 0), [x1, z1] = stageAt(0, 1);
+  return Math.atan2(-(x1 - x0), -(z1 - z0));
+}
+function stageShows(dt) {
+  if (GUEST) return;
+  const live = game.state === 'farm' && farm.stageBuilt && farm.pieces.stage && !decor.on;
+  const players = new Set(playerMarks().map(([w]) => w));
+  for (const c of show.cast) {   // anyone who's been picked to play, or gone, leaves the show
+    if (!farm.walkers.includes(c) || players.has(c) || c.hidden || c.fishing) { leaveShow(c); show.cast = show.cast.filter(o => o !== c); }
+  }
+  if (show.cast.length) {
+    if (!live || game.time > show.until) endShow();
+    return;
+  }
+  if (!live || (show.next -= dt) > 0) return;
+  show.next = rand(35, 75);
+  const idle = farm.walkers.filter(w => !w.hidden && !players.has(w) && !w.fishing && !w.leap && !w.goal && !w.show).sort(() => rnd() - 0.5);
+  if (idle.length < 2) return;
+  const perf = idle.length >= 4 && rnd() < 0.4 ? [[-0.45, 0.15], [0.2, 0.05]] : [[-0.15, 0.1]];
+  const watch = [[-0.75, 2.05 + rand(0, 0.4)], [0.75, 2.05 + rand(0, 0.4)]].slice(0, ri(1, 2));
+  // Someone free goes to their spot: waddling if the way is clear, else hopping round
+  // whatever's in the way.
+  const take = (role, [lx, lz], to) => {
+    const [x, z] = stageAt(...to);
+    if (x < YARD.x0 || x > YARD.x1 || z < YARD.z0 || z > YARD.z1 || blockedAt(x, z)) return;
+    const w = idle.find(o => !o.show && pathClear(o.x, o.z, x, z)) || idle.find(o => !o.show);
+    if (!w) return;
+    w.show = { role, lx, lz, st: 'go', beat: -1, ph: ri(0, 2), x, z };
+    if (pathClear(w.x, w.z, x, z)) {
+      w.tx = x; w.tz = z;
+      toGuests({ t: 'walk', k: w.key, x: w.x, z: w.z, tx: x, tz: z });
+    } else hopToward(w.key, x, z);
+    show.cast.push(w);
+  };
+  for (const p of perf) take('perform', p, [p[0] * 0.5, 1.7]);   // to the foot of the step first
+  if (!show.cast.length) return;
+  for (const p of watch) take('watch', p, p);
+  show.until = game.time + rand(16, 26);
+}
+function leaveShow(w) {
+  if (w.show?.role === 'perform' && (w.y || 0) > 0.05) {   // hop back down to the grass
+    const [x, z] = stageAt(w.show.lx * 0.5, 1.7);
+    landLeap(w, x, z, 0.35, 0);
+    toGuests({ t: 'leap', k: w.key, x, z, up: 0.35, y: 0 });
+  }
+  w.show = null;
+  w.wait = rand(0.8, 2.5);
+}
+function endShow() {
+  for (const w of show.cast) leaveShow(w);
+  show.cast = [];
+}
+// A hopper in the show, standing still: climbing up once at the step, then on each beat.
+function showAct(w, t) {
+  const s = w.show;
+  if (s.st === 'go') {
+    if (w.goal || w.leap) return;   // still hopping over
+    if (Math.hypot(w.x - s.x, w.z - s.z) > 0.6) { leaveShow(w); show.cast = show.cast.filter(o => o !== w); return; }   // couldn't get there
+    if (s.role === 'perform') {
+      const [x, z] = stageAt(s.lx, s.lz);
+      s.st = 'on';
+      landLeap(w, x, z, 0.35, STAGE_Y);
+      toGuests({ t: 'leap', k: w.key, x, z, up: 0.35, y: STAGE_Y });
+    } else s.st = 'on';
+    return;
+  }
+  const beat = Math.floor((music ? music.heard().pos : t) / BEAT);
+  if (beat === s.beat) return;
+  s.beat = beat;
+  const out = stageOut();
+  if (s.role === 'perform') {   // bounce on every beat, turning to one side then the other; notes fly off now and then
+    w.hop = 0.42;
+    w.face = out + (beat % 2 ? 0.35 : -0.35);
+    if (beat % 4 === 0) burst(farm.group.position.x + w.x, STAGE_Y + 1, farm.group.position.z + w.z, RAINBOW, 4, 0.6, 2, 0.05, 0.6, true);
+  } else {                      // the audience faces the stage and hops along every so often
+    w.face = out + Math.PI;
+    if ((beat + s.ph) % 3 === 0) w.hop = 0.35;
+  }
 }
 
 // ---------- hoppers wandering the farm ----------
@@ -3766,10 +3935,10 @@ function leapTo(w, x, z) {   // false (and a little bump in place) when a wall o
   else toGuests({ t: 'leap', k: w.key, x, z, up });
   return ok;
 }
-function landLeap(w, x, z, up) {
+function landLeap(w, x, z, up, y = null) {   // y: a height to land at (up onto the Jam Stage, or back down)
   if (x !== w.x || z !== w.z) w.face = Math.atan2(-(x - w.x), -(z - w.z));
   w.hop = 0;
-  w.leap = { x0: w.x, z0: w.z, x1: x, z1: z, t: 0, up };
+  w.leap = { x0: w.x, z0: w.z, x1: x, z1: z, t: 0, up, y0: w.y || 0, y1: y };
   w.wait = STEER_IDLE;
   sfx.hop(w.id);
 }
@@ -3816,6 +3985,7 @@ function updateWalkers(dt, t) {
       w.z = w.tz = lerp(L.z0, L.z1, L.t);
       inner.position.y = Math.sin(Math.PI * L.t) * L.up;
       inner.rotation.z = 0;
+      if (L.y1 != null) w.y = lerp(L.y0, L.y1, L.t);
       if (L.t >= 1) {
         w.leap = null;
         if (w.queued) { const [qx, qr] = w.queued; w.queued = null; farmHop(w.key, qx, qr); }
@@ -3837,7 +4007,8 @@ function updateWalkers(dt, t) {
     } else {                                         // stand and look around for a bit
       inner.position.y = lerp(inner.position.y, 0, Math.min(1, dt * 10));
       inner.rotation.z = lerp(inner.rotation.z, 0, Math.min(1, dt * 10));
-      if ((w.wait -= dt) <= 0) {
+      if (w.show) showAct(w, t);
+      else if ((w.wait -= dt) <= 0) {
         if (w.fishing) w.wait = 1;
         else if (GUEST) w.wait = 1;   // on a friend's farm, the host decides where everyone wanders
         else { [w.tx, w.tz] = nextSpot(w); toGuests({ t: 'walk', k: w.key, x: w.x, z: w.z, tx: w.tx, tz: w.tz }); }
@@ -5719,7 +5890,7 @@ function buyDecor(id) {
     sfx.upgrade();
     const sp = farm.pieces.stage;
     cheer(sp.x, sp.z);
-    refreshShop(t('drumsHere'));
+    refreshShop(t(id === 'disco' ? 'discoHere' : 'drumsHere'));
     return;
   }
   const p = addPiece(id, [snap(farmCam.x), snap(farmCam.z - 1.4), 0]);   // the nearest free spot to the middle of the view
@@ -7448,7 +7619,7 @@ if (guestNet) {
   keepHero();
   const LOOKS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage'];
   guestNet.on(m => {
-    if (m.t === 'leap') { const w = walkerOf(m.k); if (w && m.k !== myKey()) landLeap(w, +m.x, +m.z, +m.up); }
+    if (m.t === 'leap') { const w = walkerOf(m.k); if (w && m.k !== myKey()) landLeap(w, +m.x, +m.z, +m.up, isFinite(m.y) ? clamp(+m.y, 0, 0.5) : null); }
     else if (m.t === 'crew') applyCrew(m.walkers || []);
     else if (m.t === 'fv') { if (m.k !== myKey()) applyFishView(m); }
     else if (m.t === 'fc') { if (m.k !== myKey()) remoteCatch(m); }
@@ -7502,4 +7673,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, farmCam, offBeat, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; } };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, farmCam, offBeat, stageShow: show, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; } };
