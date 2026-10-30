@@ -1557,6 +1557,35 @@ function demonBull(m, dt) {   // a spooky bull trails red smoke from its eyes an
   m.mesh.localToWorld(_bf.set(Math.random() * 0.8 - 0.4, 0.04, Math.random() * 0.36 - 0.18));
   burst(_bf.x, _bf.y, _bf.z, [0xffb02a, 0xff6a1a, 0xffe07a], 1, 0.8, 2.5, 0.05, 0.35, true);
 }
+function buildWitch() {   // a witch on her broomstick (a crop duster's length): hat, cape, stripy stockings and her cat
+  const b = new VB(TRAFFIC_D), glow = new VB(TRAFFIC_D), DRESS = 0x4a2a6a, SKIN = 0x8fd16a, HAT = 0x1c1824, STRAW = 0xd9a84a, INK = SPOOK_INK;
+  b.cap(0.035, 1.3, 0, 0.62, 0, 0x8a5a33, 0, 0, Math.PI / 2);                // the broomstick, nose to tail
+  b.cone(0.17, 0.42, -0.72, 0.62, 0, STRAW, 0, 0, Math.PI / 2);             // its bristles, fanning out behind
+  b.cyl(0.07, 0.07, 0.05, -0.5, 0.62, 0, 0x8a3a2a, 0, 0, Math.PI / 2);       // and their binding
+  b.cone(0.2, 0.42, -0.04, 0.78, 0, DRESS);                                   // her dress...
+  b.ball(0.13, 0.15, 0.12, 0, 0.94, 0, DRESS);                                // ...and shoulders
+  for (const s of [-1, 1]) {
+    b.cap(0.035, 0.26, 0.06, 0.46, s * 0.08, (x, y) => (Math.floor(y * 30) % 2 ? 0xffffff : 0x9b2dff), 0, 0, 0.3);   // stripy stockings
+    b.ball(0.06, 0.04, 0.045, 0.12, 0.33, s * 0.08, HAT);                     // pointy boots
+    b.cap(0.03, 0.22, 0.12, 0.8, s * 0.1, DRESS, 0, 0, -1.1);                  // arms, hands on the broom
+    b.ball(0.035, 0.035, 0.035, 0.22, 0.66, s * 0.06, SKIN);
+    b.ball(0.02, 0.026, 0.012, 0.135, 1.18, s * 0.045, INK);                  // eyes
+    b.ball(0.025, 0.015, 0.01, 0.13, 1.12, s * 0.07, 0xff9ec0);               // rosy cheeks
+  }
+  b.ball(0.12, 0.12, 0.11, 0.03, 1.15, 0, SKIN);                              // her face
+  b.cone(0.025, 0.1, 0.17, 1.14, 0, SKIN, 0, 0, -Math.PI / 2);                // a long nose
+  b.ball(0.12, 0.1, 0.13, -0.06, 1.12, 0, 0xff8a1a);                          // orange hair behind
+  b.cyl(0.21, 0.21, 0.02, 0.01, 1.25, 0, HAT);                                // her hat: the brim...
+  b.cyl(0.11, 0.11, 0.04, 0.0, 1.28, 0, 0x9b2dff);                            // ...a purple band...
+  b.cone(0.1, 0.34, -0.04, 1.44, 0, HAT, 0, 0, 0.4);                          // ...and the point, flopping back
+  b.ball(0.07, 0.06, 0.06, -0.42, 0.7, 0, HAT);                               // her black cat, riding behind
+  b.ball(0.055, 0.05, 0.05, -0.36, 0.78, 0, HAT);
+  for (const s of [-1, 1]) { b.cone(0.02, 0.05, -0.36, 0.84, s * 0.03, HAT); glow.ball(0.014, 0.016, 0.01, -0.31, 0.79, s * 0.025, 0xffd23f); }
+  b.cap(0.012, 0.16, -0.5, 0.78, 0, HAT, 0, 0, 0.7);                          // its tail
+  const cape = new VB(TRAFFIC_D);
+  cape.rbox(0.36, 0.03, 0.3, -0.18, 0, 0, 0x2a1838, 0.012);
+  return { geo: b.geometry(), glow: glow.geometry(), parts: [part(cape.geometry(), -0.04, 1.02, 0, 'flap', { axis: 'z', s: 1, rate: 9, ph: 0, amp: 0.3 })] };
+}
 const SPOOKY_TRACTORS = [[0x2b2433, 0xff8a1a], [0x3a1f4a, 0x9dff6a], [0x1c1824, 0xb070ff], [0x4a1a1a, 0xffb02a]];
 function buildSpooky(kind) {
   if (kind === 'ghosts') return buildGhosts();
@@ -1568,7 +1597,7 @@ function buildSpooky(kind) {
   if (kind.startsWith('kayak')) return buildStyxBoat(+kind[5]);
   if (kind === 'bull') return buildBull(true);
   if (kind === 'combine') return buildCombine(true);
-  if (kind === 'plane') return buildPlane(true);
+  if (kind === 'plane') return buildWitch();
   return buildSkeletons(LEN[kind]);   // the logs
 }
 // What got you, on the spooky farm (for the sign): ghosts, mummies, a vampire, bats, a haunted tractor...
@@ -2176,6 +2205,7 @@ const sfx = (() => {
     lost() { tone(440, 220, 0.35, 'triangle', 0.07); },
     honk() { tone(420, 330, 0.18, 'sawtooth', 0.09); tone(430, 340, 0.2, 'sawtooth', 0.09, 0.2); },
     buzz() { tone(110, 120, 0.45, 'sawtooth', 0.025); },
+    cackle() { if (ctx && !muted) ghostLaugh(ctx.currentTime, 1050, 0); },
     chomp() { noise(0.4, 0.4, 'bandpass', 900); tone(140, 70, 0.35, 'square', 0.08); },
   };
 })();
@@ -2932,12 +2962,12 @@ function updateLane(lane, dt, time) {
     } else if (m.kind === 'plane') {
       m.mesh.position.y = Math.sin(time * 3 + m.phase) * 0.05;
       if (Math.abs(m.x) < VIS && Math.random() < dt * 25) {
-        burst(m.x - lane.dir * 0.4, 0.5, -lane.r + rand(-0.5, 0.5), [0xf3f0d0, 0xdff5c8], 1, 0.4, 0.3, 0.2, 0.9, true);
+        burst(m.x - lane.dir * 0.4, 0.5, -lane.r + rand(-0.5, 0.5), lane.spooked ? [0xb070ff, 0x9dff6a, 0xffd25a] : [0xf3f0d0, 0xdff5c8], 1, 0.4, 0.3, lane.spooked ? 0.12 : 0.2, 0.9, true);   // crop spray, or the witch's sparkles
       }
       m.buzz -= dt;
       if (m.buzz <= 0 && game.state === 'play' && crewNear(lane.r, m.x, 4, 9)) {
-        m.buzz = 0.45;
-        sfx.buzz();
+        if (lane.spooked) { m.buzz = 2.5; sfx.cackle(); }   // the witch cackles as she swoops past
+        else { m.buzz = 0.45; sfx.buzz(); }
       }
     } else if (lane.type === 'water') {
       m.bob = Math.max(0, m.bob - dt * 0.6);
