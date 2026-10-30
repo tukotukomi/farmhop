@@ -6,6 +6,31 @@
 // This file is plain data: { date: 'YYYY-MM-DD', title, notes: [...], es: { title, notes }, zh: { title, notes } }.
 export const UPDATES = [
   {
+    date: '2026-10-30',
+    title: 'The band takes the stage',
+    notes: [
+      'The Jam Stage now shows your real stage, right there on the farm.',
+      'You and your friends squeeze on together. The more of you there are, the tighter it gets.',
+      'The Spooky Organ now stands on the stage too.',
+    ],
+    es: {
+      title: 'La banda sube al escenario',
+      notes: [
+        'El escenario de música ahora muestra tu escenario de verdad, ahí mismo en la granja.',
+        'Tú y tus amigos os apretujáis juntos. Cuantos más seáis, más apretados estaréis.',
+        'El Órgano tenebroso ahora también está en el escenario.',
+      ],
+    },
+    zh: {
+      title: '乐队登台啦',
+      notes: [
+        '音乐舞台现在显示的就是你农场上那座真正的舞台。',
+        '你和朋友们一起挤上台，人越多就越挤。',
+        '阴森管风琴现在也摆在舞台上了。',
+      ],
+    },
+  },
+  {
     date: '2026-10-29',
     title: 'A bigger farm and a brighter stage',
     notes: [

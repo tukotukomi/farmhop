@@ -3601,7 +3601,7 @@ function markSplit() {   // the ink line between the halves
 
 let fishCamHook = null;   // fishing's own camera (set up with the fishing, further down)
 function updateCamera(dt) {
-  if (game.where === 'farm' && (fishCamHook?.(dt) || swingCamHook(dt))) return;
+  if (game.where === 'farm' && (jamCamHook(dt) || fishCamHook?.(dt) || swingCamHook(dt))) return;
   if (game.where === 'road') skyClouds(dt, camera.position.x, camera.position.z);   // the hopping game's sky has clouds too
   else clouds.visible = false;                                                       // the farm from above has no sky
   const V = activeView();
@@ -4656,7 +4656,8 @@ function clearPiece(g) {
 
 // The Big Jam Stage is the same stage a third bigger (everything on it too), with
 // footlights along the front, speaker stacks and a gold edge.
-const BIG_STAGE = 1.35;
+const BIG_STAGE = 1.35, STAGE_KIT = 0.85;
+const organOwned = () => store.get('bl-organ', false);
 function stageK() { return farm.stageBuilt && ownedDecor.has('bigstage') ? BIG_STAGE : 1; }
 function buildStage() {
   const g = farm.stage;
@@ -4748,16 +4749,28 @@ function buildStage() {
     fm.layers.set(GLOW_LAYER);
     g.add(fm);
   }
-  v.cyl(0.015, 0.015, 0.9, 0.4, 0.75, 0.35, 0x9aa0a6);                        // a mic on a stand
-  v.cyl(0.12, 0.14, 0.03, 0.4, 0.31, 0.35, 0x9aa0a6);
-  v.ball(0.05, 0.065, 0.05, 0.4, 1.23, 0.35, 0x3a2f45);
   g.add(v.mesh());
+  const mic = new VB(0.6);                                                     // a mic on a stand
+  mic.cyl(0.015, 0.015, 0.9, 0.4, 0.75, 0.35, 0x9aa0a6);
+  mic.cyl(0.12, 0.14, 0.03, 0.4, 0.31, 0.35, 0x9aa0a6);
+  mic.ball(0.05, 0.065, 0.05, 0.4, 1.23, 0.35, 0x3a2f45);
+  g.add(farm.stageMic = mic.mesh());
+  farm.stageKit = null;
+  if (organOwned()) {   // the Spooky Organ, at the back on the other side
+    const organ = new THREE.Group();
+    buildPipeOrgan(organ);
+    organ.position.set(0.5, 0.3, -0.42);
+    organ.rotation.y = -0.2;
+    organ.scale.setScalar(0.5);
+    g.add(organ);
+  }
   if (ownedDecor.has('drums')) {   // the drum kit, at the back of the stage between the speakers
     const kit = new THREE.Group();
     buildDrumKit(kit);
     kit.position.set(-0.15, 0.3, -0.3);
-    kit.scale.setScalar(0.85);
+    kit.scale.setScalar(STAGE_KIT);
     g.add(kit);
+    farm.stageKit = kit;
   }
   farm.disco = farm.discoDots = null;
   if (ownedDecor.has('disco')) {   // the disco ball, turning on top of the sign, and its specks of light after dark
@@ -5156,7 +5169,7 @@ function stageOut() {   // which way a hopper faces to look out from the stage
 }
 function stageShows(dt) {
   if (GUEST) return;
-  const live = game.state === 'farm' && farm.stageBuilt && farm.pieces.stage && !decor.on;
+  const live = game.state === 'farm' && farm.stageBuilt && farm.pieces.stage && !decor.on && !jam.open;   // the band has the stage
   const players = new Set(playerMarks().map(([w]) => w));
   for (const c of show.cast) {   // anyone who's been picked to play, or gone, leaves the show
     if (!farm.walkers.includes(c) || players.has(c) || c.hidden || c.fishing) { leaveShow(c); show.cast = show.cast.filter(o => o !== c); }
@@ -5633,6 +5646,44 @@ function swingCamHook(dt) {
   sun.target.updateMatrixWorld();
   camera.updateMatrixWorld();
   return true;
+}
+// The Jam Stage is the real stage, seen from out front through a long lens, framed in the
+// space the controls leave with its foot at the bottom edge and sky above. Whatever stands
+// between the camera and the stage (trees, a barn) is nearer than the lens's near plane,
+// which sits just at that bottom edge, so it never blocks the show.
+const JAM_LENS = 30, JAM_TILT = 0.17;
+function jamCamHook(dt) {
+  if (!jam.open) return false;
+  useCamera(perspCam);
+  const k = stageK(), [x0, z0] = stageAt(0, 0), [x1, z1] = stageAt(0, 1), dx = (x1 - x0) / k, dz = (z1 - z0) / k;
+  const W = window.innerWidth, H = window.innerHeight, box = $('jam').querySelector('.jamStage');
+  const Ws = box.offsetWidth, Hs = box.offsetHeight, lens = Math.tan(THREE.MathUtils.degToRad(JAM_LENS / 2));
+  jam.swoop *= Math.exp(-dt * 3);
+  const d = Math.max(2.9 * k * H / (2 * lens * Hs), 3 * k * H / (2 * lens * Ws)) * (1 + jam.swoop * 0.5);
+  const fx = farm.group.position.x + x0, fz = farm.group.position.z + z0, ly = 1.12 * k;
+  camera.position.set(fx + dx * (0.2 * k + d), ly + d * (JAM_TILT + jam.swoop * 0.2), fz + dz * (0.2 * k + d));
+  camera.lookAt(swingCam.look.set(fx + dx * 0.2 * k, ly, fz + dz * 0.2 * k));
+  camera.updateMatrixWorld();
+  _t.set(fx + dx * 1.3 * k, 0, fz + dz * 1.3 * k).applyMatrix4(camera.matrixWorldInverse);   // the grass at the foot of the step, as the camera sees it
+  const depth = -_t.z, footY = H / 2 * (1 - _t.y / (depth * lens));
+  perspCam.fov = JAM_LENS;
+  perspCam.near = Math.max(0.3, depth - 0.02);
+  perspCam.setViewOffset(W, H, W / 2 - (box.offsetLeft + Ws / 2), footY - (box.offsetTop + Hs), W, H);
+  postMat.uniforms.cnear.value = perspCam.near;
+  skyClouds(dt, swingCam.look.x, swingCam.look.z);
+  sun.position.copy(swingCam.look).add(SUN_OFF);
+  sun.target.position.copy(swingCam.look);
+  setShadowSpan(FISH_SHADOW);
+  sun.updateMatrixWorld();
+  sun.target.updateMatrixWorld();
+  return true;
+}
+function jamLensOff() {
+  perspCam.clearViewOffset();
+  perspCam.near = 0.3;
+  perspCam.fov = perspCam.aspect < 1 ? 78 : 52;
+  perspCam.updateProjectionMatrix();
+  postMat.uniforms.cnear.value = 0.3;
 }
 function hostFarmHop(dx, dr) {
   if (game.state !== 'farm' || game.picking || decor.on || jam.open || fishers.has(myKey())) return false;
@@ -6360,13 +6411,13 @@ function step(dt) {
   if (music && Math.abs(game.light - (music.day ?? -1)) > 0.02) { music.day = game.light; music.setDay(game.light); }
   updateFlies(dt);
   hudDay();
-  if (!jam.open) renderCel();   // the Jam Stage covers the whole screen and draws its own picture
+  if (jam.open) jamFrame(dt);
+  renderCel();
 }
 function frame(now) {
   pollPad();
   const dt = (now - last) / 1000;
   if (!game.frozen) { watchFrames(dt); step(Math.min(0.05, dt)); }   // frozen: tests drive the frames themselves
-  if (jam.open) jamFrame(Math.min(0.05, dt));
   last = now;
   requestAnimationFrame(frame);
 }
@@ -7890,28 +7941,12 @@ function farmShot() {
   shot.getContext('2d').drawImage(canvas, 0, 0);
   return shot;
 }
-function jamShot() {   // the Jam Stage as it looks: its backdrop and floor (CSS on screen), then the band, inked
-  const src = $('jamCanvas'), w = src.width, h = src.height, k = w / (src.clientWidth || w), ink = cssVar('--ink');
+function jamShot() {   // just the stage, without the controls
+  renderCel();   // a fresh frame, copied before the browser clears it
+  const box = $('jam').querySelector('.jamStage'), k = canvas.width / window.innerWidth;
   const shot = document.createElement('canvas');
-  shot.width = w; shot.height = h;
-  const c = shot.getContext('2d');
-  let g = c.createLinearGradient(0, 0, 0, h);
-  g.addColorStop(0, '#5b3f8a'); g.addColorStop(0.78, '#3a2442');
-  c.fillStyle = g; c.fillRect(0, 0, w, h);
-  c.save();   // the spotlight's glow from the top
-  c.translate(w / 2, 0); c.scale(0.45 * w, 0.7 * h);
-  g = c.createRadialGradient(0, 0, 0, 0, 0, 1);
-  g.addColorStop(0, 'rgba(255, 238, 170, .55)'); g.addColorStop(1, 'rgba(255, 238, 170, 0)');
-  c.fillStyle = g; c.fillRect(-1, 0, 2, 1);
-  c.restore();
-  const fy = h * 0.76;   // the wooden floor
-  for (let x = 0; x < w; x += 48 * k) { c.fillStyle = '#b07a46'; c.fillRect(x, fy, 46 * k, h - fy); c.fillStyle = '#9c6b3c'; c.fillRect(x + 46 * k, fy, 2 * k, h - fy); }
-  c.fillStyle = ink; c.fillRect(0, fy - 4 * k, w, 4 * k);
-  jam.r.render(jam.scene, jam.cam);
-  const o = 2.5 * k;
-  c.filter = `drop-shadow(${o}px 0 0 ${ink}) drop-shadow(${-o}px 0 0 ${ink}) drop-shadow(0 ${o}px 0 ${ink}) drop-shadow(0 ${-o}px 0 ${ink})`;
-  c.drawImage(src, 0, 0);
-  c.filter = 'none';
+  shot.width = Math.round(box.offsetWidth * k); shot.height = Math.round(box.offsetHeight * k);
+  shot.getContext('2d').drawImage(canvas, box.offsetLeft * k, box.offsetTop * k, shot.width, shot.height, 0, 0, shot.width, shot.height);
   return shot;
 }
 async function takePhoto() {
@@ -8057,6 +8092,7 @@ function buyOrgan() {
   pumpkins -= ORGAN_PRICE;
   store.set('bl-pumpkins', pumpkins);
   store.set('bl-organ', true);
+  buildStage();
   sfx.upgrade();
   [0, 3, 7, 12].forEach((st, j) => sfx.hold('organ', scaleHz(0) * 2 ** (st / 12) / 2, 1, j * 0.12, 1.6 - j * 0.12));   // a big minor chord, Phantom-style
   markEvent();
@@ -8162,7 +8198,7 @@ const padKeyLabel = code => (code.startsWith('Key') ? code.slice(3) : ',');
 // Controller button for each column: six for a five-note scale; eight take LT and RT too (sustain is then the slider's).
 const padBtns = () => (padCols() > 6 ? [6, 4, 2, 0, 3, 1, 5, 7] : [4, 2, 0, 3, 1, 5]);
 const PAD_LABELS = { 6: 'LT', 4: 'LB', 2: 'X', 0: 'A', 3: 'Y', 1: 'B', 5: 'RB', 7: 'RT' };
-const jam = { open: false, drums: false, oct: 0, row: 1, input: null, t: 0, kick: 0, r: null, scene: null, cam: null, model: null, spread: 0,
+const jam = { open: false, drums: false, oct: 0, row: 1, input: null, t: 0, kick: 0, scene: null, swoop: 0, model: null,
   sustain: store.get('bl-sustain', 0.35), held: new Map(),
   song: store.get('bl-jam-song', 1),   // the farm tune's volume on the stage, on this device: 0 leaves just the instruments   // held: finger / key / button -> release()
   band: new Map(), byRC: new Map(), hostOpen: false };   // band: a guest's bandmates, by key; byRC: a guest's held pads
@@ -8242,7 +8278,6 @@ function playDrum(d) {
 // The instrument button shows the next one round.
 const ORGAN_PAD = '#9b6be0';
 const ORGAN_ICON = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><g stroke="#3a2442" stroke-width="2" stroke-linejoin="round"><path d="M10 30V14a3 3 0 0 1 6 0v16zM18 30V8a3 3 0 0 1 6 0v22zM26 30V4a3 3 0 0 1 6 0v26zM34 30V4a3 3 0 0 1 6 0v26zM42 30V8a3 3 0 0 1 6 0v22zM50 30V14a3 3 0 0 1 6 0v16z" fill="#e8c45c"/><path d="M11 22h4M19 18h4M27 15h4M35 15h4M43 18h4M51 22h4" stroke-width="1.6"/><rect x="6" y="30" width="52" height="26" rx="4" fill="#4a2a5a"/><rect x="10" y="38" width="44" height="10" rx="2" fill="#fff8ec"/><path d="M17 38v6M24 38v6M31 38v6M38 38v6M45 38v6" stroke-width="2.8"/><circle cx="14" cy="34" r="1.6" fill="#ff6b6b"/><circle cx="50" cy="34" r="1.6" fill="#6bd864"/></g></svg>');
-const organOwned = () => store.get('bl-organ', false);
 const jamModes = () => ['hopper', ...(organOwned() ? ['organ'] : []), ...(ownedDecor.has('drums') ? ['drums'] : [])];
 const jamMode = () => (jam.drums ? 'drums' : jam.organ ? 'organ' : 'hopper');
 const nextInst = () => { const m = jamModes(); return m[(m.indexOf(jamMode()) + 1) % m.length]; };
@@ -8383,57 +8418,17 @@ function showInstrument(inst, on) {   // in hand, or put down (a guitar goes bac
   inst.visible = on;
   if (inst.userData.back) inst.userData.back.visible = !on;
 }
-function jamSetup() {
-  if (jam.r) return;
-  jam.r = new THREE.WebGLRenderer({ canvas: $('jamCanvas'), alpha: true, antialias: true });
-  jam.scene = new THREE.Scene();
-  jam.scene.add(new THREE.HemisphereLight(0xfff4ec, 0x7d6fa8, 1.4));
-  const key = new THREE.DirectionalLight(0xfff3dc, 2.4);   // the spotlight from above
-  key.position.set(-1.5, 6, 5);
-  jam.scene.add(key);
-  jam.cam = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
-}
-function jamResize() {
-  const c = $('jamCanvas'), w = c.clientWidth, h = c.clientHeight;
-  if (!w || !h) return;
-  jam.r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  jam.r.setSize(w, h, false);
-  const a = w / h, half = Math.tan(THREE.MathUtils.degToRad(15));
-  const halfW = 1.15 + jam.spread;   // the hopper and her banjo, plus any friends beside her
-  const dist = Math.max(1.2 / half, halfW / (half * a));
-  jam.cam.aspect = a;
-  const lookY = dist * half * 0.76;   // however far back, feet stay low in the picture, on the wooden floor
-  jam.cam.position.set(0, lookY + 0.2, dist);
-  jam.cam.lookAt(0, lookY, 0);
-  jam.cam.updateProjectionMatrix();
-}
 function openJam() {
   if (game.state !== 'farm' || !farm.stageBuilt || (GUEST && !jam.hostOpen)) return;
   closeHeroes(); closePond(); closeBunk(); closeStage();
   stopAllFishing();
-  jamSetup();
+  jam.scene ||= new THREE.Group();   // the band, standing on the stage in the stage's own space
   if (jam.model) { jam.scene.remove(jam.model.group); disposeHero(jam.model); }
   buildPads();
   if (jam.input) markJamHints();
   jam.model = hero().build();
   jam.banjo = holdInstrument(jam.model);
   jam.scene.add(jam.model.group);
-  if (ownedDecor.has('drums') && !jam.kit) {   // the drum kit stands behind, beside the hopper
-    jam.kit = new THREE.Group();
-    buildDrumKit(jam.kit);
-    jam.kit.position.set(0.74, 0, -0.75);
-    jam.kit.rotation.y = -0.35;
-    jam.kit.scale.setScalar(0.72);
-    jam.scene.add(jam.kit);
-  }
-  if (organOwned() && !jam.organKit) {   // the Spooky Organ stands behind, on the other side (always there, like the drum kit)
-    jam.organKit = new THREE.Group();
-    buildPipeOrgan(jam.organKit);
-    jam.organKit.position.set(-0.98, 0, -0.85);
-    jam.organKit.rotation.y = 0.35;
-    jam.organKit.scale.setScalar(0.72);
-    jam.scene.add(jam.organKit);
-  }
   $('instBtn').hidden = jamModes().length < 2;
   refreshJamTracks();
   setTimeout(() => { const ms = sfx.delayMs; $('jamLag').hidden = ms < 70; $('jamLag').textContent = t('jamLag', { ms }); }, 400);   // a big sound delay (Bluetooth, say): say so
@@ -8441,6 +8436,9 @@ function openJam() {
   $('partyBtn').hidden = !RELAY;
   layoutStage();
   jam.open = true;
+  jam.swoop = 1;
+  jam.scene.visible = true;
+  document.body.classList.add('jamming');
   jam.row = 1;
   jamPads.style.setProperty('--c', jam.organ ? ORGAN_PAD : hero().pad);   // the pads take your hopper's colour (or the organ's)
   $('jam').classList.add('show');
@@ -8448,7 +8446,6 @@ function openJam() {
   setOctave(0);
   setSustain(jam.sustain);
   setJamSong(jam.song);   // after jam.open, so the tune turns down (or up) to this player's level
-  jamResize();
   tellView();
   jam.input = null;   // start with hints for the last thing used, or what this device has
   setJamInput(document.body.classList.contains('pad') ? 'pad' : document.body.classList.contains('keys') || matchMedia('(hover: hover) and (pointer: fine)').matches ? 'keys' : 'touch');
@@ -8475,19 +8472,37 @@ function refreshJamTracks() {
 function closeJam() {
   if (!jam.open) return;
   jam.open = false;
+  jam.scene.visible = false;
+  document.body.classList.remove('jamming');
+  jamLensOff();
+  if (farm.stageKit) farm.stageKit.scale.setScalar(STAGE_KIT);
+  if (farm.stageMic) farm.stageMic.visible = true;
+  for (const w of farm.walkers) w.m.group.visible = !w.hidden;   // back out on the farm, where they left off
   music?.setLevel(1);   // the farm tune back to full
   $('jam').classList.remove('show');
   game.picking = anyPanel();
   letGoAll();
   tellView();
 }
+// The band stands on the stage, and their hoppers on the farm step out of sight meanwhile.
+function placeBand() {
+  const k = stageK(), [x0, z0] = stageAt(0, 0), [x1, z1] = stageAt(0, 1);
+  if (jam.scene.parent !== farm.group) farm.group.add(jam.scene);
+  jam.scene.position.set(x0, 0.305 * k, z0);
+  jam.scene.rotation.y = Math.atan2(x1 - x0, z1 - z0);
+  jam.scene.scale.setScalar(k);
+  for (const [w] of playerMarks()) if (w) w.m.group.visible = false;
+  for (const mk of farm.markers || []) mk.visible = false;
+  if (farm.stageMic) farm.stageMic.visible = bandOf().length < 1;   // the mic stand's in the way of a crowd
+}
 function jamFrame(dt) {
   const m = jam.model;
   if (!m) return;
+  placeBand();
   jam.t += dt;
   jam.kick = Math.max(0, jam.kick - dt * 4);
   jam.boom = Math.max(0, (jam.boom || 0) - dt * 6);
-  if (jam.kit) jam.kit.scale.set(0.72 + jam.boom * 0.05, 0.72 - jam.boom * 0.04, 0.72 + jam.boom * 0.05);
+  if (farm.stageKit) farm.stageKit.scale.set(STAGE_KIT + jam.boom * 0.05, STAGE_KIT - jam.boom * 0.04, STAGE_KIT + jam.boom * 0.05);
   const t = jam.t, k = jam.kick;
   m.inner.position.y = Math.abs(Math.sin(t * 4.4)) * 0.05 + Math.sin(k * Math.PI) * 0.12;   // bob along, bounce on a note
   m.inner.scale.set(1 + k * 0.06, 1 - k * 0.08, 1 + k * 0.06);
@@ -8507,13 +8522,11 @@ function jamFrame(dt) {
     const sw = Math.sin(q * 4.4) * 0.2 + pk * 0.3;
     for (const tl of pl.m.tails) tl.rotation[tl.userData.axis || 'z'] = tl.userData.side * sw;
   }
-  jam.r.render(jam.scene, jam.cam);
   if (!GUEST && jam.t - (jam.beatAt || 0) > 3) tellBeat();   // keep the guests' tune in step
 }
 $('octUp').addEventListener('click', () => setOctave(1));
 $('octDown').addEventListener('click', () => setOctave(-1));
 $('jamClose').addEventListener('click', closeJam);
-window.addEventListener('resize', () => { if (jam.open) jamResize(); });
 
 // ---------- jam with phones ----------
 // "Jam with phones" shows a QR code. Each phone that scans it (up to four) opens
@@ -9063,27 +9076,31 @@ function dropPlayer(slot) {
   syncPlayerWalkers();
   tellBand();
 }
-// Everyone in a row across the stage, yours in the middle; the drum kit moves to the back.
+// Everyone squeezes onto the stage: yours in the middle of the front row, friends either
+// side, a second row behind once there are too many, and all a little smaller the more there are.
 function layoutStage() {
   if (!jam.scene || !jam.model) return;
   for (const [, pl] of bandOf()) if (pl.hero && !pl.m) addPlayerModel(pl);
   const cast = [jam.model, ...bandOf().sort((a, b) => bandN(a) - bandN(b)).map(e => e[1].m).filter(Boolean)];
-  const order = cast.map((_, i) => i === 0 ? 0 : (i % 2 ? -1 : 1) * Math.ceil(i / 2));   // middle, left, right, further left...
-  cast.forEach((m, i) => { m.group.position.x = order[i] * 1.05; });
-  jam.spread = Math.max(0, ...order.map(o => Math.abs(o) * 1.05));
-  if (jam.kit) {   // the drum kit stands at the right end of the row, just behind
-    const right = Math.max(...order) * 1.05;
-    jam.kit.position.set(right + 0.74, 0, -0.75);
-    jam.spread = Math.max(jam.spread, right + 0.74 + 0.4 - 1.15);
-  }
-  if (jam.open) jamResize();
+  const n = cast.length, front = n < 4 ? n : Math.ceil((n + 1) / 2), size = n < 2 ? 1 : n < 4 ? 0.82 : n < 7 ? 0.68 : 0.56;
+  const gap = Math.min(0.72, 1.8 / Math.max(1, front - 1));
+  const seat = (row, spots, z) => {   // spots across the stage, filled from the middle outwards
+    const mid = (spots - 1) / 2, seats = Array.from({ length: spots }, (_, i) => i).sort((a, b) => Math.abs(a - mid) - Math.abs(b - mid));
+    row.forEach((m, i) => {
+      m.group.position.set((seats[i] - mid) * gap, 0, z);
+      m.group.scale.setScalar(size);
+    });
+  };
+  seat(cast.slice(0, front), front, 0.42);
+  seat(cast.slice(front), front - 1, 0.02);   // the back row looks out through the gaps in the front row
 }
 function floatNote(color, x = 0) {
   const note = document.createElement('span');
   note.className = 'jamNote';
   note.textContent = pick(['♪', '♫', '♩', '♬']);
   note.style.color = color;
-  note.style.left = clamp(50 + x / (1.15 + jam.spread) * 45 + (Math.random() - 0.5) * 12, 4, 92) + '%';
+  const box = $('jam').querySelector('.jamStage'), at = jam.scene.localToWorld(new THREE.Vector3(x, 0.6, 0.3)).project(camera);   // from over whoever played it
+  note.style.left = clamp(((at.x + 1) / 2 * window.innerWidth - box.offsetLeft) / box.offsetWidth * 100 + (Math.random() - 0.5) * 8, 4, 92) + '%';
   $('jamNotes').append(note);
   setTimeout(() => note.remove(), 1400);
 }
@@ -10027,4 +10044,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage };
