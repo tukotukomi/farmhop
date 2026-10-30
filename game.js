@@ -2011,15 +2011,17 @@ const sfx = (() => {
       return o;
     });
     noise(0.07, vol * 0.5, 'bandpass', Math.min(8000, n * 6), Math.max(0, t - ctx.currentTime));   // the chiff of air
-    let done = false;
+    let done = false, cap = 0;
     const release = (at = ctx.currentTime) => {
       if (done) return;
       done = true;
+      clearTimeout(cap);
       if (g.gain.cancelAndHoldAtTime) g.gain.cancelAndHoldAtTime(at); else g.gain.cancelScheduledValues(at);
       g.gain.setTargetAtTime(0.0001, at, 0.12);
       for (const o of oscs) o.stop(at + 0.9);
     };
     if (len > 0) release(t + len);
+    else cap = setTimeout(() => release(), 20000);   // never drone forever if a release is missed
     return release;
   }
   // A ghost's laugh: five breathy, wobbling "ha"s, each a little lower, off to one side and echoing in the organ's hall.
@@ -8273,6 +8275,7 @@ jam.heldPads = new Map();   // finger / key / button -> the pad it's holding dow
 function buildPads() {   // three rows of the scale, built afresh if the scale has changed
   const cols = padCols();
   if (jamPads.children.length === cols * JAM_ROWS) return;
+  letGoAll();   // a held pad is about to go, and its release with it
   jamPads.replaceChildren();
   jamPads.style.setProperty('--cols', cols);
   for (let row = 0; row < JAM_ROWS; row++) for (let col = 0; col < cols; col++) makePad(row, col, cols);
@@ -8285,6 +8288,7 @@ function makePad(row, col, cols) {
   pad.innerHTML = '<span class="k"></span>';
   pad.addEventListener('pointerdown', e => {
     e.preventDefault();
+    if (e.pointerType === 'mouse' && e.button !== 0) return;   // the right button opens a menu, and its release never comes
     if (e.pointerType === 'touch') setJamInput('touch');
     else if (jam.input === 'pad') setJamInput('keys');   // a mouse: back to the keyboard hints
     if (pad.hasPointerCapture(e.pointerId)) pad.releasePointerCapture(e.pointerId);   // touch captures; release so sliding off the pad lets the note go
@@ -8400,6 +8404,17 @@ function letGo(by) {
   else toGuests({ t: 'jn', k: 'h', by, on: false });
 }
 function letGoAll() { for (const by of new Set([...jam.held.keys(), ...jam.heldPads.keys()])) letGo(by); }
+// A pad only knows it's been let go if the release reaches it, and plenty can get in the way:
+// the finger or mouse lifting off somewhere else, a menu, switching apps or windows, a controller
+// unplugged. So this screen's own held notes are also let go from out here.
+function letGoMine() { for (const by of new Set([...jam.held.keys(), ...jam.heldPads.keys()])) if (/^[pkb]/.test(by)) letGo(by); }
+const letGoPointer = e => { if (jam.heldPads.has('p' + e.pointerId)) letGo('p' + e.pointerId); };
+for (const type of ['pointerup', 'pointercancel']) window.addEventListener(type, letGoPointer, true);
+window.addEventListener('pointermove', e => { if (e.pointerType !== 'touch' && !e.buttons) letGoPointer(e); }, true);   // a mouse with nothing pressed isn't holding a pad
+for (const type of ['touchend', 'touchcancel']) window.addEventListener(type, e => { if (!e.touches.length) for (const by of [...jam.heldPads.keys()]) if (by[0] === 'p') letGo(by); }, { capture: true, passive: true });
+for (const type of ['blur', 'pagehide', 'gamepaddisconnected']) window.addEventListener(type, letGoMine);
+document.addEventListener('visibilitychange', () => { if (document.hidden) letGoMine(); });
+jamPads.addEventListener('contextmenu', e => e.preventDefault());   // a long press on a phone
 function setSustain(v) {
   jam.sustain = clamp(Math.round(v * 20) / 20, 0, 1);
   sfx.sustain = jam.sustain;   // hops ring the same way
