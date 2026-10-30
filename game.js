@@ -862,6 +862,13 @@ function pumpkingHeadMat() {
       g.fillStyle = glow ? '#fff' : '#ffd25a';
       g.fill();
     }
+    for (const sh of [tri(10, 9, -62, -45), tri(10, 9, 62, -45)]) {   // little black triangle pupils, like the other hoppers' dark eyes
+      g.beginPath();
+      sh.forEach(([x, y], i) => (i ? g.lineTo(cx + x, cy + y) : g.moveTo(cx + x, cy + y)));
+      g.closePath();
+      g.fillStyle = glow ? '#000' : '#2a1838';
+      g.fill();
+    }
     const t = new THREE.CanvasTexture(c);
     t.colorSpace = THREE.SRGBColorSpace;
     t.anisotropy = 4;
@@ -895,9 +902,9 @@ function buildPumpking() {
   b.cap(0.018, 0.4, 0.33, 0.42, -0.06, GOLD, 0, 0, -0.1);                   // the sceptre...
   b.ball(0.06, 0.05, 0.06, 0.35, 0.66, -0.06, PUMPKIN(0.35, -0.06));        // ...topped with a little pumpkin
   inner.add(b.mesh());
-  const head = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 32), pumpkingHeadMat());   // the carved pumpkin head
-  head.scale.set(0.3, 0.26, 0.29);
-  head.position.y = 0.8;
+  const hg = new THREE.SphereGeometry(1, 48, 32);
+  hg.scale(0.3, 0.26, 0.29).translate(0, 0.8, 0);   // sized and placed in the shape itself, so sitting on the swing (bendBody) reads it right
+  const head = new THREE.Mesh(hg, pumpkingHeadMat());   // the carved pumpkin head
   const hero = finishHero(group, inner, []);
   head.castShadow = true;
   inner.add(head);   // (after finishHero, which gives every mesh the shared hopper material: this one keeps its carving)
@@ -5403,7 +5410,7 @@ function nextLeap(w) {
 // Sitting bends a hopper at the waist: while seated it wears a copy of its body with
 // everything below the hips swung forward, so its legs stick out over the front of
 // the seat. HIPS: where each one's legs meet its body (model units, before the 1.3 scale).
-const HIPS = { pumpking: 0.2, captain: 0.265, betty: 0.265, axolotl: 0.18, catstar: 0.235, leafwish: 0.2, tuko: 0.235, spider: 0.235, lyla: 0.24, carla: 0.15, siracha: 0.17, ribbit: 0.235, moonbun: 0.235 };   // (Carla's at her skirt's hem: the dress sits on the seat, legs out from under it)
+const HIPS = { pumpking: 0.12, captain: 0.265, betty: 0.265, axolotl: 0.18, catstar: 0.235, leafwish: 0.2, tuko: 0.235, spider: 0.235, lyla: 0.24, carla: 0.15, siracha: 0.17, ribbit: 0.235, moonbun: 0.235 };   // (Carla's at her skirt's hem: the dress sits on the seat, legs out from under it)
 const TAIL_UP = -0.95;   // a low tail tips up and back over the back of the seat while sitting
 const SIT_BEND = 1.35;   // how far forward the legs swing (radians)
 const hipOf = w => (HIPS[w.id] ?? 0.22) * 1.3;
