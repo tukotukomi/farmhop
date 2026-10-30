@@ -739,6 +739,8 @@ body.pad .actBtn.focus, body.keys .actBtn.focus { outline: 4px solid var(--sky);
   margin: 0; padding: 4px 16px 6px; font-size: 20px; transform: rotate(-3deg);
 }
 #jamNotes { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.jamLag { position: absolute; z-index: 3; left: 50%; translate: -50% 0; bottom: 6px; margin: 0; max-width: min(320px, 80%); padding: 5px 12px 6px; border-radius: 12px; background: rgba(36, 24, 48, .85); color: #e9dcff; font-size: 12px; font-weight: 600; text-align: center; pointer-events: none; }
+.jamLag[hidden] { display: none; }
 /* jam with phones: the button under the title, friends' chips, the QR panel */
 .partyBtn {
   position: absolute; z-index: 3; left: calc(env(safe-area-inset-left) + 14px); top: calc(env(safe-area-inset-top) + 56px);

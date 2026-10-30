@@ -1705,15 +1705,15 @@ const sfx = (() => {
     if (!ctx) {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return;
-      ctx = new AC();
+      ctx = new AC({ latencyHint: 'interactive' });   // the shortest delay the device allows: the Jam Stage needs it
       out = ctx.createGain();
       out.gain.value = muted ? 0 : 0.55;
-      const limit = ctx.createDynamicsCompressor();   // a safety limiter: loud moments never clip in headphones
-      limit.threshold.value = -3;
-      limit.knee.value = 0;
-      limit.ratio.value = 20;
-      limit.attack.value = 0.002;
-      limit.release.value = 0.12;
+      // A safety limit so loud moments never clip in headphones: a soft clipper, straight-through
+      // at normal levels and rounding off only the peaks. (A compressor would hold every sound
+      // back ~6 ms to look ahead, and every millisecond shows when you jam.)
+      const limit = ctx.createWaveShaper(), curve = new Float32Array(2049);
+      for (let i = 0; i < curve.length; i++) { const x = i / 1024 - 1, a = Math.abs(x); curve[i] = a < 0.7 ? x : Math.sign(x) * (0.7 + 0.3 * Math.tanh((a - 0.7) / 0.3)); }
+      limit.curve = curve;
       out.connect(limit).connect(ctx.destination);
       master = ctx.createGain();
       master.gain.value = vol.fx;
@@ -1986,6 +1986,7 @@ const sfx = (() => {
   return {
     ensure,
     get muted() { return muted; },
+    get delayMs() { return ctx ? Math.round(((ctx.baseLatency || 0) + (ctx.outputLatency || 0)) * 1000) : 0; },   // this device's sound delay
     toggle() {
       muted = !muted;
       store.set('bl-mute', muted);
@@ -8353,6 +8354,7 @@ function openJam() {
   }
   $('instBtn').hidden = jamModes().length < 2;
   refreshJamTracks();
+  setTimeout(() => { const ms = sfx.delayMs; $('jamLag').hidden = ms < 70; $('jamLag').textContent = t('jamLag', { ms }); }, 400);   // a big sound delay (Bluetooth, say): say so
   setDrums(jam.drums);
   $('partyBtn').hidden = !RELAY;
   layoutStage();
