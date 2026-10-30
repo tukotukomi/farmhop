@@ -4707,11 +4707,11 @@ const organOwned = () => store.get('bl-organ', false);
 // Sushi: cooked from the Fish Backpack at the Sushi Bar. Eat one and it lasts your whole next
 // round; only one at a time, so the next can't be eaten till you've been out hopping.
 const SUSHI = [
-  { id: 'sunny', col: '#ffd23f', fish: { minnow: 3, crappie: 1, carp: 1 } },
-  { id: 'magnet', col: '#ff7fb8', fish: { guppy: 2, perch: 1, bass: 1, trout: 1 } },
-  { id: 'spare', col: '#7ad653', fish: { bluegill: 1, pumpkinseed: 1, koi: 1, pike: 1, moonfish: 1 } },
-  { id: 'zoom', col: '#7fd0ff', fish: { goldfish: 1, catfish: 1, goldkoi: 1, sturgeon: 1, rainbowkoi: 1 } },
-  { id: 'midnight', col: '#8a5cff', fish: { glowfin: 1, eel: 1, lanternfish: 1, ghostfish: 1 } },
+  { id: 'sunny', col: '#ffd23f', fish: { minnow: 3, picklefish: 1, mudmuffin: 1 } },
+  { id: 'magnet', col: '#ff7fb8', fish: { guppy: 2, candystripe: 1, haybelly: 1, banjofin: 1 } },
+  { id: 'spare', col: '#7ad653', fish: { bluegill: 1, buttonfish: 1, koi: 1, tractortail: 1, cloudfin: 1 } },
+  { id: 'zoom', col: '#7fd0ff', fish: { goldfish: 1, whiskers: 1, shiner: 1, thunderbelly: 1, ribbon: 1 } },
+  { id: 'midnight', col: '#8a5cff', fish: { fireflyfry: 1, snoozefin: 1, lanternfish: 1, wispfin: 1 } },
 ];
 const SUSHI_KEY = 'bl-sushi', SUSHI_NEXT = 'bl-sushi-next', DASH_ROWS = 10, DASH_MAX = 2, DASH_CD = 30, STOP_EVERY = 60, STOP_LEN = 10;
 let sushiStock = store.get(SUSHI_KEY, {});   // id -> how many are cooked
@@ -5312,24 +5312,24 @@ const FISH = [
   { id: 'guppy', lvl: 1, rhy: 1, w: 8, cm: [2, 5], price: 1, wiggle: 0.5, col: [0x7fd0ff, 0xff7fb8], shape: { long: 0.7, tall: 0.85, fan: true } },
   { id: 'bluegill', lvl: 1, rhy: 2, w: 8, cm: [10, 22], price: 2, wiggle: 0.9, col: [0x4f7fc4, 0xffb347], shape: { tall: 1.25 } },
   { id: 'boot', lvl: 1, rhy: 1, w: 3, cm: [24, 30], price: 0, wiggle: 0.3 },
-  { id: 'pumpkinseed', lvl: 2, rhy: 1, w: 6, cm: [8, 18], price: 2, wiggle: 0.8, col: [0x5fb89a, 0xff9a3c], shape: { tall: 1.35, long: 0.9 } },
+  { id: 'buttonfish', lvl: 2, rhy: 1, w: 6, cm: [8, 18], price: 2, wiggle: 0.8, col: [0xf7e4b8, 0xe0663c], shape: { tall: 1.35, long: 0.8 } },
   { id: 'goldfish', lvl: 2, rhy: 3, w: 6, cm: [6, 15], price: 3, wiggle: 1.1, col: [0xff9a2a, 0xffd23f] },
-  { id: 'crappie', lvl: 3, rhy: 2, w: 5, cm: [12, 28], price: 3, wiggle: 1, col: [0x9aa6b4, 0xeef0f2], shape: { tall: 1.15, stripes: 0x5a6470 } },
-  { id: 'perch', lvl: 3, rhy: 4, w: 5, cm: [15, 30], price: 4, wiggle: 1.3, col: [0xb8d050, 0xf2e6b0], shape: { stripes: 0x4a6a24 } },
-  { id: 'glowfin', lvl: 3, rhy: 3, w: 4, cm: [8, 16], price: 6, wiggle: 1.2, col: [0x3fe0d0, 0xc8fff4], shape: { long: 0.85, glow: true }, night: true },
-  { id: 'carp', lvl: 4, rhy: 2, w: 4, cm: [30, 70], price: 5, wiggle: 1.2, col: [0xb08a3c, 0xe8d49a], shape: { long: 1.2, tall: 0.95, whiskers: true } },
+  { id: 'picklefish', lvl: 3, rhy: 2, w: 5, cm: [12, 28], price: 3, wiggle: 1, col: [0x6fa83c, 0xd7e88a], shape: { long: 1.15, tall: 0.75, stripes: 0x3f7a2a } },
+  { id: 'candystripe', lvl: 3, rhy: 4, w: 5, cm: [15, 30], price: 4, wiggle: 1.3, col: [0xff7fb8, 0xffffff], shape: { stripes: 0xffffff } },
+  { id: 'fireflyfry', lvl: 3, rhy: 3, w: 4, cm: [8, 16], price: 6, wiggle: 1.2, col: [0xffe066, 0xfff7c8], shape: { long: 0.85, glow: true }, night: true },
+  { id: 'mudmuffin', lvl: 4, rhy: 2, w: 4, cm: [30, 70], price: 5, wiggle: 1.2, col: [0x9a6a3c, 0xe8c89a], shape: { long: 0.95, tall: 1.2, whiskers: true } },
   { id: 'koi', lvl: 4, rhy: 5, w: 4, cm: [30, 60], price: 6, wiggle: 1.5, col: [0xffffff, 0xff6a2a], shape: { koi: true, long: 1.1 } },
-  { id: 'bass', lvl: 5, rhy: 4, w: 3, cm: [25, 55], price: 7, wiggle: 1.6, col: [0x6f9a4a, 0xe6eac8], shape: { long: 1.1, stripes: 0x3f5a2a } },
-  { id: 'catfish', lvl: 5, rhy: 6, w: 3, cm: [40, 90], price: 8, wiggle: 1.7, col: [0x6e6258, 0xd8c8a8], shape: { long: 1.15, tall: 0.8, whiskers: true } },
-  { id: 'eel', lvl: 6, rhy: 5, w: 2.5, cm: [40, 100], price: 12, wiggle: 2.1, col: [0x4a5a3a, 0xc8c89a], shape: { long: 1.9, tall: 0.42 }, night: true },
-  { id: 'trout', lvl: 6, rhy: 7, w: 3, cm: [25, 55], price: 10, wiggle: 2, col: [0x7fa8a0, 0xff7fb8], shape: { trout: true, long: 1.1 } },
+  { id: 'haybelly', lvl: 5, rhy: 4, w: 3, cm: [25, 55], price: 7, wiggle: 1.6, col: [0xe0b84a, 0xfff0b8], shape: { long: 1.1, tall: 1.1, stripes: 0xb8862a } },
+  { id: 'whiskers', lvl: 5, rhy: 6, w: 3, cm: [40, 90], price: 8, wiggle: 1.7, col: [0x8a8f98, 0xf0ece0], shape: { long: 1.15, tall: 0.8, whiskers: true } },
+  { id: 'snoozefin', lvl: 6, rhy: 5, w: 2.5, cm: [40, 100], price: 12, wiggle: 2.1, col: [0x3a3f7a, 0xbdb8f0], shape: { long: 1.9, tall: 0.42 }, night: true },
+  { id: 'banjofin', lvl: 6, rhy: 7, w: 3, cm: [25, 55], price: 10, wiggle: 2, col: [0xc8935a, 0xfff1d8], shape: { long: 0.9, tall: 1.3, fan: true } },
   { id: 'lanternfish', lvl: 7, rhy: 6, w: 2, cm: [10, 25], price: 16, wiggle: 2.2, col: [0x2f3f7a, 0x8fa8e6], shape: { tall: 1.1, lure: true }, night: true },
-  { id: 'pike', lvl: 7, rhy: 7, w: 2, cm: [50, 100], price: 14, wiggle: 2.3, col: [0x6f8a3a, 0xece4b0], shape: { long: 1.4, tall: 0.65 } },
-  { id: 'goldkoi', lvl: 8, rhy: 8, w: 1.2, cm: [40, 70], price: 20, wiggle: 2.6, col: [0xffd23f, 0xfff4e0], shape: { koi: true, long: 1.1 } },
-  { id: 'moonfish', lvl: 9, rhy: 9, w: 0.8, cm: [20, 40], price: 30, wiggle: 2.9, col: [0xbd96ff, 0xdff3ff], shape: { long: 0.8, tall: 1.5 } },
-  { id: 'sturgeon', lvl: 10, rhy: 7, w: 1, cm: [80, 180], price: 24, wiggle: 2.7, col: [0x7a8590, 0xd8dde2], shape: { long: 1.6, tall: 0.7, whiskers: true, stripes: 0xe8ecef } },
-  { id: 'rainbowkoi', lvl: 11, rhy: 8, w: 0.8, cm: [40, 75], price: 28, wiggle: 2.8, col: [0xff7fb8, 0x7fd0ff], shape: { koi: true, long: 1.1 } },
-  { id: 'ghostfish', lvl: 12, rhy: 9, w: 0.6, cm: [20, 45], price: 36, wiggle: 3, col: [0xe6e0ff, 0xffffff], shape: { long: 1.05, tall: 1.1, glow: true }, night: true },
+  { id: 'tractortail', lvl: 7, rhy: 7, w: 2, cm: [50, 100], price: 14, wiggle: 2.3, col: [0xe0522c, 0xffd23f], shape: { long: 1.4, tall: 0.65 } },
+  { id: 'shiner', lvl: 8, rhy: 8, w: 1.2, cm: [40, 70], price: 20, wiggle: 2.6, col: [0xffd23f, 0x7a4a1c], shape: { koi: true, long: 1.1 } },
+  { id: 'cloudfin', lvl: 9, rhy: 9, w: 0.8, cm: [20, 40], price: 30, wiggle: 2.9, col: [0xf4f8ff, 0xa8dcff], shape: { long: 0.8, tall: 1.5 } },
+  { id: 'thunderbelly', lvl: 10, rhy: 7, w: 1, cm: [80, 180], price: 24, wiggle: 2.7, col: [0x4a5270, 0xffe066], shape: { long: 1.6, tall: 0.7, whiskers: true, stripes: 0xffe066 } },
+  { id: 'ribbon', lvl: 11, rhy: 8, w: 0.8, cm: [40, 75], price: 28, wiggle: 2.8, col: [0xff7fb8, 0x7fd0ff], shape: { long: 1.7, tall: 0.55, fan: true } },
+  { id: 'wispfin', lvl: 12, rhy: 9, w: 0.6, cm: [20, 45], price: 36, wiggle: 3, col: [0xb070ff, 0xc8ffe8], shape: { long: 1.05, tall: 1.1, glow: true }, night: true },
 ];
 // A fish side on, nose toward +x, about a unit long and centred half a unit up
 // (for the Fish Book's pictures and the catch cards).
@@ -7037,8 +7037,11 @@ $('pond').addEventListener('click', e => { if (e.target.id === 'pond') closePond
 // Everyone can fish at once: you, friends on this screen (X to fish, A to reel,
 // B to stop; the keyboard friend Right Shift and the up arrow), and guests on
 // their own devices, who each see everyone else's rod and bobber and catches.
+// The fish were replaced with this game's own: catches saved under the old names carry over.
+const FISH_RENAMED = { pumpkinseed: 'buttonfish', crappie: 'picklefish', perch: 'candystripe', glowfin: 'fireflyfry', carp: 'mudmuffin', bass: 'haybelly', catfish: 'whiskers', eel: 'snoozefin', trout: 'banjofin', pike: 'tractortail', goldkoi: 'shiner', moonfish: 'cloudfin', sturgeon: 'thunderbelly', rainbowkoi: 'ribbon', ghostfish: 'wispfin' };
+const newFishIds = o => Object.fromEntries(Object.entries(o).map(([id, v]) => [FISH_RENAMED[id] || id, v]));
 const FISH_KEY = 'bl-fish';
-let fishBook = store.get(FISH_KEY, {});            // id -> { n: how many, best: biggest in cm }
+let fishBook = newFishIds(store.get(FISH_KEY, {}));            // id -> { n: how many, best: biggest in cm }
 const fishers = new Map();                         // walker key -> someone fishing on this screen
 const seen = new Map();                            // walker key -> someone fishing on another screen (just their rod)
 const catches = [];                                // catch cards floating over hoppers
@@ -7654,7 +7657,7 @@ $('book').addEventListener('click', e => { if (e.target.id === 'book') closeBook
 // goes home with them. Tap fish (or + and −) to choose how many to sell, then
 // Sell asks once more before they go.
 const BAG_KEY = 'bl-bag';
-let fishBag = store.get(BAG_KEY, {});              // id -> how many
+let fishBag = newFishIds(store.get(BAG_KEY, {}));              // id -> how many
 const bagPick = {};                                // id -> how many chosen to sell
 const bagOpen = () => $('bag').classList.contains('show');
 const bagGrid = $('bagGrid');
