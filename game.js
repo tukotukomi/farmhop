@@ -45,7 +45,7 @@ const heroName = id => t('heroes.' + id);
 // before anything reads a setting, wait for the host to send it (guest.js). The
 // farm's settings then come from the host and are only kept in memory, so this
 // device's own farm is never touched.
-const FARM_KEYS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-coins', 'bl-top', 'bl-dnb', 'bl-land', 'bl-wide', 'bl-key', 'bl-scale', 'bl-pumpkins', 'bl-organ', 'bl-pond-skins', 'bl-pond-skin'];
+const FARM_KEYS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-sushibar', 'bl-coins', 'bl-top', 'bl-dnb', 'bl-land', 'bl-wide', 'bl-key', 'bl-scale', 'bl-pumpkins', 'bl-organ', 'bl-pond-skins', 'bl-pond-skin'];
 const joinArgs = new URLSearchParams(location.hash.slice(1));
 const GUEST = /^[A-Za-z0-9_-]{22,64}$/.test(joinArgs.get('join') || '') ? joinArgs.get('join') : null;
 const guestNet = GUEST && window.FARMHOP_RELAY_URL
@@ -2282,6 +2282,11 @@ const sfx = (() => {
       tone(f * 2, f * 2, 0.2, 'sine', 0.035);
       tone(f * 3, f * 3, 0.1, 'triangle', 0.018);
     },
+    timeStop(on) {   // time winding down, or back up
+      tone(on ? 900 : 200, on ? 200 : 900, 0.5, 'triangle', 0.08);
+      tone(on ? 1350 : 300, on ? 300 : 1350, 0.5, 'sine', 0.04);
+    },
+    dash() { tone(300, 1400, 0.28, 'sawtooth', 0.04); tone(600, 2000, 0.22, 'sine', 0.06, 0.04); },
     rooster() { tone(700, 900, 0.12, 'sawtooth', 0.045); tone(900, 760, 0.12, 'sawtooth', 0.045, 0.13); tone(760, 1020, 0.14, 'sawtooth', 0.045, 0.27); tone(1020, 640, 0.55, 'sawtooth', 0.045, 0.43); },
     upgrade() { tone(inKey(784), null, 0.1, 'square', 0.06); tone(inKey(988), null, 0.1, 'square', 0.06, 0.1); tone(inKey(1319), null, 0.32, 'square', 0.06, 0.2); noise(0.4, 0.25, 'bandpass', 1400, 0.05); },
     lullaby() { tone(784, null, 0.4, 'triangle', 0.08); tone(659, null, 0.4, 'triangle', 0.08, 0.35); tone(523, null, 0.9, 'triangle', 0.08, 0.7); },
@@ -3274,32 +3279,33 @@ function land(h = P) {
   h.jelly = 0;   // start the landing wobble
   hopPuff(h);
   const coin = !h.remote && lane.coins.find(c => c.c === h.x);   // a friend's device reports their own pickups, and they're shared by the whole team
-  if (coin?.spooky) {   // the spooky sunflower: the whole team's farm turns
-    lane.group.remove(coin.m);
-    lane.coins.splice(lane.coins.indexOf(coin), 1);
-    startSpooky(h);
-  } else if (coin?.pumpkin) {   // a harvest pumpkin
-    roadSend({ t: 'rc', r: h.r, c: coin.c, p: 1 });
-    lane.group.remove(coin.m);
-    lane.coins.splice(lane.coins.indexOf(coin), 1);
-    gainPumpkin(h);
-  } else if (coin) {
-    roadSend({ t: 'rc', r: h.r, c: coin.c });
-    lane.group.remove(coin.m);
-    lane.coins.splice(lane.coins.indexOf(coin), 1);
-    game.coins++;
-    game.today++;
-    store.set('bl-coins', game.coins);
-    sfx.coin();
-    burst(h.x, 0.6, h.z, [0xffd23f, 0xffe680, 0xffffff], 10, 1.5, 4, 0.08, 0.5);
-    hud();
-  }
+  if (coin) pickUp(h, lane, coin);
+  if (h === P && sushi.on === 'magnet') for (const o of lane.coins.filter(c => !c.spooky)) pickUp(h, lane, o);   // the Magnet Roll: the whole row
   if (h.r > game.score) {   // new ground: the sun climbs back up a little
     game.day = Math.min(1, game.day + DAY_GAIN * (h.r - game.score));
     game.score = h.r;
     hud();
   }
   if (h.queue) { const q = h.queue; h.queue = null; move(...q, h); }
+}
+
+function pickUp(h, lane, coin) {
+  lane.group.remove(coin.m);
+  lane.coins.splice(lane.coins.indexOf(coin), 1);
+  if (coin.spooky) startSpooky(h);   // the spooky sunflower: the whole team's farm turns
+  else if (coin.pumpkin) {           // a harvest pumpkin
+    roadSend({ t: 'rc', r: h.r, c: coin.c, p: 1 });
+    gainPumpkin(h);
+  } else {
+    const n = h === P && sushi.on === 'sunny' ? 2 : 1;   // the Sunny Roll: double
+    roadSend({ t: 'rc', r: h.r, c: coin.c });
+    game.coins += n;
+    game.today += n;
+    store.set('bl-coins', game.coins);
+    sfx.coin();
+    burst(coin.c, 0.6, h.z, [0xffd23f, 0xffe680, 0xffffff], 10, 1.5, 4, 0.08, 0.5);
+    hud();
+  }
 }
 
 // Which death each moving thing causes, and which animation each death uses.
@@ -3363,6 +3369,12 @@ function die(kind, mover, lane, h = P) {
     return;
   }
   if (game.state === 'dead') return;   // the round is already ending
+  if (sushi.life && kind !== 'night' && game.state === 'play') {   // the Second-Chance Roll: everyone's down, so back up we get
+    sushi.life = false;
+    sushi.rise = true;
+    for (const o of game.crew) if (!o.remote && !o.alive) o.back = 1.5;
+    return;
+  }
   game.state = 'dead';
   for (const o of game.crew) o.back = 0;
   if (game.score > game.top) { game.top = game.score; store.set('bl-top', game.top); game.record = true; }
@@ -3373,6 +3385,7 @@ function die(kind, mover, lane, h = P) {
 // grass row at or behind them that's on screen, in the closest open column.
 function respawn(h) {
   const team = game.crew.filter(o => o !== h && o.alive && !o.parked);
+  if (!team.length && sushi.rise && game.state === 'play') { sushiRise(h); return; }
   if (!team.length || game.state !== 'play') { h.back = 0.5; return; }
   const anchor = team.reduce((a, b) => (b.r < a.r ? b : a));
   const cols = Array.from({ length: COLS * 2 + 1 }, (_, i) => i - COLS).sort((a, b) => Math.abs(a - anchor.x) - Math.abs(b - anchor.x));
@@ -3400,11 +3413,16 @@ function updatePlayer(dt) {
 function updateHopper(h, dt) {
   if (h.parked) return;
   const { group, inner, tails } = h.model;
+  if (h.safe) {   // untouchable: blinking
+    const on = h.safe > game.time;
+    group.visible = !on || Math.sin(game.time * 30) > 0;
+    if (!on) h.safe = 0;
+  }
 
   if (h.alive) {
     if (h.hop) {
       const hp = h.hop;
-      hp.t += dt / HOP_T;
+      hp.t += dt / (hp.len || HOP_T);
       const t = Math.min(1, hp.t);
       h.x = lerp(hp.fx, hp.tx, t);
       h.z = lerp(hp.fz, hp.tz, t);
@@ -3412,7 +3430,7 @@ function updateHopper(h, dt) {
       if (hp.t >= 1) land(h);
     } else if (h.log) {
       const lane = laneAt(h.r);
-      h.x += lane.dir * lane.speed * dt;
+      if (!(game.stopT > 0)) h.x += lane.dir * lane.speed * dt;
       h.y = LANE_Y.water + h.log.mesh.position.y - h.log.y;
       if (Math.abs(h.x) > COLS + 1.1 && !h.remote) die('swept', null, lane, h);
     }
@@ -3429,7 +3447,7 @@ function updateHopper(h, dt) {
   }
 
   // collisions with traffic
-  if (h.alive && !h.remote && game.state === 'play') {
+  if (h.alive && !h.remote && game.state === 'play' && !h.safe && !(game.stopT > 0)) {
     const row = h.hop ? (h.hop.t > 0.5 ? h.hop.toR : h.hop.fromR) : h.r;
     const lane = laneAt(row);
     if (lane && (lane.movers.length && lane.type !== 'water')) {
@@ -3789,12 +3807,16 @@ farm.bunkBuilt = store.get('bl-bunk', false);
 const STAGE_COST = 1;
 const LAND_COST = 500;
 farm.stageBuilt = store.get('bl-stage', false);
+// The Sushi Bar: a plot until it's built, then a modern little kitchen counter.
+const SUSHI_COST = 50;
+farm.sushiBuilt = store.get('bl-sushibar', false);
 scene.add(farm.group);
 // Everything in the Farm Buildings menu (the Fish Pond has its own button). Each is
 // built once; levels come later, so a finished one is level 1 for now.
 const BUILDINGS = [
   { id: 'bunk', flag: 'bunkBuilt', name: 'bunkhouse', cost: BUNK_COST, draw: () => buildBunk(), open: () => openBunk() },
   { id: 'stage', flag: 'stageBuilt', name: 'jamStage', cost: STAGE_COST, draw: () => buildStage(), open: () => farm.stageBuilt ? openJam() : openStage() },
+  { id: 'sushi', flag: 'sushiBuilt', name: 'sushiBar', cost: SUSHI_COST, draw: () => buildSushi(), open: () => openSushi() },
   { id: 'plot', flag: 'wide', name: 'moreLand', cost: LAND_COST, draw: () => drawPlotIcon(), open: () => openLand() },
 ];
 const buildLevel = b => farm[b.flag] ? 1 : 0;
@@ -3821,6 +3843,7 @@ const PIECES = {
   barn: { build: buildBarn, foot: [-2.05, 1.6, -1.6, 1.95], at: [4, -8.5, 0] },
   pond: { build: g => { farm.pond = g; buildPond(); }, foot: [-2.8, 2.8, -2.1, 2.1], at: [2, 2, 0], pond: true },   // room for its biggest size
   bunk: { build: g => { farm.bunk = g; buildBunk(); }, foot: [-1.3, 1.3, -1.1, 1.45], block: [-1.3, 1.3, -1.1, 1.0], at: [0.5, -3.5, 0] },
+  sushi: { build: g => { farm.sushi = g; buildSushi(); }, foot: [-1.45, 1.45, -0.85, 1.1], at: [5.2, -3.5, 0] },
   stage: {
     build: g => { farm.stage = g; buildStage(); return stageTick; }, at: [-4.5, -1.5, 0],
     get foot() { const k = stageK(); return [-1.3 * k, 1.3 * k, -1.0 * k, 1.25 * k]; },   // the Big Jam Stage takes more room
@@ -4680,6 +4703,252 @@ function clearPiece(g) {
 // footlights along the front, speaker stacks and a gold edge.
 const BIG_STAGE = 1.35, STAGE_KIT = 0.85;
 const organOwned = () => store.get('bl-organ', false);
+// Sushi: cooked from the Fish Backpack at the Sushi Bar. Eat one and it lasts your whole next
+// round; only one at a time, so the next can't be eaten till you've been out hopping.
+const SUSHI = [
+  { id: 'sunny', col: '#ffd23f', fish: { minnow: 3, crappie: 1, carp: 1 } },
+  { id: 'magnet', col: '#ff7fb8', fish: { guppy: 2, perch: 1, bass: 1, trout: 1 } },
+  { id: 'spare', col: '#7ad653', fish: { bluegill: 1, pumpkinseed: 1, koi: 1, pike: 1, moonfish: 1 } },
+  { id: 'zoom', col: '#7fd0ff', fish: { goldfish: 1, catfish: 1, goldkoi: 1, sturgeon: 1, rainbowkoi: 1 } },
+  { id: 'midnight', col: '#8a5cff', fish: { glowfin: 1, eel: 1, lanternfish: 1, ghostfish: 1 } },
+];
+const SUSHI_KEY = 'bl-sushi', SUSHI_NEXT = 'bl-sushi-next', DASH_ROWS = 10, DASH_MAX = 2, DASH_CD = 30, STOP_EVERY = 60, STOP_LEN = 10;
+let sushiStock = store.get(SUSHI_KEY, {});   // id -> how many are cooked
+const sushi = { on: null, life: false, rise: false, charges: 0, cd: 0, stopIn: 0 };   // the one being enjoyed this round
+const sushiPic = col => `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#2c3a2e" stroke="#3a2442" stroke-width="1.5"/><circle cx="12" cy="12" r="7" fill="#faf7ef"/><circle cx="12" cy="12" r="3.2" fill="${col}"/></svg>`;
+const sushiOpen = () => $('sushi').classList.contains('show');
+function openSushi() {
+  if (GUEST || game.state !== 'farm') return;
+  closeHeroes(); closePond(); closeBunk(); closeStage();
+  refreshSushi();
+  $('sushi').classList.add('show');
+  game.picking = true;
+}
+function closeSushi() {
+  $('sushi').classList.remove('show');
+  game.picking = anyPanel();
+}
+function buySushi() {
+  if (farm.sushiBuilt) return;
+  if (game.coins < SUSHI_COST) { sfx.bump(); $('sushiNeed').textContent = needText(SUSHI_COST - game.coins); return; }
+  game.coins -= SUSHI_COST;
+  store.set('bl-coins', game.coins);
+  farm.sushiBuilt = true;
+  store.set('bl-sushibar', true);
+  buildSushi();
+  settleWalkers();
+  sfx.upgrade();
+  cheer(farm.pieces.sushi.x, farm.pieces.sushi.z);
+  hud();
+  refreshSushi();
+}
+function canCook(r) { return Object.entries(r.fish).every(([id, n]) => (fishBag[id] || 0) >= n); }
+function cookSushi(id) {
+  const r = SUSHI.find(o => o.id === id);
+  if (!canCook(r)) { sfx.bump(); return; }
+  for (const [f, n] of Object.entries(r.fish)) {
+    fishBag[f] -= n;
+    if (fishBag[f] <= 0) delete fishBag[f];
+  }
+  store.set(BAG_KEY, fishBag);
+  sushiStock[id] = (sushiStock[id] || 0) + 1;
+  store.set(SUSHI_KEY, sushiStock);
+  sfx.place();
+  hud();
+  refreshSushi();
+}
+function eatSushi(id) {
+  if (store.get(SUSHI_NEXT, null) || !sushiStock[id]) { sfx.bump(); return; }
+  sushiStock[id]--;
+  store.set(SUSHI_KEY, sushiStock);
+  store.set(SUSHI_NEXT, id);
+  sfx.upgrade();
+  refreshSushi();
+}
+function refreshSushi() {
+  const built = farm.sushiBuilt, next = store.get(SUSHI_NEXT, null);
+  $('sushiPlan').hidden = built;
+  $('sushiHome').hidden = !built;
+  $('sushiCost').innerHTML = FLOWER_SVG + SUSHI_COST;
+  $('sushiNeed').textContent = '';
+  $('sushiNext').textContent = next ? t('sushi.eaten', { name: t('sushi.names.' + next) }) : t('sushi.hungry');
+  $('sushiList').replaceChildren(...SUSHI.map(r => {
+    const el = document.createElement('div'), n = sushiStock[r.id] || 0;
+    el.className = 'sushiRow' + (next === r.id ? ' on' : '');
+    el.innerHTML = `<div class="sushiHead">${sushiPic(r.col)}<div><b></b><p></p></div><i class="tag"></i></div>
+      <div class="sushiFish"></div><div class="sushiBtns"><button class="actBtn bubble cook"></button><button class="buyBtn bubble eat"></button></div>`;
+    el.querySelector('b').textContent = t('sushi.names.' + r.id);
+    el.querySelector('p').textContent = t('sushi.does.' + r.id);
+    el.querySelector('.tag').textContent = t('fish.count', { n });
+    el.querySelector('.sushiFish').replaceChildren(...Object.entries(r.fish).map(([id, need]) => {
+      const f = document.createElement('span'), have = fishBag[id] || 0;
+      f.className = have >= need ? 'ok' : '';
+      f.innerHTML = `<img alt="" src="${shots.fish[FISH.findIndex(o => o.id === id)]}"><em></em><small>${have}/${need}</small>`;
+      f.querySelector('em').textContent = fishName(id);
+      return f;
+    }));
+    const cook = el.querySelector('.cook'), eat = el.querySelector('.eat');
+    cook.textContent = t('sushi.cook');
+    cook.disabled = !canCook(r);
+    cook.addEventListener('click', () => { sfx.ensure(); cookSushi(r.id); });
+    eat.textContent = t('sushi.eat');
+    eat.disabled = !n || !!next;
+    eat.addEventListener('click', () => { sfx.ensure(); eatSushi(r.id); });
+    return el;
+  }));
+}
+// The round's sushi: taken from the plate as the day starts, so it's used up by this round alone.
+function startSushi() {
+  const id = store.get(SUSHI_NEXT, null);
+  store.set(SUSHI_NEXT, null);
+  Object.assign(sushi, { on: id, life: id === 'spare', rise: false, charges: DASH_MAX, cd: 0, stopIn: STOP_EVERY });
+  game.stopT = 0;
+  document.body.classList.toggle('dashing', id === 'zoom');
+  updateSushiPill();
+}
+function endSushi() {
+  sushi.on = null;
+  sushi.life = sushi.rise = false;
+  game.stopT = 0;
+  document.body.classList.remove('dashing');
+  updateSushiPill();
+}
+function updateSushi(dt) {
+  if (sushi.on && game.state === 'play') {
+    if (sushi.on === 'zoom' && sushi.charges < DASH_MAX && (sushi.cd -= dt) <= 0) {
+      sushi.charges++;
+      sushi.cd = sushi.charges < DASH_MAX ? DASH_CD : 0;
+      sfx.coin();
+    }
+    if (sushi.on === 'midnight') {
+      if (game.stopT > 0 && (game.stopT -= dt) <= 0) { game.stopT = 0; sfx.timeStop(false); }
+      if ((sushi.stopIn -= dt) <= 0) { sushi.stopIn += STOP_EVERY; game.stopT = STOP_LEN; sfx.timeStop(true); }
+    }
+  }
+  document.body.classList.toggle('timestop', game.stopT > 0);
+  updateSushiPill();
+}
+function updateSushiPill() {
+  const pill = $('sushiPill'), id = game.where === 'road' && game.state !== 'over' ? sushi.on : null;
+  pill.hidden = !id;
+  if (!id) return;
+  const n = Math.ceil(game.stopT > 0 ? game.stopT : sushi.stopIn);
+  pill.textContent = id === 'midnight' ? t(game.stopT > 0 ? 'sushi.stopped' : 'sushi.stopSoon', { n }) : id === 'spare' ? t(sushi.life ? 'sushi.lifeReady' : 'sushi.lifeUsed') : t('sushi.names.' + id);
+  const b = $('dashBtn');
+  b.querySelector('b').textContent = sushi.charges;
+  b.querySelector('small').textContent = sushi.charges < DASH_MAX ? Math.ceil(sushi.cd) : '';
+  b.classList.toggle('empty', sushi.charges < 1);
+}
+// The Zoom Roll: leap ten rows ahead, onto solid ground, and stay untouchable for a second after.
+function dash() {
+  const h = P;
+  if (sushi.on !== 'zoom' || game.picking) return;
+  if (sushi.charges < 1 || !h.alive || h.hop || game.state !== 'play') { sfx.bump(); return; }
+  const solid = l => l && l.type !== 'water' && l.type !== 'pads';
+  let tr = null;
+  for (const r of [10, 11, 12, 13, 9, 8, 7]) if (solid(laneAt(h.r + r))) { tr = h.r + r; break; }
+  if (tr === null || tooFarAhead(h, tr)) { sfx.bump(); return; }
+  const lane = laneAt(tr), from = Math.round(h.x);
+  const cols = Array.from({ length: COLS * 2 + 1 }, (_, i) => i - COLS).sort((a, b) => Math.abs(a - from) - Math.abs(b - from));
+  const tx = cols.find(c => !lane.blocked.has(c)) ?? from;
+  sushi.charges--;
+  if (sushi.cd <= 0) sushi.cd = DASH_CD;
+  h.active = true;
+  h.log = null;
+  h.queue = null;
+  h.faceTarget = 0;
+  h.safe = game.time + 0.5 + 1;
+  h.hop = { fx: h.x, fz: h.z, fy: h.y, tx, tz: -tr, ty: LANE_Y[lane.type], t: 0, fromR: h.r, toR: tr, h: 2.2, len: 0.5 };
+  roadSend({ t: 'rh', k: h.key, fx: h.x, fr: h.r, tx, tr, face: 0 });
+  sfx.dash();
+  burst(h.x, 0.5, h.z, [0x7fd0ff, 0xffffff, 0xbfe9ff], 16, 2, 4, 0.1, 0.6);
+}
+// The Second-Chance Roll: everyone's fainted, so back up on the nearest safe ground.
+function sushiRise(h) {
+  const cols = Array.from({ length: COLS * 2 + 1 }, (_, i) => i - COLS).sort((a, b) => Math.abs(a - h.x) - Math.abs(b - h.x));
+  for (let d = 0; d <= 14; d++) for (const r of d ? [h.r + d, h.r - d] : [h.r]) {
+    const lane = laneAt(r);
+    if (!lane || (lane.type !== 'grass' && lane.type !== 'forest')) continue;
+    const x = cols.find(c => !lane.blocked.has(c));
+    if (x == null) continue;
+    sushi.rise = false;
+    freshHopper(h, h.hero, x, r);
+    h.active = true;
+    h.safe = game.time + 2.5;
+    h.hop = { fx: x, fz: -r, fy: 2.4, tx: x, tz: -r, ty: LANE_Y[lane.type], t: 0, fromR: r, toR: r, h: 0 };
+    burst(x, 1.2, -r, [0x7ad653, 0xffffff, 0xffd23f], 18, 1.6, 3, 0.1, 0.8);
+    sfx.upgrade();
+    tellHopper(h);
+    roadSend({ t: 'rb', k: h.key, x, r });
+    return;
+  }
+  h.back = 0.5;
+}
+// The Sushi Bar: a clean, modern kitchen. Pale oak with straight lines, a white tiled wall,
+// brushed steel and three pendant lamps over the counter.
+function buildSushi() {
+  const g = farm.sushi;
+  if (!g) return;
+  clearPiece(g);
+  const v = new VB(0.6), OAK = 0xd9b98a, OAK_D = 0xb8925f, WHITE = 0xf4f1ea, STEEL = 0xb9c0c7, DARK = 0x3a3440;
+  if (!farm.sushiBuilt) {   // a plot with a sign that has a fish on it
+    v.rbox(2.7, 0.05, 1.7, 0, 0, 0, 0xc9a06a, 0.2);
+    for (const [x, z] of [[-1.3, -0.8], [1.3, -0.8], [1.3, 0.8], [-1.3, 0.8]]) {
+      v.cyl(0.03, 0.03, 0.42, x, 0.21, z, 0xf4ead8);
+      v.ball(0.045, 0.03, 0.045, x, 0.43, z, 0x7fd0ff);
+    }
+    v.cyl(0.03, 0.03, 0.7, 0, 0.35, 0.3, OAK_D);
+    v.rbox(0.56, 0.4, 0.05, 0, 0.75, 0.32, 0xf4ead8, 0.05);
+    v.ball(0.15, 0.08, 0.03, -0.02, 0.76, 0.36, 0x5bb4ff);                     // a fish: body and tail
+    v.cone(0.08, 0.1, 0.17, 0.76, 0.36, 0x5bb4ff, 0, 0, 1.57);
+    g.add(v.mesh());
+    costTag(g, SUSHI_COST, 0, 1.5, 0.3);
+    return;
+  }
+  v.rbox(2.8, 0.08, 1.8, 0, 0.04, 0, 0xcfc8bc, 0.03);                          // a stone floor
+  v.rbox(2.7, 1.5, 0.1, 0, 0.8, -0.75, WHITE, 0.02);                           // the tiled back wall
+  for (let y = 0.36; y < 1.5; y += 0.22) v.rbox(2.68, 0.008, 0.01, 0, y, -0.695, 0xdcd7cd, 0.002);
+  for (let x = -1.2; x < 1.3; x += 0.3) v.rbox(0.008, 1.45, 0.01, x, 0.8, -0.695, 0xdcd7cd, 0.002);
+  v.rbox(2.8, 0.07, 0.4, 0, 1.58, -0.58, OAK, 0.015);                          // a slim oak roof line
+  v.rbox(0.72, 1.2, 0.5, -1, 0.68, -0.44, STEEL, 0.03);                        // a steel fridge
+  v.rbox(0.03, 0.34, 0.03, -0.72, 0.86, -0.17, 0x7f868e, 0.01);
+  v.rbox(1.1, 0.05, 0.42, 0.55, 0.62, -0.44, 0xe2e5e8, 0.01);                  // the prep counter
+  v.rbox(1.1, 0.5, 0.4, 0.55, 0.34, -0.44, OAK_D, 0.015);
+  v.rbox(0.8, 0.03, 0.2, 0.55, 1.12, -0.62, OAK, 0.008);                       // a shelf, with bowls
+  for (const x of [0.3, 0.55, 0.8]) v.cyl(0.08, 0.05, 0.07, x, 1.17, -0.62, [0x5bb4ff, WHITE, 0xff9a6a][Math.round((x - 0.3) * 4)]);
+  v.rbox(2.5, 0.09, 0.62, 0, 0.8, 0.28, 0xf0dcb8, 0.015);                      // the bar top...
+  v.rbox(2.42, 0.7, 0.5, 0, 0.42, 0.26, OAK, 0.015);                           // ...its oak front...
+  for (let x = -1.1; x < 1.2; x += 0.2) v.rbox(0.03, 0.66, 0.015, x, 0.42, 0.515, OAK_D, 0.004);   // ...in clean upright slats
+  for (const x of [-0.8, 0, 0.8]) {
+    v.cyl(0.14, 0.14, 0.04, x, 0.56, 0.88, DARK);                              // stools
+    v.cyl(0.02, 0.02, 0.5, x, 0.31, 0.88, STEEL);
+    v.cyl(0.1, 0.12, 0.02, x, 0.09, 0.88, STEEL);
+  }
+  for (const x of [-1.32, 1.32]) v.rbox(0.05, 1.5, 0.05, x, 0.8, 0.3, OAK_D, 0.01);   // two thin posts and a beam
+  v.rbox(2.7, 0.05, 0.05, 0, 1.55, 0.3, OAK_D, 0.01);
+  for (const x of [-0.8, 0, 0.8]) {
+    v.cyl(0.006, 0.006, 0.34, x, 1.37, 0.3, DARK);                             // pendant lamps
+    v.cyl(0.04, 0.11, 0.09, x, 1.17, 0.3, DARK);
+  }
+  v.rbox(0.42, 0.03, 0.2, -0.45, 0.86, 0.26, DARK, 0.008);                     // a plate of rolls
+  for (let i = 0; i < 4; i++) {
+    const x = -0.59 + i * 0.09;
+    v.cyl(0.04, 0.04, 0.05, x, 0.9, 0.26, 0x2c3a2e);
+    v.cyl(0.03, 0.03, 0.052, x, 0.9, 0.26, 0xfaf7ef);
+    v.cyl(0.013, 0.013, 0.054, x, 0.9, 0.26, [0xff8a5a, 0xffd23f, 0x7ad653, 0xff7fb8][i]);
+  }
+  v.rbox(0.3, 0.025, 0.2, 0.45, 0.86, 0.26, OAK_D, 0.008);                     // a cutting board
+  v.cyl(0.05, 0.06, 0.1, 1.05, 0.9, 0.26, WHITE);                              // and a little plant
+  v.ball(0.09, 0.1, 0.09, 1.05, 1.02, 0.26, 0x6cbf3f);
+  g.add(v.mesh());
+  const warm = new VB(0.6);
+  for (const x of [-0.8, 0, 0.8]) warm.ball(0.04, 0.03, 0.04, x, 1.11, 0.3, 0xfff1c4);
+  const lit = warm.mesh(MARKER_MAT);
+  lit.castShadow = false;
+  lit.layers.set(GLOW_LAYER);
+  g.add(lit);
+  for (const x of [-0.8, 0, 0.8]) glowAt(g, x, 1.08, 0.3, 0xfff1c4, 0.5);
+}
 function stageK() { return farm.stageBuilt && ownedDecor.has('bigstage') ? BIG_STAGE : 1; }
 function buildStage() {
   const g = farm.stage;
@@ -5743,6 +6012,7 @@ function nearUse(w, friend = false) {   // friend: another controller on this sc
   if (farm.stageBuilt || !GUEST) near(foot('stage'), 'jamStage', stageAct);
   if (GUEST) return best;
   near(foot('bunk'), 'bunkhouse', openBunk);
+  near(foot('sushi'), 'sushiBar', openSushi);
   if (posterNow().tap) near(foot('noticeboard'), 'event.title', () => { sfx.ensure(); posterNow().tap(); });
   if (!farm.wide) near([PLOT.x0, PLOT.x1, PLOT.z0, PLOT.z1], 'moreLand', openLand);
   return best;
@@ -6035,6 +6305,7 @@ function goRoad() {   // sunrise, then onto the road at first light
     game.where = 'road';
     game.state = 'title';
     game.dawn = 0.12;
+    startSushi();
     document.body.classList.remove('farm', 'show-logo');
     document.body.classList.add('ready');
     setHint();
@@ -6120,6 +6391,7 @@ function startGame() {
 }
 
 function gameOver() {
+  endSushi();
   music?.setLevel(0.45);   // duck the tune under the sign
   game.state = 'over';
   document.body.classList.add('over');
@@ -6287,6 +6559,7 @@ function tapFarm(x, y) {
   if (!GUEST) {   // a guest's taps on other buildings just hop there
     if (hit(farm.pieces.bunk.group)) { openBunk(); return; }
     if (hit(farm.pieces.stage.group)) { stageAct(); return; }
+    if (hit(farm.pieces.sushi.group)) { openSushi(); return; }
     if (farm.pieces.noticeboard && hit(farm.pieces.noticeboard.group)) { const p = posterNow(); if (p.tap) { sfx.ensure(); p.tap(); } return; }
     if (hit(farm.pieces.pond.group)) { openPond(); return; }
     if (!farm.wide && groundAt(x, y, _a) && inPlot(_a.x - farm.group.position.x, _a.z - farm.group.position.z)) { openLand(); return; }
@@ -6388,6 +6661,7 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
     return;
   }
+  if (game.picking && sushiOpen()) { if (e.code === 'Escape') closeSushi(); return; }
   if (game.picking && stageOpen()) {   // Jam Stage plot: Enter builds, Escape closes
     if (e.code === 'Enter' || e.code === 'Space') buildJamStage();
     else if (e.code === 'Escape') closeStage();
@@ -6478,6 +6752,7 @@ window.addEventListener('keydown', e => {
     return;
   }
   if (game.state === 'over' && (e.code === 'Space' || e.code === 'Enter')) { goFarm(); return; }
+  if (game.where === 'road' && (e.code === 'KeyX' || e.code === 'ShiftLeft' || e.code === 'ShiftRight')) { dash(); return; }
   if (game.state !== 'title' && game.state !== 'play') return;
   if (e.code === 'Space' && !e.repeat) { move(0, 1); e.preventDefault(); return; }
   const k = KEYS[e.code];
@@ -6498,9 +6773,12 @@ function step(dt) {
   if (GUEST && game.where === 'road') dt = guestRoadDt(dt);   // keep in time with the host's road
   game.time += dt;
   if (game.where === 'road') {
-    game.roadT += dt;
+    const still = game.stopT > 0;   // the Midnight Roll: everything holds still
+    if (!still) game.roadT += dt;
     if (!GUEST) tellRoad();
+    updateSushi(dt);
     for (const lane of lanes.values()) {
+      if (still) continue;
       updateLane(lane, dt, game.time);
       for (const c of lane.coins) {
         c.m.rotation.y = Math.sin(game.time * 1.6 + c.c) * 0.7;
@@ -8671,6 +8949,10 @@ function jamFrame(dt) {
 $('octUp').addEventListener('click', () => setOctave(1));
 $('octDown').addEventListener('click', () => setOctave(-1));
 $('jamClose').addEventListener('click', closeJam);
+$('sushiBuy').addEventListener('click', () => { sfx.ensure(); buySushi(); });
+$('sushiClose').addEventListener('click', closeSushi);
+$('sushi').addEventListener('click', e => { if (e.target.id === 'sushi') closeSushi(); });
+$('dashBtn').addEventListener('click', () => { sfx.ensure(); dash(); });
 $('jamRecenter').addEventListener('click', () => { sfx.ensure(); recenterJam(); });
 // The stage is a close-up like the swing and the pond: drag to look around, pinch or scroll to zoom.
 const jamBox = $('jam').querySelector('.jamStage'), jamTouch = new Map();
@@ -9085,7 +9367,7 @@ let roadTold = 0;
 function tellRoad() {   // host: the shared clock and the round, a few times a second
   if (!guests().length || game.time - roadTold < 0.2) return;
   roadTold = game.time;
-  toGuests({ t: 'rs', sp: spooky.on ? Math.max(0.1, spooky.t) : 0, spr: spooky.row, fl: spooky.at, pk: pumpkins, tp: game.todayPk, T: game.roadT, day: game.day, score: game.score, state: game.state, coins: game.coins, today: game.today, death: game.lastDeath?.death, hero: game.lastDeath?.hero });
+  toGuests({ t: 'rs', fz: game.stopT, sp: spooky.on ? Math.max(0.1, spooky.t) : 0, spr: spooky.row, fl: spooky.at, pk: pumpkins, tp: game.todayPk, T: game.roadT, day: game.day, score: game.score, state: game.state, coins: game.coins, today: game.today, death: game.lastDeath?.death, hero: game.lastDeath?.hero });
 }
 // Guest: follow the host's road clock, easing in small differences and jumping big ones.
 let roadClock = { T: 0, at: 0 };
@@ -10198,6 +10480,7 @@ function pollPad() {
     if (pressed(8) || pressed(9)) closeJam();
     return;
   }
+  if (game.picking && sushiOpen()) { menu($('sushi')); if (pressed(1)) closeSushi(); return; }
   if (game.picking && stageOpen()) {
     if (menu($('stage'))) return;
     if (pressed(0) || pressed(9)) buildJamStage();
@@ -10255,6 +10538,7 @@ function pollPad() {
   }
   if (game.state === 'title' || game.state === 'play') {
     if (pressed(9)) move(0, 1);
+    if (pressed(2)) dash();   // X: the Zoom Roll's dash
     if (dir) move(...DIRS[dir]);
     // A behaves like a tap: squash while held, hop forward on release
     if (pressed(0)) P.held = true;
@@ -10307,7 +10591,7 @@ if (guestNet) {
   };
   const keepHero = () => { try { sessionStorage.setItem('bl-guest-hero', heroId); } catch {} };   // the same hopper after a reload
   keepHero();
-  const LOOKS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-wide'];
+  const LOOKS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-sushibar', 'bl-wide'];
   guestNet.on(m => {
     if (m.t === 'leap') { const w = walkerOf(m.k); if (w && m.k !== myKey()) landLeap(w, +m.x, +m.z, +m.up, isFinite(m.y) ? clamp(+m.y, 0, 0.5) : null); }
     else if (m.t === 'crew') applyCrew(m.walkers || []);
@@ -10329,6 +10613,7 @@ if (guestNet) {
       game.today = m.today | 0;
       pumpkins = m.pk | 0;
       game.todayPk = m.tp | 0;
+      game.stopT = +m.fz || 0;
       bankTeam();
       followSpooky(m);
       hud();
@@ -10367,4 +10652,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, followBeat, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, dropFlower, get pumpkins() { return pumpkins; }, get counting() { return counting; } };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, followBeat, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, sushi, dash, openSushi, closeSushi, cookSushi, eatSushi, buySushi, startSushi, SUSHI, dropFlower, get pumpkins() { return pumpkins; }, get counting() { return counting; } };

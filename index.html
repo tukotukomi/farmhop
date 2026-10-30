@@ -57,6 +57,9 @@
 
 <div id="tip" class="speech" aria-live="polite"></div>
 <div id="spookyPill" class="pill" aria-live="off" hidden></div>
+<div id="sushiPill" class="pill" aria-live="off" hidden></div>
+<div id="timeStop" aria-hidden="true"></div>
+<button id="dashBtn" class="bubble" data-i18n-aria="aria.dash" aria-label="Dash forward"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19l7-7-7-7M12 19l7-7-7-7" fill="none" stroke="#3a2442" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" transform="rotate(-90 12 12)"/></svg><b></b><small></small></button>
 <div id="homeNote" class="pill" hidden><span></span><button id="homeNoteX" class="bubble" data-i18n-aria="aria.close" aria-label="Close">&#x2715;</button></div>
 <div id="hint" class="pill">Tap to hop<small>Swipe to turn &amp; go back</small></div>
 
@@ -169,6 +172,24 @@
     <p id="bunkNeed" class="pondNeed"></p>
     </div>
     <button id="bunkClose" class="closeBtn bubble" data-i18n-aria="aria.close" aria-label="Close">&#x2715;</button>
+  </div>
+</div>
+
+<div id="sushi" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sushiTitle">
+  <div class="panel bunkPanel sushiPanel">
+    <h2 id="sushiTitle" data-i18n="sushiBar">Sushi Bar</h2>
+    <div class="panelBody">
+      <div id="sushiPlan" class="bunkPlan">
+        <p data-i18n="sushiPlan">Build a kitchen to cook your fish into sushi. Each one powers up your next round.</p>
+        <button id="sushiBuy" class="buyBtn bubble"><span data-i18n="build">Build</span><span class="price" id="sushiCost"></span></button>
+        <p id="sushiNeed" class="pondNeed"></p>
+      </div>
+      <div id="sushiHome">
+        <p id="sushiNext" class="bunkWho"></p>
+        <div id="sushiList"></div>
+      </div>
+    </div>
+    <button id="sushiClose" class="closeBtn bubble" data-i18n-aria="aria.close" aria-label="Close">&#x2715;</button>
   </div>
 </div>
 
