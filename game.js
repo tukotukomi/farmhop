@@ -2151,7 +2151,15 @@ const sfx = (() => {
     // these little tunes are in D too, so they move with the song's key
     pick() { tone(inKey(587), inKey(880), 0.08, 'triangle', 0.07); },
     place() { tone(inKey(880), null, 0.05, 'triangle', 0.07); tone(inKey(1175), null, 0.12, 'triangle', 0.06, 0.05); },
-    coin() { tone(inKey(988), null, 0.08, 'square', 0.07); tone(inKey(1319), null, 0.2, 'square', 0.07, 0.08); },
+    // Pickups ring on the song's own key note, so they always fit: a sunflower's a bright chime
+    // up the octave; a pumpkin's a hollow plop on the key note, falling to the fifth below.
+    coin() { const r = 293.66 * 2 ** (keyNow()[0] / 12); tone(r * 2, null, 0.08, 'square', 0.07); tone(r * 4, null, 0.2, 'square', 0.07, 0.08); },
+    pumpkin() {
+      const r = 293.66 * 2 ** (keyNow()[0] / 12);
+      tone(r * 2.5, r * 2, 0.07, 'triangle', 0.12);
+      tone(r * 1.5, null, 0.26, 'sine', 0.1, 0.07);
+      tone(r * 3, null, 0.12, 'triangle', 0.025, 0.07);
+    },
     squash() { noise(0.3, 0.5, 'lowpass', 700); tone(180, 60, 0.3, 'sawtooth', 0.12); },
     splash() { noise(0.55, 0.45, 'bandpass', 1400); tone(600, 180, 0.25, 'sine', 0.1); },
     moo() { tone(150, 105, 0.7, 'sawtooth', 0.07); tone(152, 108, 0.7, 'triangle', 0.12); },
@@ -2515,7 +2523,7 @@ function addPumpkin(lane, c) {
 function gainPumpkin(h) {
   pumpkins++;
   store.set('bl-pumpkins', pumpkins);
-  sfx.coin();
+  sfx.pumpkin();
   burst(h.x, 0.6, h.z, [0xff8a1a, 0xffb02a, 0x4f8a2f], 10, 1.5, 4, 0.08, 0.5);
   markEvent();
 }
