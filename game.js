@@ -5711,6 +5711,45 @@ function jamLensOff() {
   perspCam.updateProjectionMatrix();
   postMat.uniforms.cnear.value = 0.3;
 }
+// Exploring with a controller, X uses whatever your hopper's standing next to: the swing,
+// the pond, the Jam Stage, the Bunkhouse and so on. The closest wins.
+const USE_REACH = 1.3;
+function nearUse(w, friend = false) {   // friend: another controller on this screen, who can swing and fish
+  if (!w) return null;
+  let best = null;
+  const near = (rect, name, use) => {
+    if (!rect) return;
+    const [a, b, c, d] = rect, gap = Math.hypot(Math.max(a - w.x, 0, w.x - b), Math.max(c - w.z, 0, w.z - d));
+    if (gap <= USE_REACH && (!best || gap < best.gap)) best = { gap, name, use };
+  };
+  const foot = id => { const p = farm.pieces[id]; return p && worldRect(PIECES[id].foot, p.x, p.z, p.r); };
+  near(foot('pond'), 'fishPond', () => (GUEST || friend ? goFish(w.key, 'pad') : openPond()));
+  if (!GUEST) near(foot('swing'), 'decor.swing', () => goSwing(w, !friend));
+  if (friend) return best;
+  if (farm.stageBuilt || !GUEST) near(foot('stage'), 'jamStage', stageAct);
+  if (GUEST) return best;
+  near(foot('bunk'), 'bunkhouse', openBunk);
+  if (posterNow().tap) near(foot('noticeboard'), 'event.title', () => { sfx.ensure(); posterNow().tap(); });
+  if (!farm.wide) near([PLOT.x0, PLOT.x1, PLOT.z0, PLOT.z1], 'moreLand', openLand);
+  return best;
+}
+function useNearby() {
+  const u = nearUse(walkerOf(myKey()));
+  if (u) u.use(); else sfx.bump();
+}
+// A little prompt floats over your hopper when there's something to use, while you're on a controller.
+let useShown = null;
+function updateUsePrompt() {
+  const el = $('usePrompt'), w = walkerOf(myKey());
+  const on = document.body.classList.contains('pad') && game.where === 'farm' && game.state === 'farm' && !game.picking && !decor.on && !jam.open && !swingCam.on && !fishers.has(myKey());
+  const u = on && w && !w.hidden ? nearUse(w) : null;
+  el.hidden = !u;
+  if (!u) { useShown = null; return; }
+  if (useShown !== u.name) { useShown = u.name; el.lastElementChild.textContent = t(u.name); }
+  const p = _t.set(farm.group.position.x + w.x, (w.y || 0) + w.top + 0.8, farm.group.position.z + w.z).project(camera);
+  el.style.left = (p.x + 1) / 2 * window.innerWidth + 'px';
+  el.style.top = (1 - p.y) / 2 * window.innerHeight + 'px';
+}
 function hostFarmHop(dx, dr) {
   if (game.state !== 'farm' || game.picking || decor.on || jam.open || fishers.has(myKey())) return false;
   farmHop(myKey(), dx, dr);
@@ -6456,6 +6495,7 @@ function step(dt) {
     updatePlayer(dt);
   } else updateFarm(dt);
   updateCamera(dt);
+  updateUsePrompt();
   updateTip(dt);
   updateFishing(dt);
   if (game.where === 'road') ensureLanes();
@@ -9150,7 +9190,7 @@ function pollLocalPads(list) {
       if (pressed(1) || pressed(2)) stopFish(fk);
       continue;
     }
-    if (game.state === 'farm' && pressed(2)) { goFish(fk, 'pad'); continue; }   // X: go fishing
+    if (game.state === 'farm' && pressed(2)) { nearUse(walkerOf(fk), true)?.use(); continue; }   // X: use what's nearby
     if (dir) send({ t: 'hop', dx: DIRS[dir][0], dr: DIRS[dir][1] });
     if (released(0)) send({ t: 'hop', dx: 0, dr: 1 });   // A, like a tap: hop forward
     if (game.state === 'farm') {
@@ -9974,7 +10014,32 @@ function showPadHints() {
   setHint();
 }
 window.addEventListener('gamepadconnected', showPadHints);
+// In a menu the d-pad and stick move a highlight through its buttons, and A presses the one
+// highlighted. Until something's highlighted, A does the menu's main thing as before.
+let navWas = null, navNow = null;
+const navItems = root => [...root.querySelectorAll('button, a[href]')].filter(e => !e.disabled && e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden');
+function menuMove(root, dir) {
+  const items = navItems(root), cur = items.find(e => e.classList.contains('navFocus'));
+  let next = null;
+  if (!cur) next = items.find(e => e.matches('.buyBtn, .heroCard')) || items[0];
+  else {
+    const [ux, uy] = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }[dir], a = cur.getBoundingClientRect();
+    let best = Infinity;
+    for (const e of items) {
+      const b = e.getBoundingClientRect(), dx = (b.left + b.right - a.left - a.right) / 2, dy = (b.top + b.bottom - a.top - a.bottom) / 2;
+      const along = dx * ux + dy * uy, score = along + (Math.abs(dx * uy) + Math.abs(dy * ux)) * 2;
+      if (e !== cur && along > 8 && score < best) { best = score; next = e; }
+    }
+  }
+  if (!next) return;
+  clearNav();
+  next.classList.add('navFocus');
+  next.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+function clearNav() { for (const e of document.querySelectorAll('.navFocus')) e.classList.remove('navFocus'); }
 function pollPad() {
+  navWas = navNow;
+  navNow = null;
   const pads = [...(navigator.getGamepads ? navigator.getGamepads() : [])].filter(p => p && p.connected);
   if (!GUEST) pollLocalPads(pads.slice(1));   // more controllers: more players on this screen
   const gp = pads[0];
@@ -9994,12 +10059,20 @@ function pollPad() {
 
   if (dir || down.some(Boolean)) { showPadHints(); sfx.ensure(); dismissLogo(); }
   const pick = pressed(2) || pressed(3);
+  const menu = root => {   // true: A pressed the highlighted button, so that's this press dealt with
+    navNow = root;
+    if (navWas !== root) clearNav();   // each menu starts afresh
+    if (dir) menuMove(root, dir);
+    const cur = pressed(0) && navItems(root).find(e => e.classList.contains('navFocus'));
+    if (cur) cur.click();
+    return !!cur;
+  };
 
-  if (partyOpen()) { if (pressed(0) || pressed(1) || pressed(9)) closeParty(); return; }
-  if (game.picking && supportOpen()) { if (pressed(1) || pressed(9)) closeSupport(); return; }
-  if (game.picking && pickOpen()) { if (pressed(1)) closePick(); return; }
-  if (game.picking && nudgeOpen()) { if (pressed(0)) startNudge(); else if (pressed(1)) closeNudge(true); return; }
-  if (game.picking && tapOpen()) { if (pressed(0)) { if ($('tapGo').hidden) tapHit(performance.now() / 1000); else tapStart(); } if (pressed(1)) closeTap(); return; }
+  if (partyOpen()) { if (menu($('party'))) return; if (pressed(0) || pressed(1) || pressed(9)) closeParty(); return; }
+  if (game.picking && supportOpen()) { if (menu($('support'))) return; if (pressed(1) || pressed(9)) closeSupport(); return; }
+  if (game.picking && pickOpen()) { menu($('acctPick')); if (pressed(1)) closePick(); return; }
+  if (game.picking && nudgeOpen()) { if (menu($('latNudge'))) return; if (pressed(0)) startNudge(); else if (pressed(1)) closeNudge(true); return; }
+  if (game.picking && tapOpen()) { if (menu($('tapHelp'))) return; if (pressed(0)) { if ($('tapGo').hidden) tapHit(performance.now() / 1000); else tapStart(); } if (pressed(1)) closeTap(); return; }
   if (game.picking && settingsOpen()) {
     if (pressed(4) || pressed(5)) setSettingsTab(setTab === 'set' ? 'upd' : 'set');   // LB / RB: the other tab
     if (setTab === 'upd') { if (dir === 'up' || dir === 'down') document.querySelector('.setPanel .panelBody').scrollBy({ top: dir === 'down' ? 80 : -80 }); }
@@ -10007,10 +10080,14 @@ function pollPad() {
     if (pressed(1) || pressed(8) || pressed(9)) closeSettings();
     return;
   }
-  if (game.picking && bookOpen()) { if (pressed(0) || pressed(1) || pressed(9)) closeBook(); return; }
-  if (game.picking && photoOpen()) { if (pressed(0)) savePhoto(); else if (pressed(1)) closePhoto(); return; }
-  if (game.picking && eventOpen()) { if ((pressed(0) || pressed(9)) && eventAsk()) sayYes(); else if (pressed(1)) { if (eventAsk()) { closeAsk(); refreshEvent(); } else closeEvent(); } return; }
-  if (game.picking && landOpen()) { if (pressed(0) || pressed(9)) buyLand(); else if (pressed(1)) closeLand(); return; }
+  if (game.picking && bookOpen()) {
+    if (dir === 'up' || dir === 'down') document.querySelector('#book .panelBody')?.scrollBy({ top: dir === 'down' ? 120 : -120 });
+    if (pressed(0) || pressed(1) || pressed(9)) closeBook();
+    return;
+  }
+  if (game.picking && photoOpen()) { if (menu($('photo'))) return; if (pressed(0)) savePhoto(); else if (pressed(1)) closePhoto(); return; }
+  if (game.picking && eventOpen()) { if (menu(eventAsk() ? $('eventAsk') : $('event'))) return; if ((pressed(0) || pressed(9)) && eventAsk()) sayYes(); else if (pressed(1)) { if (eventAsk()) { closeAsk(); refreshEvent(); } else closeEvent(); } return; }
+  if (game.picking && landOpen()) { if (menu($('land'))) return; if (pressed(0) || pressed(9)) buyLand(); else if (pressed(1)) closeLand(); return; }
   if (game.picking && bagOpen()) {   // d-pad chooses a fish, A one more, X one fewer, Y all, Start sells, B closes; asked to be sure: A sells, B keeps them
     if (asking()) { if (pressed(0) || pressed(9)) sellFish(); else if (pressed(1)) showSure(false); return; }
     const id = bagCards()[bagFocus]?.dataset.id;
@@ -10023,6 +10100,7 @@ function pollPad() {
     return;
   }
   if (game.picking && pondOpen()) {   // A buys, Y goes fishing, X opens the backpack, B closes
+    if (menu($('pond'))) return;
     if (pressed(0) || pressed(9)) buyPond();
     if (pressed(3)) { goFish(myKey(), 'pad'); return; }
     if (pressed(2)) { openBag(); return; }
@@ -10072,6 +10150,7 @@ function pollPad() {
     return;
   }
   if (game.picking && stageOpen()) {
+    if (menu($('stage'))) return;
     if (pressed(0) || pressed(9)) buildJamStage();
     if (pressed(1)) closeStage();
     return;
@@ -10110,14 +10189,13 @@ function pollPad() {
     if (pressed(1) || pick) closeHeroes();
     return;
   }
-  if (game.state === 'farm') {          // A or Start: start the day; Y: hoppers; X: Fish Pond; B: Bunkhouse
+  if (game.state === 'farm') {          // A or Start: start the day; Y: hoppers; X: use what's nearby; B: farm buildings
     if (pressed(0) || pressed(9)) startDay();
     else if (pressed(1)) openBuilds();
     else if (pressed(5)) enterDecor();     // RB
-    else if (pressed(4)) stageAct();       // LB
     else if (pressed(7)) openShop();       // RT: the Market
     else if (pressed(3)) openHeroes();
-    else if (pressed(2)) openPond();
+    else if (pressed(2)) useNearby();
     else if (pressed(8)) openSettings();   // Select / View button
     else if (dir) hostFarmHop(...DIRS[dir]);
     return;
@@ -10236,4 +10314,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, followBeat, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, get counting() { return counting; } };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, followBeat, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, get counting() { return counting; } };
