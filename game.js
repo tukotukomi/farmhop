@@ -857,7 +857,12 @@ function buildPumpking() {
   b.cyl(0.035, 0.05, 0.09, 0, 1.08, 0.02, 0x5a7a2a, 0, 0, 0.2);             // stem
   b.cap(0.012, 0.2, 0.1, 1.06, 0.05, VINE, 0, 0, 1.2);                      // a curl of vine
   face.ball(0.03, 0.025, 0.015, 0, 0.77, -0.285, 0xffd25a);                 // nose
-  face.torus(0.11, 0.025, Math.PI, 0, 0.72, -0.255, 0xffb02a, 0, 0, Math.PI);   // a jolly grin
+  const onHead = (x, y) => -0.29 * Math.sqrt(Math.max(0, 1 - (x / 0.3) ** 2 - ((y - 0.8) / 0.26) ** 2));   // the pumpkin's front, at (x, y)
+  for (let i = -10; i <= 10; i++) {   // a carved jack-o'-lantern grin: wide, dipping in the middle, tipped up at the ends...
+    const k = i / 10, x = k * 0.16, y = 0.7 + 0.055 * k * k, h = 0.08 - 0.045 * k * k;
+    face.rbox(0.03, h, 0.03, x, y, onHead(x, y) + 0.004, 0xffb02a, 0.008);
+  }
+  for (const [x, y] of [[-0.055, 0.727], [0.055, 0.727], [0, 0.672]]) b.rbox(0.042, 0.038, 0.03, x, y, onHead(x, y) - 0.012, 0xd25a08, 0.006);   // ...with its square teeth left in
   b.cyl(0.13, 0.12, 0.08, 0, 1.06, 0.04, GOLD, -0.15, 0, 0.1);              // crown band
   for (let i = 0; i < 5; i++) {
     const a = i / 5 * Math.PI * 2;
