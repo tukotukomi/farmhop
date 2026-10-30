@@ -834,48 +834,49 @@ function buildTuko() {
 }
 
 // The Pumpking: a little gold crown, a royal purple robe trimmed with ermine, vine arms
-// and a pumpkin sceptre. His head is carved like a real jack-o'-lantern: a ribbed pumpkin with triangle eyes and nose
-// and a blocky grin with square teeth left in, the cut-outs lit from inside. It's painted
-// into the head's own surface, high on the face where the farm's camera looks down on it.
-let pumpkingHead = null;
+// and a pumpkin sceptre. His head is a ribbed pumpkin carved like a jack-o'-lantern: triangle eyes and nose and a
+// blocky grin with square teeth left in, lit from inside. The carving is real 3D (raised a
+// touch off the pumpkin and following its curve), so it gets ink outlines like every other
+// hopper's face; the ribs are painted on.
+let pumpkingSkin = null;
 function pumpkingHeadMat() {
-  if (pumpkingHead) return pumpkingHead;
-  const W = 1024, H = 512, cx = W * 0.75, cy = H / 2;   // a sphere's front (-z) is u = 0.75, its middle v = 0.5
-  const tri = (w, h, dx, dy) => [[-w, h], [w, h], [0, -h]].map(([x, y]) => [x + dx, y + dy]);
-  const shapes = [
-    tri(26, 23, -62, -52), tri(26, 23, 62, -52),          // eyes
-    tri(11, 10, 0, -12),                                    // nose
-    [[-105, 10], [-60, 22], [-44, 22], [-44, 40], [-20, 40], [-20, 24], [20, 24], [20, 40], [44, 40], [44, 22], [60, 22], [105, 10],   // the grin's top edge, two teeth hanging in...
-      [90, 40], [55, 68], [16, 78], [16, 58], [-16, 58], [-16, 78], [-55, 68], [-90, 40]].map(([x, y]) => [x, y + 12]),            // ...its bottom, one tooth standing up
-  ];
-  const paint = glow => {
-    const c = document.createElement('canvas'), g = c.getContext('2d');
-    c.width = W; c.height = H;
-    g.fillStyle = glow ? '#000' : '#ff8a1a';
-    g.fillRect(0, 0, W, H);
-    if (!glow) { g.fillStyle = '#e0670c'; for (let i = 0; i < 16; i++) g.fillRect((i + 0.5) * W / 16 - 7, 0, 14, H); }   // ribs
-    for (const sh of shapes) {
-      g.beginPath();
-      sh.forEach(([x, y], i) => (i ? g.lineTo(cx + x, cy + y) : g.moveTo(cx + x, cy + y)));
-      g.closePath();
-      if (!glow) { g.lineJoin = 'round'; g.lineWidth = 14; g.strokeStyle = '#8a3a06'; g.stroke(); }   // the cut edge, for depth
-      g.fillStyle = glow ? '#fff' : '#ffd25a';
-      g.fill();
-    }
-    for (const sh of [tri(10, 9, -62, -45), tri(10, 9, 62, -45)]) {   // little black triangle pupils, like the other hoppers' dark eyes
-      g.beginPath();
-      sh.forEach(([x, y], i) => (i ? g.lineTo(cx + x, cy + y) : g.moveTo(cx + x, cy + y)));
-      g.closePath();
-      g.fillStyle = glow ? '#000' : '#2a1838';
-      g.fill();
-    }
-    const t = new THREE.CanvasTexture(c);
-    t.colorSpace = THREE.SRGBColorSpace;
-    t.anisotropy = 4;
-    return t;
-  };
-  return (pumpkingHead = toon({ map: paint(false), emissiveMap: paint(true), emissive: 0xffc040 }));
+  if (pumpkingSkin) return pumpkingSkin;
+  const c = document.createElement('canvas'), g = c.getContext('2d');
+  c.width = 512; c.height = 64;
+  g.fillStyle = '#ff8a1a';
+  g.fillRect(0, 0, 512, 64);
+  g.fillStyle = '#e0670c';
+  for (let i = 0; i < 16; i++) g.fillRect((i + 0.5) * 32 - 4, 0, 8, 64);   // ribs
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return (pumpkingSkin = toon({ map: t }));
 }
+// The carving's shapes, in face units (1 = about 0.0017 world units across, 0.00155 down,
+// from the middle of the face), extruded and bent onto the pumpkin's front.
+const PK_TRI = (w, h, dx, dy) => [[-w, h], [w, h], [0, -h]].map(([x, y]) => [x + dx, y + dy]);
+const PK_GLOW = [
+  PK_TRI(26, 23, -62, -52), PK_TRI(26, 23, 62, -52),   // eyes
+  PK_TRI(11, 10, 0, -12),                               // nose
+  [[-105, 10], [-60, 22], [-44, 22], [-44, 40], [-20, 40], [-20, 24], [20, 24], [20, 40], [44, 40], [44, 22], [60, 22], [105, 10],   // the grin's top edge, two teeth hanging in...
+    [90, 40], [55, 68], [16, 78], [16, 58], [-16, 58], [-16, 78], [-55, 68], [-90, 40]].map(([x, y]) => [x, y + 12]),            // ...its bottom, one tooth standing up
+];
+const PK_PUPILS = [PK_TRI(10, 9, -62, -45), PK_TRI(10, 9, 62, -45)];
+function pumpkingFace(shapes, out) {   // flat shapes -> 3D pieces standing `out` proud of the pumpkin's surface
+  const front = (x, y) => -0.29 * Math.sqrt(Math.max(0.02, 1 - (x / 0.3) ** 2 - ((y - 0.8) / 0.26) ** 2));
+  const geos = shapes.map(pts => {
+    const sh = new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x * 0.0017, 0.8 - y * 0.00155)));
+    const g = new THREE.ExtrudeGeometry(sh, { depth: 1, bevelEnabled: false, curveSegments: 1 }), p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), y = p.getY(i), k = p.getZ(i);   // k: 0 at the face side, 1 at the back
+      p.setZ(i, front(x, y) - out * (1 - k) + 0.02 * k);   // its face just off the surface, its back sunk inside
+    }
+    g.deleteAttribute('normal');
+    g.computeVertexNormals();
+    return g;
+  });
+  return geos;
+}
+let PK_GLOW_MAT = null, PK_PUPIL_MAT = null;
 function buildPumpking() {
   const ROBE = 0x5b2a8a, ROBE_D = 0x45206a, ERM = 0xf6f2ea, VINE = 0x4f8a2f, GOLD = 0xffcf3a;
   const group = new THREE.Group(), inner = new THREE.Group();
@@ -893,11 +894,11 @@ function buildPumpking() {
   b.torus(0.15, 0.04, Math.PI * 2, 0, 0.56, 0, ERM, Math.PI / 2, 0, 0);     // ...and collar
   for (const [x, y, z] of [[-0.12, 0.16, -0.19], [0.12, 0.16, -0.19], [0, 0.16, -0.235], [0.07, 0.565, -0.15], [-0.07, 0.565, -0.15]]) b.ball(0.012, 0.018, 0.01, x, y, z, 0x2a2033);   // its black tips
   b.rbox(0.42, 0.44, 0.03, 0, 0.36, 0.18, 0xa3122e, 0.04, 0.12, 0, 0);     // a red cape behind
-  b.cyl(0.13, 0.12, 0.08, 0, 1.06, 0.04, GOLD, -0.15, 0, 0.1);              // crown band
+  b.cyl(0.13, 0.12, 0.08, 0, 1.08, 0, GOLD);                              // crown band, straight and centred on top of his head
   for (let i = 0; i < 5; i++) {
     const a = i / 5 * Math.PI * 2;
-    b.cone(0.03, 0.08, Math.cos(a) * 0.115, 1.13, 0.04 + Math.sin(a) * 0.11, GOLD);
-    b.ball(0.018, 0.018, 0.018, Math.cos(a) * 0.125, 1.06, 0.04 + Math.sin(a) * 0.12, i % 2 ? 0xd8233a : 0x3a7fe0);   // jewels
+    b.cone(0.03, 0.08, Math.cos(a) * 0.115, 1.15, Math.sin(a) * 0.11, GOLD);
+    b.ball(0.018, 0.018, 0.018, Math.cos(a) * 0.125, 1.08, Math.sin(a) * 0.12, i % 2 ? 0xd8233a : 0x3a7fe0);   // jewels
   }
   b.cap(0.018, 0.4, 0.33, 0.42, -0.06, GOLD, 0, 0, -0.1);                   // the sceptre...
   b.ball(0.06, 0.05, 0.06, 0.35, 0.66, -0.06, PUMPKIN(0.35, -0.06));        // ...topped with a little pumpkin
@@ -907,7 +908,11 @@ function buildPumpking() {
   const head = new THREE.Mesh(hg, pumpkingHeadMat());   // the carved pumpkin head
   const hero = finishHero(group, inner, []);
   head.castShadow = true;
-  inner.add(head);   // (after finishHero, which gives every mesh the shared hopper material: this one keeps its carving)
+  inner.add(head);   // (after finishHero, which gives every mesh the shared hopper material: these keep their own)
+  PK_GLOW_MAT ??= toon({ color: 0xffd25a, emissive: 0xffa21a, emissiveIntensity: 0.85 });
+  PK_PUPIL_MAT ??= toon({ color: 0x2a1838 });
+  for (const g of pumpkingFace(PK_GLOW, 0.012)) inner.add(new THREE.Mesh(g, PK_GLOW_MAT));     // the carving, lit from inside
+  for (const g of pumpkingFace(PK_PUPILS, 0.02)) inner.add(new THREE.Mesh(g, PK_PUPIL_MAT));   // and little black triangle pupils on top
   return hero;
 }
 
@@ -8133,6 +8138,7 @@ const jam = { open: false, drums: false, oct: 0, row: 1, input: null, t: 0, kick
 const bandOf = () => GUEST ? [...jam.band.entries()] : [...party.players.entries()];
 const bandN = ([k, pl]) => pl.n ?? k;
 const jamPads = $('jamPads');
+jam.heldPads = new Map();   // finger / key / button -> the pad it's holding down (lit till it lets go)
 function buildPads() {   // three rows of the scale, built afresh if the scale has changed
   const cols = padCols();
   if (jamPads.children.length === cols * JAM_ROWS) return;
@@ -8243,6 +8249,7 @@ function playPad(row, col, by) {
   else toGuests({ t: 'jn', k: 'h', by: by || 'x', hero: id, f: padFreq(row, col), sus: jam.sustain, on: true, hold: !!by });
   const pad = padAt(row, col);
   pad.classList.remove('hit'); void pad.offsetWidth; pad.classList.add('hit');
+  if (by) { jam.heldPads.get(by)?.classList.remove('held'); pad.classList.add('held'); jam.heldPads.set(by, pad); }   // stays lit while it's held
   jam.kick = 1;   // the hopper bounces to every note
   const note = document.createElement('span');   // and a note floats up off the stage
   note.className = 'jamNote';
@@ -8255,12 +8262,14 @@ function playPad(row, col, by) {
 function letGo(by) {
   jam.held.get(by)?.();
   jam.held.delete(by);
+  const p = jam.heldPads.get(by);
+  if (p) { jam.heldPads.delete(by); if (![...jam.heldPads.values()].includes(p)) p.classList.remove('held'); }   // (unless another finger's still on it)
   if (!/^[pkb]/.test(by)) return;   // only this screen's own fingers, keys and buttons
   const rc = jam.byRC.get(by);
   if (GUEST) { if (rc) { jam.byRC.delete(by); guestNet.send({ t: 'note', r: rc[0], c: rc[1], on: false }); } }
   else toGuests({ t: 'jn', k: 'h', by, on: false });
 }
-function letGoAll() { for (const by of [...jam.held.keys()]) letGo(by); }
+function letGoAll() { for (const by of new Set([...jam.held.keys(), ...jam.heldPads.keys()])) letGo(by); }
 function setSustain(v) {
   jam.sustain = clamp(Math.round(v * 20) / 20, 0, 1);
   sfx.sustain = jam.sustain;   // hops ring the same way

@@ -865,6 +865,7 @@ body.guest #phonesBtn, body.guest #partyBtn, body.guest #play { display: none !i
 }
 .pad.root { box-shadow: inset 0 0 0 3px rgba(255, 255, 255, .75), inset 0 -5px 0 rgba(0, 0, 0, .18), 0 3px 0 rgba(0, 0, 0, .4); }
 .pad.hit { animation: padHit .25s ease-out; }
+.pad.held { opacity: 1; filter: brightness(1.35); transform: scale(.94); box-shadow: 0 0 18px var(--c), inset 0 -5px 0 rgba(0, 0, 0, .18); }   /* lit for as long as it is held */
 @keyframes padHit { 0% { opacity: 1; filter: brightness(1.5); transform: scale(.88); box-shadow: 0 0 22px var(--c); } 100% { opacity: .82; filter: none; transform: none; } }
 .pad:focus-visible { outline: 4px solid #fff; outline-offset: 2px; }
 .pad .k { font-size: 15px; font-weight: 700; color: rgba(58, 36, 66, .78); pointer-events: none; }
