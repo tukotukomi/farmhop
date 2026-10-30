@@ -2482,10 +2482,10 @@ function puffed(geo, d) {
 }
 const SPOOKY_AURA = [[0.035, 0.75], [0.08, 0.35]].map(([d, o]) => ({ geo: puffed(SPOOKY_FLOWER_GEO, d), mat: new THREE.MeshBasicMaterial({ color: 0x9b2dff, side: THREE.BackSide, transparent: true, opacity: o, depthWrite: false }), o }));
 const spooky = { on: false, t: 0, k: 0, next: Infinity, flower: null };
-function plantSpooky(lane) {   // on a free spot of a grass lane that can be reached
+function plantSpooky(lane, at = null) {   // on a free spot of a grass lane that can be reached (at: the host says where)
   const free = [...lane.reach].filter(c => !lane.coins.some(o => o.c === c));
-  if (!free.length) return false;
-  const c = free[Math.abs(lane.r * 7) % free.length];
+  if (!free.length && at === null) return false;
+  const c = at ?? free[Math.abs(lane.r * 7) % free.length];
   const m = new THREE.Mesh(SPOOKY_FLOWER_GEO, SPOOKY_FLOWER_MAT);
   m.position.set(c, LANE_Y[lane.type], 0);
   m.castShadow = true;
@@ -2497,8 +2497,16 @@ function plantSpooky(lane) {   // on a free spot of a grass lane that can be rea
   lane.group.add(m);
   lane.coins.push({ c, m, spooky: true });
   spooky.flower = m;
+  spooky.at = [lane.r, c];
   spooky.next = Infinity;
   return true;
+}
+function dropFlower() {   // gone from this screen: a friend got to it first
+  for (const lane of lanes.values()) {
+    const coin = lane.coins.find(o => o.spooky);
+    if (coin) { lane.group.remove(coin.m); lane.coins.splice(lane.coins.indexOf(coin), 1); }
+  }
+  spooky.flower = spooky.at = null;
 }
 // The sunflowers already out on the road turn into pumpkins as the farm goes spooky (during the
 // harvest), and the pumpkins back into sunflowers when it's over.
@@ -2572,11 +2580,13 @@ function updateWave(dt) {
   }
   if (!left) spooky.wave = null;
 }
-function startSpooky(h) {
+function startSpooky(h, told = false) {   // told: the host said so, it wasn't our hop
   spooky.on = true;
   spooky.t = SPOOKY_SECS;
-  spooky.flower = null;
+  spooky.flower = spooky.at = null;
+  spooky.row = h.r;
   spooky.wave = { row: h.r, t: 0 };   // out from here
+  if (GUEST && !told) { spooky.sure = game.time + 1.5; guestNet.send({ t: 'rf', r: h.r }); }   // the host turns the rest of the team's farm
   sfx.spookyWave();
   burst(h.x, 0.6, h.z, [0x9b6bff, 0x6bff9b, 0xff8a1a, 0xffffff], 18, 2, 4, 0.1, 0.8);
 }
@@ -2584,13 +2594,14 @@ function endSpooky() {
   spooky.on = false;
   const lead = game.crew.filter(c => c.alive && !c.parked).sort((a, b) => b.r - a.r)[0] || P;
   spooky.wave = { row: lead.r, t: 0 };   // back to normal, out from the leading hopper
+  if (GUEST) return;   // the host plants the next one
   spooky.next = game.score + 4 + Math.floor(Math.random() * 5);   // another one soon: a few rows on (in the next grass lane built, if those are built already)
   for (let r = spooky.next; r < genRow; r++) { const lane = lanes.get(r); if (lane?.type === 'grass' && plantSpooky(lane)) break; }
 }
 function updateSpooky(dt) {
   updateWave(dt);
   const road = game.where === 'road';
-  if (spooky.on && road && (game.state === 'play' || game.state === 'title')) { spooky.t -= dt; if (spooky.t <= 0) endSpooky(); }
+  if (spooky.on && road && (game.state === 'play' || game.state === 'title')) { spooky.t -= dt; if (spooky.t <= 0 && !GUEST) endSpooky(); }
   spooky.k = clamp(spooky.k + (spooky.on && road ? dt : -dt) / 1.5, 0, 1);
   if (spooky.flower?.parent) {   // the spooky sunflower turns and bobs, so you notice it
     spooky.flower.rotation.y += dt * 2.2;
@@ -2625,6 +2636,7 @@ const EVENT_END = Date.UTC(2026, 10, 8, 8);   // midnight at the end of Nov 7, P
 const PUMPKING_PRICE = 300, ORGAN_PRICE = 500, GOO_PRICE = 200;
 const GOO_ICON = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><g stroke="#3a2442" stroke-width="2" stroke-linejoin="round"><ellipse cx="32" cy="40" rx="27" ry="15" fill="#5a4a3a"/><ellipse cx="32" cy="38" rx="23" ry="12" fill="#7dff5a"/></g><ellipse cx="25" cy="35" rx="9" ry="4" fill="#d8ffc8"/><g stroke="#3a2442" stroke-width="1.6" fill="#b8ff9a"><circle cx="40" cy="30" r="4"/><circle cx="46" cy="22" r="2.6"/><circle cx="36" cy="18" r="1.8"/></g><path d="M18 46q4 6 8 0" fill="none" stroke="#3fae2a" stroke-width="2.4" stroke-linecap="round"/></svg>');
 const eventOn = () => Date.now() < EVENT_END;
+const rowDice = (r, i) => { const x = Math.sin(game.seed * 0.0001 + r * 12.9898 + i * 78.233) * 43758.5453; return x - Math.floor(x); };   // the same on every friend's screen
 let pumpkins = store.get('bl-pumpkins', 0);
 // Each one a little jack-o'-lantern: its carved face lit from inside, in a warm halo.
 let pumpkinGeo = null, pumpkinFace = null;
@@ -2654,6 +2666,7 @@ function addPumpkin(lane, c) {
 }
 function gainPumpkin(h) {
   pumpkins++;
+  game.todayPk++;
   store.set('bl-pumpkins', pumpkins);
   sfx.pumpkin();
   burst(h.x, 0.6, h.z, [0xff8a1a, 0xffb02a, 0x4f8a2f], 10, 1.5, 4, 0.08, 0.5);
@@ -2858,11 +2871,11 @@ function buildLane(r) {
         else if (rnd() < 0.18) flowers(vb, x);
       }
       if (r > 3 && rnd() < 0.16 && reach.size) addSunflower(lane, pick([...reach]));
-      if (r >= spooky.next && !spooky.on && reach.size) plantSpooky(lane);
+      if (!GUEST && r >= spooky.next && !spooky.on && reach.size) plantSpooky(lane);
       if (lane.spooked && eventOn() && reach.size) {   // more pumpkins besides: one, and often a second (off the row's own dice, so the rest stays the same)
-        for (let k = Math.random() < 0.5 ? 2 : 1; k > 0; k--) {
+        for (let k = rowDice(r, 0) < 0.5 ? 2 : 1; k > 0; k--) {
           const free = [...reach].filter(c => !lane.coins.some(o => o.c === c));
-          if (free.length) addPumpkin(lane, free[Math.floor(Math.random() * free.length)]);
+          if (free.length) addPumpkin(lane, free[Math.floor(rowDice(r, k) * free.length)]);
         }
       }
     }
@@ -2877,7 +2890,7 @@ function buildLane(r) {
     const color = ri(0, TRACTORS.length - 1);
     addMovers(lane, () => (r >= UNLOCK.wagon && rnd() < 0.25 ? 'wagon' : 'tractor') + (rnd() < 0.5 ? color : ri(0, TRACTORS.length - 1)), 3, 7.5 - 2 * d);
     if (rnd() < 0.1) addSunflower(lane, ri(-COLS, COLS));
-    if (lane.spooked && eventOn() && Math.random() < 0.25) { const c = Math.floor(Math.random() * (2 * COLS + 1)) - COLS; if (!lane.coins.some(o => o.c === c)) addPumpkin(lane, c); }   // and some on the roads
+    if (lane.spooked && eventOn() && rowDice(r, 3) < 0.25) { const c = Math.floor(rowDice(r, 4) * (2 * COLS + 1)) - COLS; if (!lane.coins.some(o => o.c === c)) addPumpkin(lane, c); }   // and some on the roads
   } else if (type === 'pasture') {
     strip(vb, 0, 0xcfa66b, shade(0xcfa66b, 0.72));
     for (let i = 0; i < 14; i++) {
@@ -3260,12 +3273,13 @@ function land(h = P) {
   }
   h.jelly = 0;   // start the landing wobble
   hopPuff(h);
-  const coin = !h.remote && lane.coins.find(c => c.c === h.x);   // a friend's device reports their own sunflowers
-  if (coin?.spooky) {   // the spooky sunflower: only this screen's (each screen grows its own)
+  const coin = !h.remote && lane.coins.find(c => c.c === h.x);   // a friend's device reports their own pickups, and they're shared by the whole team
+  if (coin?.spooky) {   // the spooky sunflower: the whole team's farm turns
     lane.group.remove(coin.m);
     lane.coins.splice(lane.coins.indexOf(coin), 1);
     startSpooky(h);
-  } else if (coin?.pumpkin) {   // a harvest pumpkin: this screen's own too
+  } else if (coin?.pumpkin) {   // a harvest pumpkin
+    roadSend({ t: 'rc', r: h.r, c: coin.c, p: 1 });
     lane.group.remove(coin.m);
     lane.coins.splice(lane.coins.indexOf(coin), 1);
     gainPumpkin(h);
@@ -5882,7 +5896,8 @@ function newWorld() {
   queue = [];
   genRow = -BEHIND - 3;
   game.score = 0;
-  game.today = 0;
+  game.today = game.todayPk = 0;
+  roadBank = null;
   game.record = false;
   game.camX = 0;
   game.crew = [P];
@@ -8912,10 +8927,11 @@ function onPlayer(slot, m, direct = false) {
   // A guest may play any hopper: one from their own farm, or one of ours.
   if (m.t === 'pick' && pl?.guest) { if (anyHero(m.hero)) assign(slot, m.hero); return; }
   if (m.t === 'sup' && pl?.guest) { pl.sup = true; renderParty(); return; }   // a friend just became a supporter
-  if (/^r[hdbpc]$/.test(m.t)) {   // a guest's hopper on the road
+  if (/^r[hdbpcf]$/.test(m.t)) {   // a guest's hopper on the road
     if (!pl?.guest || game.where !== 'road') return;
     const k = 'p' + slot;
-    if (m.t === 'rc') takeSunflower(m.r | 0, m.c | 0, true);
+    if (m.t === 'rc') takeSunflower(m.r | 0, m.c | 0, true, !!m.p);
+    else if (m.t === 'rf') { if (!spooky.on) { dropFlower(); startSpooky(game.crew.find(h => h.key === k) || { r: m.r | 0, x: 0, z: -(m.r | 0) }); } return; }   // the spooky sunflower: the whole team's farm turns
     else onRoadNews(game.crew.find(h => h.key === k), m);
     toGuests({ ...m, k }, slot);
     return;
@@ -9019,24 +9035,57 @@ function onRoadNews(h, m) {   // a friend's hopper, as their device reports it
     h.model.group.visible = false;
   }
 }
-function takeSunflower(r, c, count) {   // someone picked one: gone from every screen, counted once, by the host
+function takeSunflower(r, c, count, pumpkin = false) {   // someone picked one: gone from every screen, counted once, by the host
   const lane = laneAt(r), coin = lane?.coins.find(o => o.c === c);
   if (coin) {
     lane.group.remove(coin.m);
     lane.coins.splice(lane.coins.indexOf(coin), 1);
-    burst(c, 0.6, -r, [0xffd23f, 0xffe680, 0xffffff], 10, 1.5, 4, 0.08, 0.5);
+    burst(c, 0.6, -r, pumpkin ? [0xff8a1a, 0xffb02a, 0x4f8a2f] : [0xffd23f, 0xffe680, 0xffffff], 10, 1.5, 4, 0.08, 0.5);
+    if (pumpkin) sfx.pumpkin(); else sfx.coin();
   }
   if (!count) return;
+  if (pumpkin) {
+    pumpkins++;
+    game.todayPk++;
+    store.set('bl-pumpkins', pumpkins);
+    markEvent();
+    return;
+  }
   game.coins++;
   game.today++;
   store.set('bl-coins', game.coins);
   hud();
 }
+// Guest: what the team picks up is ours too, so it goes in this player's own farm's purse,
+// counted from when they joined the road.
+let roadBank = null;
+function bankTeam() {
+  const now = { c: game.today, p: game.todayPk }, was = roadBank || now;
+  roadBank = now;
+  for (const [k, n] of [['bl-coins', now.c - was.c], ['bl-pumpkins', now.p - was.p]]) {
+    if (n <= 0) continue;
+    try { localStorage.setItem(k, JSON.stringify((JSON.parse(localStorage.getItem(k)) || 0) + n)); } catch { /* private mode */ }
+    onLocalSave?.();
+  }
+}
+// Guest: the host keeps the team's spooky farm: when it turns and ends, and where the flower is.
+function followSpooky(m) {
+  if (m.sp > 0) {
+    if (!spooky.on) { dropFlower(); startSpooky({ r: m.spr | 0, x: 0, z: -(m.spr | 0) }, true); }
+    spooky.t = +m.sp;
+    return;
+  }
+  if (spooky.on) { if (game.time > (spooky.sure || 0)) endSpooky(); return; }
+  if (!m.fl) { if (spooky.at) dropFlower(); return; }
+  if (spooky.at?.[0] === m.fl[0] && spooky.at[1] === m.fl[1]) return;
+  const lane = laneAt(m.fl[0] | 0);
+  if (lane) { dropFlower(); plantSpooky(lane, m.fl[1] | 0); }
+}
 let roadTold = 0;
 function tellRoad() {   // host: the shared clock and the round, a few times a second
   if (!guests().length || game.time - roadTold < 0.2) return;
   roadTold = game.time;
-  toGuests({ t: 'rs', T: game.roadT, day: game.day, score: game.score, state: game.state, coins: game.coins, today: game.today, death: game.lastDeath?.death, hero: game.lastDeath?.hero });
+  toGuests({ t: 'rs', sp: spooky.on ? Math.max(0.1, spooky.t) : 0, spr: spooky.row, fl: spooky.at, pk: pumpkins, tp: game.todayPk, T: game.roadT, day: game.day, score: game.score, state: game.state, coins: game.coins, today: game.today, death: game.lastDeath?.death, hero: game.lastDeath?.hero });
 }
 // Guest: follow the host's road clock, easing in small differences and jumping big ones.
 let roadClock = { T: 0, at: 0 };
@@ -9877,7 +9926,7 @@ $('settings').addEventListener('click', e => { if (e.target.id === 'settings') c
 const supportOpen = () => $('support').classList.contains('show');
 let supTimer = null;
 function songStyle() { return (GUEST || supporter) && store.get('bl-dnb', false) ? 'dnb' : 'classic'; }
-function applySong() { music?.setStyle(songStyle()); music?.setKey(songKey(), songScale()); }
+function applySong() { music?.setStyle(songStyle()); music?.setKey(songKey(), music.haunted ? 'spooky' : songScale()); }
 function setSong(on) {
   store.set('bl-dnb', on);   // a farm setting: the guests on this farm hear it too
   applySong();
@@ -10270,7 +10319,7 @@ if (guestNet) {
     else if (m.t === 'beat') followBeat(m.pos, m.lag);
     else if (m.t === 'road') { if (game.where === 'farm') { guestNet.note.hide(); goRoadGuest(m); } }
     else if (/^r[hdbp]$/.test(m.t)) { if (game.where === 'road' && m.k !== guestKey) onRoadNews(game.crew.find(h => h.key === m.k), m); }
-    else if (m.t === 'rc') { if (game.where === 'road') takeSunflower(m.r | 0, m.c | 0, false); }
+    else if (m.t === 'rc') { if (game.where === 'road') takeSunflower(m.r | 0, m.c | 0, false, !!m.p); }
     else if (m.t === 'rs') {
       if (game.where !== 'road') return;
       roadClock = { T: m.T, at: performance.now() };
@@ -10278,6 +10327,10 @@ if (guestNet) {
       game.score = Math.max(game.score, m.score | 0);
       game.coins = m.coins | 0;
       game.today = m.today | 0;
+      pumpkins = m.pk | 0;
+      game.todayPk = m.tp | 0;
+      bankTeam();
+      followSpooky(m);
       hud();
       if (m.state === 'play' && game.state === 'title') startGame();
       if (m.state === 'dead' && game.state === 'play') game.state = 'dead';
@@ -10314,4 +10367,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, followBeat, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, get counting() { return counting; } };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, followBeat, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, dropFlower, get pumpkins() { return pumpkins; }, get counting() { return counting; } };
