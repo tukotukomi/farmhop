@@ -61,6 +61,10 @@ main { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-co
   color: var(--ink);
 }
 .hopPad.on { filter: brightness(1.2); transform: scale(.98); }
+.dashBtn { flex: none; display: flex; align-items: center; justify-content: center; gap: 12px; height: 84px; border: 0; border-radius: 22px; background: #7fbfe6; color: #2a1838; font: inherit; font-size: 26px; font-weight: 700; }
+.dashBtn[hidden] { display: none; }
+.dashBtn.empty { filter: saturate(.3) brightness(.8); }
+.dashBtn small { font-size: 16px; }
 .hopPad.out { filter: grayscale(.85) brightness(.7); }
 .hopArrow { font-size: 64px; line-height: 1; }
 .hopPad small { font-size: 14px; opacity: .8; text-align: center; padding: 0 12px; }

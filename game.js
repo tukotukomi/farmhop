@@ -3280,7 +3280,7 @@ function land(h = P) {
   hopPuff(h);
   const coin = !h.remote && lane.coins.find(c => c.c === h.x);   // a friend's device reports their own pickups, and they're shared by the whole team
   if (coin) pickUp(h, lane, coin);
-  if (h === P && sushi.on === 'magnet') for (const o of lane.coins.filter(c => !c.spooky)) pickUp(h, lane, o);   // the Magnet Roll: the whole row
+  if (mealOf(h) === 'magnet') for (const o of lane.coins.filter(c => !c.spooky)) pickUp(h, lane, o);   // the Magnet Roll: the whole row
   if (h.r > game.score) {   // new ground: the sun climbs back up a little
     game.day = Math.min(1, game.day + DAY_GAIN * (h.r - game.score));
     game.score = h.r;
@@ -3297,7 +3297,7 @@ function pickUp(h, lane, coin) {
     roadSend({ t: 'rc', r: h.r, c: coin.c, p: 1 });
     gainPumpkin(h);
   } else {
-    const n = h === P && sushi.on === 'sunny' ? 2 : 1;   // the Sunny Roll: double
+    const n = mealOf(h) === 'sunny' ? 2 : 1;   // the Sunny Roll: double
     roadSend({ t: 'rc', r: h.r, c: coin.c, n });
     game.coins += n;
     game.today += n;
@@ -4716,6 +4716,8 @@ const SUSHI = [
 const SUSHI_KEY = 'bl-sushi', SUSHI_NEXT = 'bl-sushi-next', DASH_ROWS = 10, DASH_MAX = 2, DASH_CD = 30, STOP_EVERY = 60, STOP_LEN = 10;
 let sushiStock = store.get(SUSHI_KEY, {});   // id -> how many are cooked
 const sushi = { on: null, life: false, rise: false, stops: false, charges: 0, cd: 0, stopIn: 0 };   // the one being enjoyed this round (life and stops: anyone's, for the team)
+// Each hopper on this screen has their own: ours, or a phone's or a second controller's.
+const mealOf = h => (h === P ? sushi.on : party.players.get(h.slot)?.meal) || null;
 const sushiPic = col => `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#2c3a2e" stroke="#3a2442" stroke-width="1.5"/><circle cx="12" cy="12" r="7" fill="#faf7ef"/><circle cx="12" cy="12" r="3.2" fill="${col}"/></svg>`;
 const sushiOpen = () => $('sushi').classList.contains('show');
 function openSushi() {
@@ -4766,11 +4768,11 @@ function eatSushi(id) {
   sfx.upgrade();
   refreshSushi();
 }
-// The host can feed a guest too: one each, and it runs on the guest's own device. If they
-// leave before the round, it goes back on the plate.
+// The host can feed friends too, one each: a guest's runs on their own device, and a phone's
+// or a second controller's runs here for their hopper. If they leave before the round, it goes back on the plate.
 function feedSushi(slot, id) {
   const pl = party.players.get(slot);
-  if (!pl?.guest || pl.eat || !sushiStock[id]) { sfx.bump(); return; }
+  if (!pl?.hero || pl.eat || !sushiStock[id]) { sfx.bump(); return; }
   sushiStock[id]--;
   store.set(SUSHI_KEY, sushiStock);
   pl.eat = id;
@@ -4779,7 +4781,7 @@ function feedSushi(slot, id) {
   refreshSushi();
 }
 function refreshSushi() {
-  const built = farm.sushiBuilt, next = store.get(SUSHI_NEXT, null), friends = guests().filter(([, p]) => p.hero);
+  const built = farm.sushiBuilt, next = store.get(SUSHI_NEXT, null), friends = [...party.players].filter(([, p]) => p.hero);
   $('sushiPlan').hidden = built;
   $('sushiHome').hidden = !built;
   $('sushiCost').innerHTML = FLOWER_SVG + SUSHI_COST;
@@ -4828,7 +4830,13 @@ function startSushi(fed) {   // fed: a guest's, from the host
   document.body.classList.toggle('dashing', id === 'zoom');
   updateSushiPill();
 }
+function tellDash(slot, p) { partySend(slot, { t: 'dash', n: p.meal === 'zoom' ? p.charges : null, cd: Math.ceil(p.cd) }); }
 function endSushi() {
+  for (const [slot, p] of party.players) {
+    const had = p.meal === 'zoom';
+    p.meal = null;
+    if (had) tellDash(slot, p);
+  }
   sushi.on = null;
   sushi.life = sushi.rise = sushi.stops = false;
   game.stopT = 0;
@@ -4841,6 +4849,11 @@ function updateSushi(dt) {
       sushi.charges++;
       sushi.cd = sushi.charges < DASH_MAX ? DASH_CD : 0;
       sfx.coin();
+    }
+    for (const [slot, p] of party.players) {
+      if (p.meal !== 'zoom' || p.charges >= DASH_MAX) continue;
+      if ((p.cd -= dt) <= 0) { p.charges++; p.cd = p.charges < DASH_MAX ? DASH_CD : 0; sfx.coin(); }
+      if (Math.ceil(p.cd) !== p.cdShown) { p.cdShown = Math.ceil(p.cd); tellDash(slot, p); }
     }
     if (sushi.stops && !GUEST) {   // the host keeps the team's clock, whoever ate it
       if (game.stopT > 0 && (game.stopT -= dt) <= 0) { game.stopT = 0; sfx.timeStop(false); }
@@ -4862,19 +4875,21 @@ function updateSushiPill() {
   b.classList.toggle('empty', sushi.charges < 1);
 }
 // The Zoom Roll: leap ten rows ahead, onto solid ground, and stay untouchable for a second after.
-function dash() {
-  const h = P;
-  if (sushi.on !== 'zoom' || game.picking) return;
-  if (sushi.charges < 1 || !h.alive || h.hop || game.state !== 'play') { sfx.bump(); return; }
+// Friends sharing a screen have to stay in view of each other, so it goes as far as that lets it.
+function dash(h = P) {
+  const st = h === P ? sushi : party.players.get(h.slot);
+  if (mealOf(h) !== 'zoom' || (h === P && game.picking)) return;
+  if (st.charges < 1 || !h.alive || h.hop || game.state !== 'play') { sfx.bump(); return; }
   const solid = l => l && l.type !== 'water' && l.type !== 'pads';
   let tr = null;
-  for (const r of [10, 11, 12, 13, 9, 8, 7]) if (solid(laneAt(h.r + r))) { tr = h.r + r; break; }
-  if (tr === null || tooFarAhead(h, tr)) { sfx.bump(); return; }
+  for (const r of [10, 11, 12, 13, 9, 8, 7, 6, 5, 4, 3]) if (solid(laneAt(h.r + r)) && !tooFarAhead(h, h.r + r)) { tr = h.r + r; break; }
+  if (tr === null) { sfx.bump(); return; }
   const lane = laneAt(tr), from = Math.round(h.x);
   const cols = Array.from({ length: COLS * 2 + 1 }, (_, i) => i - COLS).sort((a, b) => Math.abs(a - from) - Math.abs(b - from));
   const tx = cols.find(c => !lane.blocked.has(c)) ?? from;
-  sushi.charges--;
-  if (sushi.cd <= 0) sushi.cd = DASH_CD;
+  st.charges--;
+  if (st.cd <= 0) st.cd = DASH_CD;
+  if (h !== P) tellDash(h.slot, st);
   h.active = true;
   h.log = null;
   h.queue = null;
@@ -6328,9 +6343,12 @@ function goRoad() {   // sunrise, then onto the road at first light
     game.state = 'title';
     game.dawn = 0.12;
     startSushi();
-    for (const [, p] of guests()) {   // what guests were fed: the team's share here, the rest on their own device
+    for (const [slot, p] of party.players) {   // what friends were fed: the team's share here; a guest's own part runs on their device
       sushi.life ||= p.eat === 'spare';
       sushi.stops ||= p.eat === 'midnight';
+      if (p.guest) continue;
+      Object.assign(p, { meal: p.eat, eat: null, charges: DASH_MAX, cd: 0, cdShown: 0 });
+      if (p.meal === 'zoom') tellDash(slot, p);
     }
     document.body.classList.remove('farm', 'show-logo');
     document.body.classList.add('ready');
@@ -9268,6 +9286,7 @@ function onPlayer(slot, m, direct = false) {
     move(dx, dr, pl.road);
     return;
   }
+  if (m.t === 'dash') { if (!pl.guest && game.where === 'road' && pl.road) dash(pl.road); return; }
   // A guest has already heard their own note: everyone else gets it from here.
   const others = pl.guest ? slot : undefined, k = 'p' + slot;
   if (m.t === 'oct') pl.oct = clamp(+m.v || 0, -1, 1);
@@ -9550,6 +9569,7 @@ function pollLocalPads(list) {
       continue;
     }
     if (game.state === 'farm' && pressed(2)) { nearUse(walkerOf(fk), true)?.use(); continue; }   // X: use what's nearby
+    if (game.where === 'road' && pressed(2) && pl.road) { dash(pl.road); continue; }           // X: the Zoom Roll's dash
     if (dir) send({ t: 'hop', dx: DIRS[dir][0], dr: DIRS[dir][1] });
     if (released(0)) send({ t: 'hop', dx: 0, dr: 1 });   // A, like a tap: hop forward
     if (game.state === 'farm') {
@@ -10685,4 +10705,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, followBeat, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, sushi, dash, feedSushi, openSushi, closeSushi, cookSushi, eatSushi, buySushi, startSushi, SUSHI, dropFlower, get pumpkins() { return pumpkins; }, get counting() { return counting; } };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, followBeat, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, sushi, dash, mealOf, feedSushi, openSushi, closeSushi, cookSushi, eatSushi, buySushi, startSushi, SUSHI, dropFlower, get pumpkins() { return pumpkins; }, get counting() { return counting; } };

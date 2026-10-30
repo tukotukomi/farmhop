@@ -175,6 +175,13 @@ function handle(msg) {
     renderView();
     wake();
     startDirect();
+  } else if (msg.t === 'dash') {   // the Zoom Roll: a dash button, with its charges and the time to the next
+    $('dashBtn').hidden = msg.n == null;
+    $('dashBtn').classList.toggle('empty', !msg.n);
+    $('dashN').textContent = msg.n ?? '';
+    $('dashCd').textContent = msg.cd > 0 ? msg.cd : '';
+  } else if (msg.t === 'fed') {
+    $('hopState').textContent = t('sushi.fed', { name: t('sushi.names.' + msg.id) });
   } else if (msg.t === 'view') {
     me.view = msg.v;
     me.score = msg.score || 0;
@@ -310,6 +317,8 @@ function setMode(on) {
 $('instBtn').addEventListener('click', () => { setMode(!me.drums); send({ t: 'mode', drums: me.drums }); });
 
 // ---------- the hop pad ----------
+$('dashBtn').setAttribute('aria-label', t('aria.dash'));
+$('dashBtn').addEventListener('click', () => send({ t: 'dash' }));
 const hopPad = $('hopPad');
 let press = null;
 function hop(dx, dr) {
