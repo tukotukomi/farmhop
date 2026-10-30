@@ -5680,10 +5680,12 @@ function jamCamHook(dt) {
   _t.set(cx + sa * reach, 0, cz + ca * reach).applyMatrix4(camera.matrixWorldInverse);   // the grass at the stage's foot, as the camera sees it
   const depth = -_t.z, footY = H / 2 * (1 - _t.y / (depth * lens));
   perspCam.fov = JAM_LENS;
-  const wide = Math.max(0, v.zoom - 1) / 0.6;   // zoomed right out, the stage rises from the bottom edge to the middle, with grass below it
-  perspCam.near = Math.max(0.3, (depth - 0.02 - 2.7 * k * Math.max(0, Math.sin(p) - 0.18)) * (1 - wide * 0.5));   // looking down, the tops of the posts are nearer still
-  const onFoot = footY - (box.offsetTop + Hs) + wide * Hs * 0.3, onBand = H / 2 - (box.offsetTop + Hs / 2);   // zooming in, the foot of the stage drops away and the band stays in the middle
-  perspCam.setViewOffset(W, H, W / 2 - (box.offsetLeft + Ws / 2), Math.min(onFoot, onBand), W, H);
+  const wide = Math.max(0, v.zoom - 1) / 0.6, close = Math.max(0, 1 - v.zoom) / 0.55;   // zoomed right out, the stage rises from the bottom edge to the middle, with grass below it
+  perspCam.near = Math.max(0.3, (depth - 0.02 - 2.7 * k * Math.max(0, Math.sin(p) - 0.18)) * (1 - Math.max(wide, close) * 0.5));   // looking down, the tops of the posts are nearer still
+  // The picture is framed by the stage's foot at the full view, but it zooms about the band: closer in, the band stays put, easing to the middle.
+  const atFull = d / Math.min(1, v.zoom), fullY = H / 2 * (1 + (reach * Math.sin(p) + ly * Math.cos(p)) / ((atFull - reach * Math.cos(p) + ly * Math.sin(p)) * lens));
+  const onFoot = fullY - (box.offsetTop + Hs) + wide * Hs * 0.3, onBand = H / 2 - (box.offsetTop + Hs / 2);
+  perspCam.setViewOffset(W, H, W / 2 - (box.offsetLeft + Ws / 2), Math.min(onFoot + (onBand - onFoot) * close, onBand), W, H);
   postMat.uniforms.cnear.value = perspCam.near;
   skyClouds(dt, swingCam.look.x, swingCam.look.z);
   sun.position.copy(swingCam.look).add(SUN_OFF);
