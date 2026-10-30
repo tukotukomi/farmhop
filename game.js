@@ -2356,8 +2356,14 @@ const SPOOKY_FLOWER_GEO = (() => {
 })();
 const SPOOKY_FLOWER_MAT = toon({ vertexColors: true, emissive: 0x24104a });
 const SPOOKY_SECS = 120;
-const SPOOKY_AURA_GEO = new THREE.SphereGeometry(0.5, 20, 14);
-const SPOOKY_AURA_MAT = new THREE.MeshBasicMaterial({ color: 0x9b2dff, transparent: true, opacity: 0.4, depthWrite: false });   // (not additive: that washes out to white over the grass)
+// Its aura follows its own outline: copies of the flower puffed out along its surface, drawn
+// from behind only, so they show as a purple rim round the stem, leaves and petals.
+function puffed(geo, d) {
+  const g = geo.clone(), p = g.attributes.position, n = g.attributes.normal;
+  for (let i = 0; i < p.count; i++) p.setXYZ(i, p.getX(i) + n.getX(i) * d, p.getY(i) + n.getY(i) * d, p.getZ(i) + n.getZ(i) * d);
+  return g;
+}
+const SPOOKY_AURA = [[0.035, 0.75], [0.08, 0.35]].map(([d, o]) => ({ geo: puffed(SPOOKY_FLOWER_GEO, d), mat: new THREE.MeshBasicMaterial({ color: 0x9b2dff, side: THREE.BackSide, transparent: true, opacity: o, depthWrite: false }), o }));
 const spooky = { on: false, t: 0, k: 0, next: Infinity, flower: null };
 function plantSpooky(lane) {   // on a free spot of a grass lane that can be reached
   const free = [...lane.reach].filter(c => !lane.coins.some(o => o.c === c));
@@ -2366,10 +2372,11 @@ function plantSpooky(lane) {   // on a free spot of a grass lane that can be rea
   const m = new THREE.Mesh(SPOOKY_FLOWER_GEO, SPOOKY_FLOWER_MAT);
   m.position.set(c, LANE_Y[lane.type], 0);
   m.castShadow = true;
-  const aura = new THREE.Mesh(SPOOKY_AURA_GEO, SPOOKY_AURA_MAT);   // a pulsing purple aura, so it's hard to miss
-  aura.position.y = 0.42;
-  aura.layers.set(GLOW_LAYER);
-  m.add(aura);
+  for (const a of SPOOKY_AURA) {   // a pulsing purple rim, so it's hard to miss
+    const aura = new THREE.Mesh(a.geo, a.mat);
+    aura.layers.set(GLOW_LAYER);
+    m.add(aura);
+  }
   lane.group.add(m);
   lane.coins.push({ c, m, spooky: true });
   spooky.flower = m;
@@ -2472,8 +2479,7 @@ function updateSpooky(dt) {
     spooky.flower.rotation.y += dt * 2.2;
     spooky.flower.position.y = Math.abs(Math.sin(game.time * 3)) * 0.12;
     const p = 0.5 + 0.5 * Math.sin(game.time * 4);   // the aura breathes
-    SPOOKY_AURA_MAT.opacity = 0.3 + 0.25 * p;
-    spooky.flower.children[0]?.scale.setScalar(0.9 + 0.25 * p);
+    for (const a of SPOOKY_AURA) a.mat.opacity = a.o * (0.55 + 0.45 * p);
   }
   const haunt = (spooky.on && road) || (jam.open && jamTrack() === 'spooky');   // the spooky farm, or the Spooky Farm Song on the Jam Stage
   if (music && music.haunted !== haunt) {   // the tune (and with it every hop and pad) goes to the spooky scale on the organ, and back
