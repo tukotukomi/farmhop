@@ -886,8 +886,6 @@ function buildPumpking() {
   b.torus(0.15, 0.04, Math.PI * 2, 0, 0.56, 0, ERM, Math.PI / 2, 0, 0);     // ...and collar
   for (const [x, y, z] of [[-0.12, 0.16, -0.19], [0.12, 0.16, -0.19], [0, 0.16, -0.235], [0.07, 0.565, -0.15], [-0.07, 0.565, -0.15]]) b.ball(0.012, 0.018, 0.01, x, y, z, 0x2a2033);   // its black tips
   b.rbox(0.42, 0.44, 0.03, 0, 0.36, 0.18, 0xa3122e, 0.04, 0.12, 0, 0);     // a red cape behind
-  b.cyl(0.035, 0.05, 0.09, 0, 1.08, 0.02, 0x5a7a2a, 0, 0, 0.2);             // stem
-  b.cap(0.012, 0.2, 0.1, 1.06, 0.05, VINE, 0, 0, 1.2);                      // a curl of vine
   b.cyl(0.13, 0.12, 0.08, 0, 1.06, 0.04, GOLD, -0.15, 0, 0.1);              // crown band
   for (let i = 0; i < 5; i++) {
     const a = i / 5 * Math.PI * 2;
