@@ -577,10 +577,23 @@ const GIRL_MAT = toon({ vertexColors: true });
 const XRAY_LAYER = 2;   // only the colour pass draws these (not the outline or shadow passes)
 const XRAY_MAT = new THREE.MeshBasicMaterial({ color: 0x8a5cff, transparent: true, opacity: 0.8, depthWrite: false, depthFunc: THREE.GreaterDepth });
 const REDRAW_MAT = toon({ vertexColors: true, transparent: true, depthWrite: false });
+// The redraw for a part with its own material (the Pumpking's carved head and face, say,
+// which have no vertex colours for REDRAW_MAT): a see-through copy of that material.
+const REDRAWS = new Map();
+function redrawOf(mat) {
+  if (!REDRAWS.has(mat)) {
+    const c = mat.clone();
+    c.transparent = true;
+    c.depthWrite = false;
+    if (c.isMeshToonMaterial) toons.push(c);
+    REDRAWS.set(mat, c);
+  }
+  return REDRAWS.get(mat);
+}
 function addXray(model) {   // only the hopper you're playing needs it
   const meshes = [];
   model.group.traverse(o => { if (o.isMesh) meshes.push(o); });
-  for (const m of meshes) for (const [mat, order] of [[XRAY_MAT, 10], [REDRAW_MAT, 11]]) {
+  for (const m of meshes) for (const [mat, order] of [[XRAY_MAT, 10], [m.geometry.attributes.color ? REDRAW_MAT : redrawOf(m.material), 11]]) {
     const c = new THREE.Mesh(m.geometry, mat);
     c.renderOrder = order;
     c.receiveShadow = true;
@@ -861,11 +874,31 @@ const PK_GLOW = [
     [90, 40], [55, 68], [16, 78], [16, 58], [-16, 58], [-16, 78], [-55, 68], [-90, 40]].map(([x, y]) => [x, y + 12]),            // ...its bottom, one tooth standing up
 ];
 const PK_PUPILS = [PK_TRI(10, 9, -62, -45), PK_TRI(10, 9, 62, -45)];
+// Split the carving's big flat front and back into small triangles, so once bent onto the
+// pumpkin they follow its curve (a big flat one cuts across it, and the pumpkin shows through).
+function pkSubdivide(geo) {
+  const src = geo.toNonIndexed(), p = src.attributes.position, out = [];
+  const mid = (u, v) => [(u[0] + v[0]) / 2, (u[1] + v[1]) / 2, (u[2] + v[2]) / 2];
+  const split = (a, b, c, n) => {
+    if (!n) { out.push(...a, ...b, ...c); return; }
+    const ab = mid(a, b), bc = mid(b, c), ca = mid(c, a);
+    split(a, ab, ca, n - 1); split(ab, b, bc, n - 1); split(ca, bc, c, n - 1); split(ab, bc, ca, n - 1);
+  };
+  for (let i = 0; i < p.count; i += 3) {
+    const v = [0, 1, 2].map(j => [p.getX(i + j), p.getY(i + j), p.getZ(i + j)]);
+    split(v[0], v[1], v[2], v[0][2] === v[1][2] && v[1][2] === v[2][2] ? 4 : 0);   // the flat front and back; the side walls run front to back already
+  }
+  geo.dispose();
+  src.dispose();
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(out, 3));
+  return g;
+}
 function pumpkingFace(shapes, out) {   // flat shapes -> 3D pieces standing `out` proud of the pumpkin's surface
   const front = (x, y) => -0.29 * Math.sqrt(Math.max(0.02, 1 - (x / 0.3) ** 2 - ((y - 0.8) / 0.26) ** 2));
   const geos = shapes.map(pts => {
     const sh = new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x * 0.0017, 0.8 - y * 0.00155)));
-    const g = new THREE.ExtrudeGeometry(sh, { depth: 1, bevelEnabled: false, curveSegments: 1 }), p = g.attributes.position;
+    const g = pkSubdivide(new THREE.ExtrudeGeometry(sh, { depth: 1, bevelEnabled: false, curveSegments: 1 })), p = g.attributes.position;
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i), y = p.getY(i), k = p.getZ(i);   // k: 0 at the face side, 1 at the back
       p.setZ(i, front(x, y) - out * (1 - k) + 0.02 * k);   // its face just off the surface, its back sunk inside
