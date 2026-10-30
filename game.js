@@ -833,19 +833,52 @@ function buildTuko() {
   return finishHero(group, inner, [wobble(inner, t, 0, 0.24, 0.12, 1)]);
 }
 
-// The Pumpking: a jack-o'-lantern head (the face lit from inside) under a little gold
-// crown, a royal purple robe trimmed with ermine, vine arms, and a pumpkin sceptre.
+// The Pumpking: a little gold crown, a royal purple robe trimmed with ermine, vine arms
+// and a pumpkin sceptre. His head is carved like a real jack-o'-lantern: a ribbed pumpkin with triangle eyes and nose
+// and a blocky grin with square teeth left in, the cut-outs lit from inside. It's painted
+// into the head's own surface, high on the face where the farm's camera looks down on it.
+let pumpkingHead = null;
+function pumpkingHeadMat() {
+  if (pumpkingHead) return pumpkingHead;
+  const W = 1024, H = 512, cx = W * 0.75, cy = H / 2;   // a sphere's front (-z) is u = 0.75, its middle v = 0.5
+  const tri = (w, h, dx, dy) => [[-w, h], [w, h], [0, -h]].map(([x, y]) => [x + dx, y + dy]);
+  const shapes = [
+    tri(26, 23, -62, -52), tri(26, 23, 62, -52),          // eyes
+    tri(11, 10, 0, -12),                                    // nose
+    [[-105, 10], [-60, 22], [-44, 22], [-44, 40], [-20, 40], [-20, 24], [20, 24], [20, 40], [44, 40], [44, 22], [60, 22], [105, 10],   // the grin's top edge, two teeth hanging in...
+      [90, 40], [55, 68], [16, 78], [16, 58], [-16, 58], [-16, 78], [-55, 68], [-90, 40]].map(([x, y]) => [x, y + 12]),            // ...its bottom, one tooth standing up
+  ];
+  const paint = glow => {
+    const c = document.createElement('canvas'), g = c.getContext('2d');
+    c.width = W; c.height = H;
+    g.fillStyle = glow ? '#000' : '#ff8a1a';
+    g.fillRect(0, 0, W, H);
+    if (!glow) { g.fillStyle = '#e0670c'; for (let i = 0; i < 16; i++) g.fillRect((i + 0.5) * W / 16 - 7, 0, 14, H); }   // ribs
+    for (const sh of shapes) {
+      g.beginPath();
+      sh.forEach(([x, y], i) => (i ? g.lineTo(cx + x, cy + y) : g.moveTo(cx + x, cy + y)));
+      g.closePath();
+      if (!glow) { g.lineJoin = 'round'; g.lineWidth = 14; g.strokeStyle = '#8a3a06'; g.stroke(); }   // the cut edge, for depth
+      g.fillStyle = glow ? '#fff' : '#ffd25a';
+      g.fill();
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 4;
+    return t;
+  };
+  return (pumpkingHead = toon({ map: paint(false), emissiveMap: paint(true), emissive: 0xffc040 }));
+}
 function buildPumpking() {
   const ROBE = 0x5b2a8a, ROBE_D = 0x45206a, ERM = 0xf6f2ea, VINE = 0x4f8a2f, GOLD = 0xffcf3a;
   const group = new THREE.Group(), inner = new THREE.Group();
   group.add(inner);
-  const b = new VB(), face = new VB();
+  const b = new VB();
   for (const s of [-1, 1]) {
     b.ball(0.08, 0.06, 0.11, s * 0.09, 0.05, -0.02, 0x2e2633);              // boots
     b.cap(0.055, 0.08, s * 0.09, 0.15, 0, VINE);                            // legs
     b.cap(0.04, 0.22, s * 0.22, 0.4, -0.02, VINE, 0, 0, s * 0.5);           // vine arms
     b.ball(0.06, 0.03, 0.08, s * 0.31, 0.29, -0.04, 0x6fb84a, 0.3, 0, s * 0.3);   // leaf hands
-    face.ball(0.07, 0.055, 0.02, s * 0.11, 0.84, -0.265, 0xffd25a, 0, 0, -s * 0.45);   // carved eyes
   }
   b.cyl(0.15, 0.25, 0.42, 0, 0.36, 0, ROBE);                                // robe
   b.rbox(0.08, 0.36, 0.03, 0, 0.36, -0.2, ROBE_D, 0.02);                    // a front panel
@@ -853,11 +886,8 @@ function buildPumpking() {
   b.torus(0.15, 0.04, Math.PI * 2, 0, 0.56, 0, ERM, Math.PI / 2, 0, 0);     // ...and collar
   for (const [x, y, z] of [[-0.12, 0.16, -0.19], [0.12, 0.16, -0.19], [0, 0.16, -0.235], [0.07, 0.565, -0.15], [-0.07, 0.565, -0.15]]) b.ball(0.012, 0.018, 0.01, x, y, z, 0x2a2033);   // its black tips
   b.rbox(0.42, 0.44, 0.03, 0, 0.36, 0.18, 0xa3122e, 0.04, 0.12, 0, 0);     // a red cape behind
-  b.ball(0.3, 0.26, 0.29, 0, 0.8, 0, PUMPKIN(0, 0));                        // the pumpkin head
   b.cyl(0.035, 0.05, 0.09, 0, 1.08, 0.02, 0x5a7a2a, 0, 0, 0.2);             // stem
   b.cap(0.012, 0.2, 0.1, 1.06, 0.05, VINE, 0, 0, 1.2);                      // a curl of vine
-  face.ball(0.03, 0.025, 0.015, 0, 0.77, -0.285, 0xffd25a);                 // nose
-  face.torus(0.11, 0.025, Math.PI, 0, 0.72, -0.255, 0xffb02a, 0, 0, Math.PI);   // a jolly grin
   b.cyl(0.13, 0.12, 0.08, 0, 1.06, 0.04, GOLD, -0.15, 0, 0.1);              // crown band
   for (let i = 0; i < 5; i++) {
     const a = i / 5 * Math.PI * 2;
@@ -867,8 +897,13 @@ function buildPumpking() {
   b.cap(0.018, 0.4, 0.33, 0.42, -0.06, GOLD, 0, 0, -0.1);                   // the sceptre...
   b.ball(0.06, 0.05, 0.06, 0.35, 0.66, -0.06, PUMPKIN(0.35, -0.06));        // ...topped with a little pumpkin
   inner.add(b.mesh());
-  inner.add(new THREE.Mesh(face.geometry(), GLOW_VMAT));                    // the face, lit from inside
-  return finishHero(group, inner, []);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 32), pumpkingHeadMat());   // the carved pumpkin head
+  head.scale.set(0.3, 0.26, 0.29);
+  head.position.y = 0.8;
+  const hero = finishHero(group, inner, []);
+  head.castShadow = true;
+  inner.add(head);   // (after finishHero, which gives every mesh the shared hopper material: this one keeps its carving)
+  return hero;
 }
 
 // Captain Awesome: a big 55-year-old with a white beard and a stern brow who turns out
@@ -9945,4 +9980,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking };
