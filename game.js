@@ -3298,7 +3298,7 @@ function pickUp(h, lane, coin) {
     gainPumpkin(h);
   } else {
     const n = h === P && sushi.on === 'sunny' ? 2 : 1;   // the Sunny Roll: double
-    roadSend({ t: 'rc', r: h.r, c: coin.c });
+    roadSend({ t: 'rc', r: h.r, c: coin.c, n });
     game.coins += n;
     game.today += n;
     store.set('bl-coins', game.coins);
@@ -3388,6 +3388,7 @@ function respawn(h) {
   if (!team.length && sushi.rise && game.state === 'play') { sushiRise(h); return; }
   if (!team.length || game.state !== 'play') { h.back = 0.5; return; }
   const anchor = team.reduce((a, b) => (b.r < a.r ? b : a));
+  if (!laneAt(anchor.r)) { sushiRise(h); return; }   // they're so far behind that this screen's dropped those rows (a dash can do that): land near where we are
   const cols = Array.from({ length: COLS * 2 + 1 }, (_, i) => i - COLS).sort((a, b) => Math.abs(a - anchor.x) - Math.abs(b - anchor.x));
   for (let r = anchor.r; r >= anchor.r - 8; r--) {
     const lane = laneAt(r);
@@ -4714,7 +4715,7 @@ const SUSHI = [
 ];
 const SUSHI_KEY = 'bl-sushi', SUSHI_NEXT = 'bl-sushi-next', DASH_ROWS = 10, DASH_MAX = 2, DASH_CD = 30, STOP_EVERY = 60, STOP_LEN = 10;
 let sushiStock = store.get(SUSHI_KEY, {});   // id -> how many are cooked
-const sushi = { on: null, life: false, rise: false, charges: 0, cd: 0, stopIn: 0 };   // the one being enjoyed this round
+const sushi = { on: null, life: false, rise: false, stops: false, charges: 0, cd: 0, stopIn: 0 };   // the one being enjoyed this round (life and stops: anyone's, for the team)
 const sushiPic = col => `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#2c3a2e" stroke="#3a2442" stroke-width="1.5"/><circle cx="12" cy="12" r="7" fill="#faf7ef"/><circle cx="12" cy="12" r="3.2" fill="${col}"/></svg>`;
 const sushiOpen = () => $('sushi').classList.contains('show');
 function openSushi() {
@@ -4765,13 +4766,26 @@ function eatSushi(id) {
   sfx.upgrade();
   refreshSushi();
 }
+// The host can feed a guest too: one each, and it runs on the guest's own device. If they
+// leave before the round, it goes back on the plate.
+function feedSushi(slot, id) {
+  const pl = party.players.get(slot);
+  if (!pl?.guest || pl.eat || !sushiStock[id]) { sfx.bump(); return; }
+  sushiStock[id]--;
+  store.set(SUSHI_KEY, sushiStock);
+  pl.eat = id;
+  partySend(slot, { t: 'fed', id });
+  sfx.upgrade();
+  refreshSushi();
+}
 function refreshSushi() {
-  const built = farm.sushiBuilt, next = store.get(SUSHI_NEXT, null);
+  const built = farm.sushiBuilt, next = store.get(SUSHI_NEXT, null), friends = guests().filter(([, p]) => p.hero);
   $('sushiPlan').hidden = built;
   $('sushiHome').hidden = !built;
   $('sushiCost').innerHTML = FLOWER_SVG + SUSHI_COST;
   $('sushiNeed').textContent = '';
-  $('sushiNext').textContent = next ? t('sushi.eaten', { name: t('sushi.names.' + next) }) : t('sushi.hungry');
+  $('sushiNext').textContent = [next ? t('sushi.eaten', { name: t('sushi.names.' + next) }) : t('sushi.hungry'),
+    ...friends.filter(([, p]) => p.eat).map(([, p]) => t('sushi.fedTo', { who: heroName(p.hero), name: t('sushi.names.' + p.eat) }))].join(' ');
   $('sushiList').replaceChildren(...SUSHI.map(r => {
     const el = document.createElement('div'), n = sushiStock[r.id] || 0;
     el.className = 'sushiRow' + (next === r.id ? ' on' : '');
@@ -4794,33 +4808,41 @@ function refreshSushi() {
     eat.textContent = t('sushi.eat');
     eat.disabled = !n || !!next;
     eat.addEventListener('click', () => { sfx.ensure(); eatSushi(r.id); });
+    for (const [slot, p] of friends) {
+      const feed = document.createElement('button');
+      feed.className = 'buyBtn bubble feed';
+      feed.textContent = t('sushi.feed', { who: heroName(p.hero) });
+      feed.disabled = !n || !!p.eat;
+      feed.addEventListener('click', () => { sfx.ensure(); feedSushi(slot, r.id); });
+      el.querySelector('.sushiBtns').append(feed);
+    }
     return el;
   }));
 }
 // The round's sushi: taken from the plate as the day starts, so it's used up by this round alone.
-function startSushi() {
-  const id = store.get(SUSHI_NEXT, null);
-  store.set(SUSHI_NEXT, null);
-  Object.assign(sushi, { on: id, life: id === 'spare', rise: false, charges: DASH_MAX, cd: 0, stopIn: STOP_EVERY });
+function startSushi(fed) {   // fed: a guest's, from the host
+  const id = fed === undefined ? store.get(SUSHI_NEXT, null) : fed;
+  if (fed === undefined) store.set(SUSHI_NEXT, null);
+  Object.assign(sushi, { on: id, life: id === 'spare', rise: false, stops: id === 'midnight', charges: DASH_MAX, cd: 0, stopIn: STOP_EVERY });
   game.stopT = 0;
   document.body.classList.toggle('dashing', id === 'zoom');
   updateSushiPill();
 }
 function endSushi() {
   sushi.on = null;
-  sushi.life = sushi.rise = false;
+  sushi.life = sushi.rise = sushi.stops = false;
   game.stopT = 0;
   document.body.classList.remove('dashing');
   updateSushiPill();
 }
 function updateSushi(dt) {
-  if (sushi.on && game.state === 'play') {
+  if (game.state === 'play') {
     if (sushi.on === 'zoom' && sushi.charges < DASH_MAX && (sushi.cd -= dt) <= 0) {
       sushi.charges++;
       sushi.cd = sushi.charges < DASH_MAX ? DASH_CD : 0;
       sfx.coin();
     }
-    if (sushi.on === 'midnight') {
+    if (sushi.stops && !GUEST) {   // the host keeps the team's clock, whoever ate it
       if (game.stopT > 0 && (game.stopT -= dt) <= 0) { game.stopT = 0; sfx.timeStop(false); }
       if ((sushi.stopIn -= dt) <= 0) { sushi.stopIn += STOP_EVERY; game.stopT = STOP_LEN; sfx.timeStop(true); }
     }
@@ -6306,11 +6328,15 @@ function goRoad() {   // sunrise, then onto the road at first light
     game.state = 'title';
     game.dawn = 0.12;
     startSushi();
+    for (const [, p] of guests()) {   // what guests were fed: the team's share here, the rest on their own device
+      sushi.life ||= p.eat === 'spare';
+      sushi.stops ||= p.eat === 'midnight';
+    }
     document.body.classList.remove('farm', 'show-logo');
     document.body.classList.add('ready');
     setHint();
     // Friends on their own devices build the same road from the seed and line up beside us.
-    toGuests(roadNews());
+    for (const [slot, p] of guests()) { partySend(slot, { ...roadNews(), sushi: p.eat || null }); p.eat = null; }
     tellView();
   });
 }
@@ -6341,6 +6367,7 @@ function goRoadGuest(m) {
     }
     game.where = 'road';
     game.dawn = 0.12;
+    startSushi(m.sushi || null);
     document.body.classList.remove('farm', 'show-logo');
     if (late) {
       // Catch the road up to now, build it out to the team, and drop in beside them in a moment.
@@ -9212,7 +9239,7 @@ function onPlayer(slot, m, direct = false) {
   if (/^r[hdbpcf]$/.test(m.t)) {   // a guest's hopper on the road
     if (!pl?.guest || game.where !== 'road') return;
     const k = 'p' + slot;
-    if (m.t === 'rc') takeSunflower(m.r | 0, m.c | 0, true, !!m.p);
+    if (m.t === 'rc') takeSunflower(m.r | 0, m.c | 0, true, !!m.p, m.n === 2 ? 2 : 1);
     else if (m.t === 'rf') { if (!spooky.on) { dropFlower(); startSpooky(game.crew.find(h => h.key === k) || { r: m.r | 0, x: 0, z: -(m.r | 0) }); } return; }   // the spooky sunflower: the whole team's farm turns
     else onRoadNews(game.crew.find(h => h.key === k), m);
     toGuests({ ...m, k }, slot);
@@ -9306,6 +9333,7 @@ function onRoadNews(h, m) {   // a friend's hopper, as their device reports it
     h.x = +m.x; h.r = m.r | 0; h.z = -h.r; h.hop = null;
     die(m.kind, null, laneAt(h.r) || { dir: m.dir, type: m.type }, h);
   } else if (m.t === 'rb') {
+    sushi.rise = false;   // the Second-Chance Roll's done its job
     if (game.state !== 'play' && game.state !== 'title') return;
     const r = m.r | 0, lane = laneAt(r);
     freshHopper(h, h.hero, +m.x, r);
@@ -9317,7 +9345,7 @@ function onRoadNews(h, m) {   // a friend's hopper, as their device reports it
     h.model.group.visible = false;
   }
 }
-function takeSunflower(r, c, count, pumpkin = false) {   // someone picked one: gone from every screen, counted once, by the host
+function takeSunflower(r, c, count, pumpkin = false, n = 1) {   // someone picked one: gone from every screen, counted once, by the host
   const lane = laneAt(r), coin = lane?.coins.find(o => o.c === c);
   if (coin) {
     lane.group.remove(coin.m);
@@ -9333,8 +9361,8 @@ function takeSunflower(r, c, count, pumpkin = false) {   // someone picked one: 
     markEvent();
     return;
   }
-  game.coins++;
-  game.today++;
+  game.coins += n;
+  game.today += n;
   store.set('bl-coins', game.coins);
   hud();
 }
@@ -9367,7 +9395,7 @@ let roadTold = 0;
 function tellRoad() {   // host: the shared clock and the round, a few times a second
   if (!guests().length || game.time - roadTold < 0.2) return;
   roadTold = game.time;
-  toGuests({ t: 'rs', fz: game.stopT, sp: spooky.on ? Math.max(0.1, spooky.t) : 0, spr: spooky.row, fl: spooky.at, pk: pumpkins, tp: game.todayPk, T: game.roadT, day: game.day, score: game.score, state: game.state, coins: game.coins, today: game.today, death: game.lastDeath?.death, hero: game.lastDeath?.hero });
+  toGuests({ t: 'rs', fz: game.stopT, fi: sushi.stopIn, lf: sushi.life, ri: sushi.rise, sp: spooky.on ? Math.max(0.1, spooky.t) : 0, spr: spooky.row, fl: spooky.at, pk: pumpkins, tp: game.todayPk, T: game.roadT, day: game.day, score: game.score, state: game.state, coins: game.coins, today: game.today, death: game.lastDeath?.death, hero: game.lastDeath?.hero });
 }
 // Guest: follow the host's road clock, easing in small differences and jumping big ones.
 let roadClock = { T: 0, at: 0 };
@@ -9551,7 +9579,7 @@ if (!GUEST) onFarmSave = () => {   // bought, built or moved something: guests g
 function assign(slot, hero) {
   const old = party.players.get(slot);
   if (old?.m) { jam.scene?.remove(old.m.group); disposeHero(old.m); }
-  const pl = { hero, oct: 0, sus: 0.35, drums: false, kick: 0, m: null, banjo: null, stage: !!old?.stage, guest: !!old?.guest, local: old?.local || null, col: old?.col ?? freeColor(slot), sup: !!old?.sup };
+  const pl = { hero, oct: 0, sus: 0.35, drums: false, kick: 0, m: null, banjo: null, stage: !!old?.stage, eat: old?.eat || null, guest: !!old?.guest, local: old?.local || null, col: old?.col ?? freeColor(slot), sup: !!old?.sup };
   party.players.set(slot, pl);
   if (old?.road) dropFromRoad(old);
   partySend(slot, { t: 'joined', hero, pad: HEROES.find(h => h.id === hero).pad, drums: ownedDecor.has('drums'), mark: MARK_CSS[pl.col] });
@@ -9575,6 +9603,7 @@ function dropPlayer(slot) {
   closePeer(slot);
   const pl = party.players.get(slot);
   if (!pl) return;
+  if (pl.eat) { sushiStock[pl.eat] = (sushiStock[pl.eat] || 0) + 1; store.set(SUSHI_KEY, sushiStock); }   // back on the plate
   for (const key of [...jam.held.keys()]) if (key.startsWith('r' + slot + '-')) letGo(key);
   if (pl.m) { jam.scene?.remove(pl.m.group); disposeHero(pl.m); }
   dropFromRoad(pl);
@@ -10614,6 +10643,9 @@ if (guestNet) {
       pumpkins = m.pk | 0;
       game.todayPk = m.tp | 0;
       game.stopT = +m.fz || 0;
+      sushi.stopIn = +m.fi || 0;
+      sushi.life = !!m.lf;
+      sushi.rise = !!m.ri;
       bankTeam();
       followSpooky(m);
       hud();
@@ -10640,6 +10672,7 @@ if (guestNet) {
       keepHero();
       if (jam.open) guestNet.send({ t: 'stage', on: true });   // back after a dropped connection
     } else if (m.t === 'count') showCount(m.n | 0);
+    else if (m.t === 'fed') { sfx.upgrade(); bettySays(t('sushi.fed', { name: t('sushi.names.' + m.id) })); }
     else if (m.t === 'view') {
       if (m.v === 'farm') {
         guestNet.note.hide();
@@ -10652,4 +10685,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, followBeat, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, sushi, dash, openSushi, closeSushi, cookSushi, eatSushi, buySushi, startSushi, SUSHI, dropFlower, get pumpkins() { return pumpkins; }, get counting() { return counting; } };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, followBeat, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, sushi, dash, feedSushi, openSushi, closeSushi, cookSushi, eatSushi, buySushi, startSushi, SUSHI, dropFlower, get pumpkins() { return pumpkins; }, get counting() { return counting; } };
