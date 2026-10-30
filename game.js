@@ -8514,6 +8514,13 @@ function placeBand() {
   for (const mk of farm.markers || []) mk.visible = false;
   if (farm.stageMic) farm.stageMic.visible = bandOf().length < 1;   // the mic stand's in the way of a crowd
 }
+// Where the tune is in the ears of whoever's at this device, in beats: what the speakers
+// are playing, less any lag the rhythm offset has found on top of that.
+function heardBeat() {
+  if (!music) return jam.t / BEAT;
+  const h = music.heard();
+  return (h.pos + songNow() - h.at - Math.max(0, beatLag)) / BEAT;
+}
 function jamFrame(dt) {
   const m = jam.model;
   if (!m) return;
@@ -8522,19 +8529,19 @@ function jamFrame(dt) {
   jam.kick = Math.max(0, jam.kick - dt * 4);
   jam.boom = Math.max(0, (jam.boom || 0) - dt * 6);
   if (farm.stageKit) farm.stageKit.scale.set(STAGE_KIT + jam.boom * 0.05, STAGE_KIT - jam.boom * 0.04, STAGE_KIT + jam.boom * 0.05);
-  const t = jam.t, k = jam.kick;
-  m.inner.position.y = Math.abs(Math.sin(t * 4.4)) * 0.05 + Math.sin(k * Math.PI) * 0.12;   // bob along, bounce on a note
+  const t = jam.t, k = jam.kick, bob = Math.abs(Math.sin(heardBeat() * Math.PI)) * 0.05;   // everyone's feet land on the beat as it's heard
+  m.inner.position.y = bob + Math.sin(k * Math.PI) * 0.12;   // bob along, bounce on a note
   m.inner.scale.set(1 + k * 0.06, 1 - k * 0.08, 1 + k * 0.06);
   m.inner.rotation.z = Math.sin(t * 2.2) * 0.06;
   m.group.rotation.y = Math.PI - 0.3 + Math.sin(t * 1.1) * 0.18;
   const sway = Math.sin(t * 4.4) * 0.2 + k * 0.3;
   for (const tl of m.tails) tl.rotation[tl.userData.axis || 'z'] = tl.userData.side * sway;
-  for (const e of bandOf()) {   // friends bob along, each a little out of step
+  for (const e of bandOf()) {   // friends bob along, each swaying a little out of step
     const pl = e[1];
     if (!pl.m) continue;
     pl.kick = Math.max(0, pl.kick - dt * 4);
     const q = t + bandN(e) * 0.37, pk = pl.kick;
-    pl.m.inner.position.y = Math.abs(Math.sin(q * 4.4)) * 0.05 + Math.sin(pk * Math.PI) * 0.12;
+    pl.m.inner.position.y = bob + Math.sin(pk * Math.PI) * 0.12;
     pl.m.inner.scale.set(1 + pk * 0.06, 1 - pk * 0.08, 1 + pk * 0.06);
     pl.m.inner.rotation.z = Math.sin(q * 2.2) * 0.06;
     pl.m.group.rotation.y = Math.PI - (pl.m.group.position.x < 0 ? -0.35 : 0.35) + Math.sin(q * 1.1) * 0.15;
@@ -8943,9 +8950,12 @@ function tellBand() {
     ...[...party.players].filter(([, p]) => p.hero).map(([slot, p]) => ({ k: 'p' + slot, n: slot, hero: p.hero, drums: !!p.drums }))];
   for (const [slot] of guests()) partySend(slot, { t: 'band', list: list.filter(b => b.k !== 'p' + slot) });
 }
+// How long a sound takes to reach this player's ears: the delay the browser reports, plus
+// whatever more the rhythm offset has found (Bluetooth the browser doesn't know about).
+const earLag = () => music ? clamp(music.lag(), 0, 0.5) + clamp(beatLag, 0, 0.35) : 0;
 function tellBeat() {
   jam.beatAt = jam.t;
-  if (music && guests().length) toGuests({ t: 'beat', pos: music.position() });
+  if (music && guests().length) toGuests({ t: 'beat', pos: music.position(), lag: earLag() });
 }
 function applyBand(list) {   // guest: the rest of the band, as the host lists it
   const keys = new Set(list.map(b => b.k));
@@ -8985,9 +8995,9 @@ function bandDrum(m) {
   floatNote(DRUM_COLORS[d], pl?.m?.group.position.x);
 }
 const LOOP_S = 512 * 60 / 84 / 4;   // the tune's 32-bar loop, in seconds (music.js)
-function followBeat(pos) {   // guest: line our tune up with the host's, if it's drifted
+function followBeat(pos, hostLag = 0) {   // guest: line up what we hear with what the host hears, if it's drifted
   if (!music) return;
-  const want = (+pos + 0.04) % LOOP_S;   // a little for the trip
+  const want = (((+pos + 0.04 + earLag() - (+hostLag || 0)) % LOOP_S) + LOOP_S) % LOOP_S;   // a little for the trip, and a slower speaker plays ahead to make up for it
   let off = Math.abs(music.position() - want);
   off = Math.min(off, LOOP_S - off);
   if (off > 0.08) music.seek(want);
@@ -10052,7 +10062,7 @@ if (guestNet) {
     else if (m.t === 'band') applyBand(m.list || []);
     else if (m.t === 'jn') bandNote(m);
     else if (m.t === 'jd') bandDrum(m);
-    else if (m.t === 'beat') followBeat(m.pos);
+    else if (m.t === 'beat') followBeat(m.pos, m.lag);
     else if (m.t === 'road') { if (game.where === 'farm') { guestNet.note.hide(); goRoadGuest(m); } }
     else if (/^r[hdbp]$/.test(m.t)) { if (game.where === 'road' && m.k !== guestKey) onRoadNews(game.crew.find(h => h.key === m.k), m); }
     else if (m.t === 'rc') { if (game.where === 'road') takeSunflower(m.r | 0, m.c | 0, false); }
@@ -10099,4 +10109,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, followBeat, earLag, heardBeat };
