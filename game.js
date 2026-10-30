@@ -5651,7 +5651,16 @@ function swingCamHook(dt) {
 // space the controls leave with its foot at the bottom edge and sky above. Whatever stands
 // between the camera and the stage (trees, a barn) is nearer than the lens's near plane,
 // which sits just at that bottom edge, so it never blocks the show.
-const JAM_LENS = 30, JAM_TILT = 0.17;
+const JAM_LENS = 30, JAM_TILT = 0.17, JAM_PITCH = [0.03, 1.0], JAM_ZOOM = [0.45, 1.6];
+function setJamView(pitch, zoom) {
+  jam.view.pitch = clamp(pitch, ...JAM_PITCH);
+  jam.view.zoom = clamp(zoom, ...JAM_ZOOM);
+}
+function recenterJam() {   // back to the view from out front, the short way round
+  const v = jam.view;
+  v.shown = Math.atan2(Math.sin(v.shown), Math.cos(v.shown));
+  Object.assign(v, { yaw: 0, pitch: JAM_TILT, zoom: 1 });
+}
 function jamCamHook(dt) {
   if (!jam.open) return false;
   useCamera(perspCam);
@@ -5659,16 +5668,21 @@ function jamCamHook(dt) {
   const W = window.innerWidth, H = window.innerHeight, box = $('jam').querySelector('.jamStage');
   const Ws = box.offsetWidth, Hs = box.offsetHeight, lens = Math.tan(THREE.MathUtils.degToRad(JAM_LENS / 2));
   jam.swoop *= Math.exp(-dt * 3);
-  const d = Math.max(2.9 * k * H / (2 * lens * Hs), 3 * k * H / (2 * lens * Ws)) * (1 + jam.swoop * 0.5);
-  const fx = farm.group.position.x + x0, fz = farm.group.position.z + z0, ly = 1.12 * k;
-  camera.position.set(fx + dx * (0.2 * k + d), ly + d * (JAM_TILT + jam.swoop * 0.2), fz + dz * (0.2 * k + d));
-  camera.lookAt(swingCam.look.set(fx + dx * 0.2 * k, ly, fz + dz * 0.2 * k));
+  const v = jam.view;
+  v.shown += (v.yaw - v.shown) * Math.min(1, dt * 8);
+  const d = Math.max(2.9 * k * H / (2 * lens * Hs), 3 * k * H / (2 * lens * Ws)) * v.zoom * (1 + jam.swoop * 0.5);
+  const p = v.pitch + jam.swoop * 0.2, a = Math.atan2(dx, dz) + v.shown, sa = Math.sin(a), ca = Math.cos(a);
+  const cx = farm.group.position.x + x0 + dx * 0.2 * k, cz = farm.group.position.z + z0 + dz * 0.2 * k, ly = 1.12 * k;
+  camera.position.set(cx + sa * Math.cos(p) * d, ly + Math.sin(p) * d, cz + ca * Math.cos(p) * d);
+  camera.lookAt(swingCam.look.set(cx, ly, cz));
   camera.updateMatrixWorld();
-  _t.set(fx + dx * 1.3 * k, 0, fz + dz * 1.3 * k).applyMatrix4(camera.matrixWorldInverse);   // the grass at the foot of the step, as the camera sees it
+  const reach = (1.25 * Math.abs(Math.sin(v.shown)) + Math.abs(Math.cos(v.shown)) + 0.1) * k;   // how far the stage comes towards the camera, whichever way it's turned
+  _t.set(cx + sa * reach, 0, cz + ca * reach).applyMatrix4(camera.matrixWorldInverse);   // the grass at the stage's foot, as the camera sees it
   const depth = -_t.z, footY = H / 2 * (1 - _t.y / (depth * lens));
   perspCam.fov = JAM_LENS;
-  perspCam.near = Math.max(0.3, depth - 0.02);
-  perspCam.setViewOffset(W, H, W / 2 - (box.offsetLeft + Ws / 2), footY - (box.offsetTop + Hs), W, H);
+  const wide = Math.max(0, v.zoom - 1) / 0.6;   // zoomed right out, the stage rises from the bottom edge to the middle, with grass below it
+  perspCam.near = Math.max(0.3, (depth - 0.02 - 2.7 * k * Math.max(0, Math.sin(p) - 0.18)) * (1 - wide * 0.5));   // looking down, the tops of the posts are nearer still
+  perspCam.setViewOffset(W, H, W / 2 - (box.offsetLeft + Ws / 2), footY - (box.offsetTop + Hs) + wide * Hs * 0.3, W, H);
   postMat.uniforms.cnear.value = perspCam.near;
   skyClouds(dt, swingCam.look.x, swingCam.look.z);
   sun.position.copy(swingCam.look).add(SUN_OFF);
@@ -6151,6 +6165,10 @@ function farmPointerUp(e) {
 window.addEventListener('pointerup', farmPointerUp);
 window.addEventListener('pointercancel', farmPointerUp);
 window.addEventListener('wheel', e => {
+  if (jam.open) {
+    if (e.target.closest?.('.jamStage')) { e.preventDefault(); setJamView(jam.view.pitch, jam.view.zoom * Math.exp(e.deltaY * 0.0015)); }
+    return;
+  }
   if (game.state !== 'farm' || game.picking) return;
   e.preventDefault();
   if (fishCam.on) { setFishView(fishView.pitch, fishView.zoom * Math.exp(e.deltaY * 0.0015)); return; }   // the fishing camera
@@ -8198,7 +8216,7 @@ const padKeyLabel = code => (code.startsWith('Key') ? code.slice(3) : ',');
 // Controller button for each column: six for a five-note scale; eight take LT and RT too (sustain is then the slider's).
 const padBtns = () => (padCols() > 6 ? [6, 4, 2, 0, 3, 1, 5, 7] : [4, 2, 0, 3, 1, 5]);
 const PAD_LABELS = { 6: 'LT', 4: 'LB', 2: 'X', 0: 'A', 3: 'Y', 1: 'B', 5: 'RB', 7: 'RT' };
-const jam = { open: false, drums: false, oct: 0, row: 1, input: null, t: 0, kick: 0, scene: null, swoop: 0, model: null,
+const jam = { open: false, drums: false, oct: 0, row: 1, input: null, t: 0, kick: 0, scene: null, swoop: 0, view: { yaw: 0, shown: 0, pitch: JAM_TILT, zoom: 1 }, model: null,
   sustain: store.get('bl-sustain', 0.35), held: new Map(),
   song: store.get('bl-jam-song', 1),   // the farm tune's volume on the stage, on this device: 0 leaves just the instruments   // held: finger / key / button -> release()
   band: new Map(), byRC: new Map(), hostOpen: false };   // band: a guest's bandmates, by key; byRC: a guest's held pads
@@ -8437,6 +8455,7 @@ function openJam() {
   layoutStage();
   jam.open = true;
   jam.swoop = 1;
+  Object.assign(jam.view, { yaw: 0, shown: 0, pitch: JAM_TILT, zoom: 1 });
   jam.scene.visible = true;
   document.body.classList.add('jamming');
   jam.row = 1;
@@ -8527,6 +8546,39 @@ function jamFrame(dt) {
 $('octUp').addEventListener('click', () => setOctave(1));
 $('octDown').addEventListener('click', () => setOctave(-1));
 $('jamClose').addEventListener('click', closeJam);
+$('jamRecenter').addEventListener('click', () => { sfx.ensure(); recenterJam(); });
+// The stage is a close-up like the swing and the pond: drag to look around, pinch or scroll to zoom.
+const jamBox = $('jam').querySelector('.jamStage'), jamTouch = new Map();
+let jamDrag = null, jamPinch = 0;
+jamBox.addEventListener('pointerdown', e => {
+  if (e.target.closest('button')) return;
+  jamBox.setPointerCapture(e.pointerId);
+  jamTouch.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (jamTouch.size === 2) { jamDrag = null; jamPinch = 0; }
+  else if (jamTouch.size === 1) jamDrag = { id: e.pointerId, x: e.clientX, y: e.clientY, yaw: jam.view.yaw, pitch: jam.view.pitch, moved: false };
+});
+jamBox.addEventListener('pointermove', e => {
+  const p = jamTouch.get(e.pointerId);
+  if (!p) return;
+  p.x = e.clientX; p.y = e.clientY;
+  if (jamTouch.size === 2) {
+    const [m, n] = [...jamTouch.values()], d = Math.hypot(m.x - n.x, m.y - n.y);
+    if (jamPinch) setJamView(jam.view.pitch, jam.view.zoom * jamPinch / d);
+    jamPinch = d;
+    return;
+  }
+  if (jamDrag?.id !== e.pointerId) return;
+  const dx = e.clientX - jamDrag.x, dy = e.clientY - jamDrag.y;
+  if (Math.hypot(dx, dy) > 8) jamDrag.moved = true;
+  if (!jamDrag.moved) return;
+  jam.view.yaw = jamDrag.yaw - dx * 0.012;
+  setJamView(jamDrag.pitch + dy * 0.006, jam.view.zoom);
+});
+for (const type of ['pointerup', 'pointercancel']) jamBox.addEventListener(type, e => {
+  jamTouch.delete(e.pointerId);
+  if (jamDrag?.id === e.pointerId) jamDrag = null;
+  jamPinch = 0;
+});
 
 // ---------- jam with phones ----------
 // "Jam with phones" shows a QR code. Each phone that scans it (up to four) opens
@@ -9861,6 +9913,9 @@ function pollPad() {
     return;
   }
   if (jam.open) {   // the six buttons play the row the d-pad picked; left/right shift the octave
+    const lookX = gp.axes[2] || 0, lookY = gp.axes[3] || 0;   // the right stick looks around
+    if (Math.abs(lookX) > 0.3) jam.view.yaw -= lookX * 0.03;
+    if (Math.abs(lookY) > 0.3) setJamView(jam.view.pitch + lookY * 0.015, jam.view.zoom);
     if (dir || down.some(Boolean)) setJamInput('pad');
     if (dir === 'up' || dir === 'down') { jam.row = clamp(jam.row + (dir === 'down' ? 1 : -1), 0, JAM_ROWS - 1); markJamHints(); }
     if (dir === 'left' || dir === 'right') setOctave(dir === 'right' ? 1 : -1);

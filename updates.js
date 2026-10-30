@@ -11,6 +11,7 @@ export const UPDATES = [
     notes: [
       'The Jam Stage now shows your real stage, right there on the farm.',
       'You and your friends squeeze on together. The more of you there are, the tighter it gets.',
+      'Drag to look around the stage, pinch or scroll to zoom, and tap the target button to recenter.',
       'The Spooky Organ now stands on the stage too.',
     ],
     es: {
@@ -18,6 +19,7 @@ export const UPDATES = [
       notes: [
         'El escenario de música ahora muestra tu escenario de verdad, ahí mismo en la granja.',
         'Tú y tus amigos os apretujáis juntos. Cuantos más seáis, más apretados estaréis.',
+        'Arrastra para mirar el escenario, pellizca o usa la rueda para acercar, y toca la diana para recentrar.',
         'El Órgano tenebroso ahora también está en el escenario.',
       ],
     },
@@ -26,6 +28,7 @@ export const UPDATES = [
       notes: [
         '音乐舞台现在显示的就是你农场上那座真正的舞台。',
         '你和朋友们一起挤上台，人越多就越挤。',
+        '拖动可环视舞台，双指或滚轮缩放，点准星按钮让视角归位。',
         '阴森管风琴现在也摆在舞台上了。',
       ],
     },

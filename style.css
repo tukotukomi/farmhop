@@ -643,6 +643,11 @@ body.lefty #camBtn { left: auto; right: calc(env(safe-area-inset-right) + 18px);
 @media (orientation: portrait) { body.farm.fishing #camBtn { bottom: calc(env(safe-area-inset-bottom) + 150px); } }   /* above the fishing row */
 #jamCam { position: absolute; z-index: 3; right: 14px; bottom: 14px; width: 58px; height: 58px; --c1: #ffd86a; --c2: #e0a82a; }
 #jamCam svg { width: 34px; height: 34px; }
+#jamRecenter { position: absolute; z-index: 3; right: 84px; bottom: 14px; width: 58px; height: 58px; --c1: #bfe9ff; --c2: #7fbfe6; }
+#jamRecenter svg { width: 34px; height: 34px; }
+.jamLook { position: absolute; z-index: 2; left: 14px; bottom: 16px; max-width: calc(100% - 180px); margin: 0; padding: 5px 12px 6px; border-radius: 12px; background: rgba(36, 24, 48, .75); color: #fff; font-size: 13px; font-weight: 600; pointer-events: none; }
+#jam.show .jamLook { animation: jamLookOut 6s forwards; }
+@keyframes jamLookOut { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
 #photo { z-index: 14; }   /* over the Jam Stage */
 #flash { position: fixed; inset: 0; z-index: 20; background: #fff; opacity: 0; pointer-events: none; }
 #flash.go { animation: flash .5s ease-out; }
