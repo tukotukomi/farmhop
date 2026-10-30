@@ -929,6 +929,15 @@ body.guest #phonesBtn, body.guest #partyBtn, body.guest #play { display: none !i
 }
 #wipe .badge svg { width: 78%; height: 78%; grid-area: 1 / 1; }
 #wipe .moon, #wipe.dusk .rooster { display: none; }
+/* 3, 2, 1 before the day starts with a guest on the farm, where the rooster's about to appear */
+#dayCount {
+  position: fixed; left: 50%; top: 50%; z-index: 29; width: 38vmin; height: 38vmin; margin: -19vmin 0 0 -19vmin;
+  border-radius: 50%; border: 5px solid var(--ink); box-shadow: 0 8px 0 var(--ink-soft), inset 0 0 0 7px var(--cream);
+  background: linear-gradient(#8fd8ff, #ffe9a8); color: var(--ink); font-size: 24vmin; font-weight: 700; line-height: 1;
+  display: grid; place-items: center; transform: scale(0); pointer-events: none;
+}
+#dayCount.go { animation: dayCount 1s cubic-bezier(.3, 1.6, .5, 1) both; }
+@keyframes dayCount { 0% { transform: scale(0); } 22%, 82% { transform: scale(1); opacity: 1; } 100% { transform: scale(.7); opacity: 0; } }
 #wipe.dusk .moon { display: block; }
 #wipe.dusk .badge { background: linear-gradient(#3b2a6e, #6a3f86); }
 #wipe.sunrise, #wipe.dusk { visibility: visible; }

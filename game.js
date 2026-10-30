@@ -2274,6 +2274,12 @@ const sfx = (() => {
     rumble(k = 1) { noise(0.55, 0.55 * k, 'lowpass', 140); tone(58, 44, 0.5, 'sine', 0.18 * k); },
     creak() { tone(320, 170, 0.45, 'sawtooth', 0.035); tone(260, 210, 0.3, 'square', 0.02, 0.15); },
     snort() { noise(0.35, 0.35, 'bandpass', 500); tone(90, 60, 0.3, 'sawtooth', 0.1); },
+    dayDing(n) {   // a little bell, a step higher for each number
+      const f = [1319, 1319, 1047, 880][n] || 880;
+      tone(f, f, 0.32, 'sine', 0.1);
+      tone(f * 2, f * 2, 0.2, 'sine', 0.035);
+      tone(f * 3, f * 3, 0.1, 'triangle', 0.018);
+    },
     rooster() { tone(700, 900, 0.12, 'sawtooth', 0.045); tone(900, 760, 0.12, 'sawtooth', 0.045, 0.13); tone(760, 1020, 0.14, 'sawtooth', 0.045, 0.27); tone(1020, 640, 0.55, 'sawtooth', 0.045, 0.43); },
     upgrade() { tone(inKey(784), null, 0.1, 'square', 0.06); tone(inKey(988), null, 0.1, 'square', 0.06, 0.1); tone(inKey(1319), null, 0.32, 'square', 0.06, 0.2); noise(0.4, 0.25, 'bandpass', 1400, 0.05); },
     lullaby() { tone(784, null, 0.4, 'triangle', 0.08); tone(659, null, 0.4, 'triangle', 0.08, 0.35); tone(523, null, 0.9, 'triangle', 0.08, 0.7); },
@@ -5169,7 +5175,8 @@ function stageOut() {   // which way a hopper faces to look out from the stage
 }
 function stageShows(dt) {
   if (GUEST) return;
-  const live = game.state === 'farm' && farm.stageBuilt && farm.pieces.stage && !decor.on && !jam.open;   // the band has the stage
+  if (!jam.open && guests().some(([, p]) => p.stage) && (jam.beatIn = (jam.beatIn || 0) - dt) <= 0) { jam.beatIn = 3; tellBeat(); }   // a friend's up there: keep their tune in step
+  const live = game.state === 'farm' && farm.stageBuilt && farm.pieces.stage && !decor.on && !jam.open && !farm.walkers.some(w => w.band);   // the band has the stage
   const players = new Set(playerMarks().map(([w]) => w));
   for (const c of show.cast) {   // anyone who's been picked to play, or gone, leaves the show
     if (!farm.walkers.includes(c) || players.has(c) || c.hidden || c.fishing) { leaveShow(c); show.cast = show.cast.filter(o => o !== c); }
@@ -5768,7 +5775,7 @@ function updateWalkers(dt, t) {
   }
   farm.markers.forEach((m, i) => {
     const [w, n] = marks[i] || [];
-    m.visible = !!w;
+    m.visible = !!w && !(jam.open && w.band);   // on our Jam Stage screen, the band stands in for them
     if (!w) return;
     m.geometry = n < 0 ? MARKER_GEO : PLAYER_MARKERS[n];
     m.position.set(w.x, (w.y || 0) + w.top + 0.32 + Math.sin(t * 3 + i) * 0.06 + w.m.inner.position.y, w.z);
@@ -5927,8 +5934,37 @@ function transition(kind, swapAt, swap) {
   setTimeout(swap, swapAt);
   setTimeout(() => { el.className = ''; }, kind === 'sunrise' ? 2100 : 1000);
 }
+// With a guest on the farm the day doesn't start out of the blue: 3, 2, 1 on every screen,
+// in the middle where the rooster's about to appear.
+let counting = false;
+function showCount(n) {
+  const el = $('dayCount');
+  el.textContent = n;
+  el.classList.remove('go');
+  void el.offsetWidth;   // restart the pop
+  el.classList.add('go');
+  sfx.dayDing(n);
+}
+function startDay() {
+  if (game.state !== 'farm' || GUEST || counting) return;
+  if (!guests().length) { goRoad(); return; }
+  counting = true;
+  let n = 3;
+  const next = () => {
+    if (!n) { counting = false; goRoad(); return; }
+    showCount(n);
+    toGuests({ t: 'count', n });
+    n--;
+    setTimeout(next, 1000);
+  };
+  next();
+}
 function goRoad() {   // sunrise, then onto the road at first light
   if (game.state !== 'farm' || GUEST) return;
+  closeJam();
+  for (const [, p] of party.players) p.stage = false;
+  tellBand();
+  syncStage();
   exitDecor();
   stopAllFishing();
   game.state = 'sunrise';
@@ -5953,6 +5989,7 @@ function goRoad() {   // sunrise, then onto the road at first light
 }
 // A guest's side of the sunrise: the host's road, the host's line-up.
 function goRoadGuest(m) {
+  closeJam();
   stopAllFishing();
   closeHeroes();
   closeSettings();
@@ -6190,7 +6227,8 @@ function tapFarm(x, y) {
   if (!GUEST && farm.pieces.swing && (hit(farm.pieces.swing.group) || (groundAt(x, y, _a) && onSwing(_a.x - farm.group.position.x, _a.z - farm.group.position.z)))) { goSwing(me, true); return; }   // the frame, or anywhere on its patch of grass
   const pondHit = _ray.intersectObject(farm.pieces.pond.group, true)[0];
   if (pondHit && (GUEST || onDock(pondHit.point))) { goFish(myKey(), 'tap'); return; }
-  if (!GUEST) {   // a guest's taps on buildings just hop there
+  if (GUEST && farm.stageBuilt && hit(farm.pieces.stage.group)) { openJam(); return; }   // a guest can jump on stage whenever they like
+  if (!GUEST) {   // a guest's taps on other buildings just hop there
     if (hit(farm.pieces.bunk.group)) { openBunk(); return; }
     if (hit(farm.pieces.stage.group)) { stageAct(); return; }
     if (farm.pieces.noticeboard && hit(farm.pieces.noticeboard.group)) { const p = posterNow(); if (p.tap) { sfx.ensure(); p.tap(); } return; }
@@ -6371,7 +6409,7 @@ window.addEventListener('keydown', e => {
     if (e.code === 'KeyF') { goFish(myKey(), 'keys'); return; }
   }
   if (game.state === 'farm') {          // Enter starts the day, P opens the pond, B the buildings, C picks a hopper
-    if (e.code === 'Enter' || e.code === 'Space') { goRoad(); e.preventDefault(); }
+    if (e.code === 'Enter' || e.code === 'Space') { startDay(); e.preventDefault(); }
     else if (e.code === 'KeyP') openPond();
     else if (e.code === 'KeyB') openBuilds();
     else if (e.code === 'KeyE') enterDecor();
@@ -6552,7 +6590,7 @@ function pickHero(id) {
 document.querySelectorAll('.heroBtn').forEach(b => b.addEventListener('click', () => { sfx.ensure(); openHeroes(); }));
 $('heroClose').addEventListener('click', closeHeroes);
 $('heroes').addEventListener('click', e => { if (e.target.id === 'heroes') closeHeroes(); });
-$('start').addEventListener('click', () => { sfx.ensure(); goRoad(); });
+$('start').addEventListener('click', () => { sfx.ensure(); startDay(); });
 $('pondBtn').addEventListener('click', () => { sfx.ensure(); openPond(); });
 
 // ---------- Fish Pond panel ----------
@@ -8219,13 +8257,16 @@ const padKeyLabel = code => (code.startsWith('Key') ? code.slice(3) : ',');
 // Controller button for each column: six for a five-note scale; eight take LT and RT too (sustain is then the slider's).
 const padBtns = () => (padCols() > 6 ? [6, 4, 2, 0, 3, 1, 5, 7] : [4, 2, 0, 3, 1, 5]);
 const PAD_LABELS = { 6: 'LT', 4: 'LB', 2: 'X', 0: 'A', 3: 'Y', 1: 'B', 5: 'RB', 7: 'RT' };
+// Everyone comes and goes from the stage as they please. A guest's own screen says when
+// they're up there (pl.stage); phones in the room play along with the host.
+const onStage = p => p.hero && (p.guest ? !!p.stage : jam.open);
 const jam = { open: false, drums: false, oct: 0, row: 1, input: null, t: 0, kick: 0, scene: null, swoop: 0, view: { yaw: 0, shown: 0, pitch: JAM_TILT, zoom: 1 }, model: null,
   sustain: store.get('bl-sustain', 0.35), held: new Map(),
   song: store.get('bl-jam-song', 1),   // the farm tune's volume on the stage, on this device: 0 leaves just the instruments   // held: finger / key / button -> release()
-  band: new Map(), byRC: new Map(), hostOpen: false };   // band: a guest's bandmates, by key; byRC: a guest's held pads
+  band: new Map(), byRC: new Map() };   // band: a guest's bandmates, by key; byRC: a guest's held pads
 // Everyone else on stage. On the host: the phones and guests (party.players, by slot);
 // on a guest's device: the rest of the band as the host lists it (n = their slot, the host 0).
-const bandOf = () => GUEST ? [...jam.band.entries()] : [...party.players.entries()];
+const bandOf = () => GUEST ? [...jam.band.entries()] : [...party.players.entries()].filter(([, p]) => onStage(p));
 const bandN = ([k, pl]) => pl.n ?? k;
 const jamPads = $('jamPads');
 jam.heldPads = new Map();   // finger / key / button -> the pad it's holding down (lit till it lets go)
@@ -8440,7 +8481,7 @@ function showInstrument(inst, on) {   // in hand, or put down (a guitar goes bac
   if (inst.userData.back) inst.userData.back.visible = !on;
 }
 function openJam() {
-  if (game.state !== 'farm' || !farm.stageBuilt || (GUEST && !jam.hostOpen)) return;
+  if (game.state !== 'farm' || !farm.stageBuilt) return;
   closeHeroes(); closePond(); closeBunk(); closeStage();
   stopAllFishing();
   jam.scene ||= new THREE.Group();   // the band, standing on the stage in the stage's own space
@@ -8471,7 +8512,9 @@ function openJam() {
   tellView();
   jam.input = null;   // start with hints for the last thing used, or what this device has
   setJamInput(document.body.classList.contains('pad') ? 'pad' : document.body.classList.contains('keys') || matchMedia('(hover: hover) and (pointer: fine)').matches ? 'keys' : 'touch');
-  if (!GUEST) { tellBand(); tellBeat(); }
+  if (GUEST) guestNet.send({ t: 'stage', on: true });
+  else { tellBand(); tellBeat(); }
+  syncStage();
 }
 // Jam tracks: what the band plays along to. The farm song, and (once the harvest's three are
 // all yours) the Spooky Farm Song: the farm tune on the spooky organ in your key's spooky scale.
@@ -8504,7 +8547,10 @@ function closeJam() {
   $('jam').classList.remove('show');
   game.picking = anyPanel();
   letGoAll();
+  if (GUEST) guestNet.send({ t: 'stage', on: false });
+  else tellBand();
   tellView();
+  syncStage();
 }
 // The band stands on the stage, and their hoppers on the farm step out of sight meanwhile.
 function placeBand() {
@@ -8513,8 +8559,7 @@ function placeBand() {
   jam.scene.position.set(x0, 0.305 * k, z0);
   jam.scene.rotation.y = Math.atan2(x1 - x0, z1 - z0);
   jam.scene.scale.setScalar(k);
-  for (const [w] of playerMarks()) if (w) w.m.group.visible = false;
-  for (const mk of farm.markers || []) mk.visible = false;
+  for (const w of farm.walkers) if (w.band) w.m.group.visible = false;
   if (farm.stageMic) farm.stageMic.visible = bandOf().length < 1;   // the mic stand's in the way of a crowd
 }
 // Where the tune is in the ears of whoever's at this device, in beats: what the speakers
@@ -8848,7 +8893,15 @@ function onPlayer(slot, m, direct = false) {
   if (m.t === 'oct') pl.oct = clamp(+m.v || 0, -1, 1);
   else if (m.t === 'sus') pl.sus = clamp(+m.v || 0, 0, 1);
   else if (m.t === 'mode') { pl.drums = !!m.drums && ownedDecor.has('drums'); showInstrument(pl.banjo, !pl.drums); tellBand(); }
-  else if (!jam.open) return;   // notes only sound while the Jam Stage is open
+  else if (m.t === 'stage') {
+    if (pl.guest) pl.stage = !!m.on;
+    if (!pl.stage) for (const key of [...jam.held.keys()]) if (key.startsWith('r' + slot + '-')) letGo(key);
+    layoutStage();
+    tellBand();
+    syncStage();
+    if (pl.stage) tellBeat();
+  }
+  else if (!onStage(pl)) return;   // notes only sound from players on the stage
   else if (m.t === 'note') {
     const r = clamp(m.r | 0, 0, JAM_ROWS - 1), c = clamp(m.c | 0, 0, padCols() - 1), key = 'r' + slot + '-' + r + '-' + c;
     if (!m.on) { letGo(key); toGuests({ t: 'jn', k, by: key, on: false }, others); return; }
@@ -8859,6 +8912,7 @@ function onPlayer(slot, m, direct = false) {
     const release = sfx.hold(pl.hero, f, pl.sus);
     if (release) jam.held.set(key, release);
     pl.kick = 1;
+    stageKick(k);
     floatNote(HEROES.find(h => h.id === pl.hero).pad, pl.m?.group.position.x);
     toGuests({ t: 'jn', k, by: key, hero: pl.hero, f, sus: pl.sus, on: true, hold: true }, others);
   } else if (m.t === 'drum') {
@@ -8867,6 +8921,7 @@ function onPlayer(slot, m, direct = false) {
     sfx.drum(d);
     pl.kick = 1;
     jam.boom = 1;
+    stageKick(k);
     floatNote(DRUM_COLORS[d], pl.m?.group.position.x);
     toGuests({ t: 'jd', k, d }, others);
   }
@@ -8949,8 +9004,8 @@ function guestRoadDt(dt) {
 // note-off) and jd (a drum).
 function tellBand() {
   if (GUEST) return;
-  const list = [{ k: 'h', n: 0, hero: heroId, drums: jam.drums },
-    ...[...party.players].filter(([, p]) => p.hero).map(([slot, p]) => ({ k: 'p' + slot, n: slot, hero: p.hero, drums: !!p.drums }))];
+  const list = [...(jam.open ? [{ k: 'h', n: 0, hero: heroId, drums: jam.drums }] : []),
+    ...bandOf().map(([slot, p]) => ({ k: 'p' + slot, n: slot, hero: p.hero, drums: !!p.drums }))];
   for (const [slot] of guests()) partySend(slot, { t: 'band', list: list.filter(b => b.k !== 'p' + slot) });
 }
 // How long a sound takes to reach this player's ears: the delay the browser reports, plus
@@ -8975,12 +9030,15 @@ function applyBand(list) {   // guest: the rest of the band, as the host lists i
     jam.band.set(b.k, pl);
   }
   layoutStage();
+  syncStage();
+  if (jam.band.size && !jam.open && !jam.hinted) { jam.hinted = true; bettySays(t('guest.jamHint')); }   // once: you can join them
 }
 function bandNote(m) {   // guest: someone else's note
   const id = 'n' + m.k + ':' + m.by;
   letGo(id);
-  if (!m.on || !jam.open) return;
+  if (!m.on) return;
   sfx.ensure();
+  stageKick(m.k);
   const f = +m.f;
   sfx.voice(m.hero, f, true);
   if (m.hold) { const release = sfx.hold(m.hero, f, clamp(+m.sus || 0, 0, 1)); if (release) jam.held.set(id, release); }
@@ -8989,9 +9047,9 @@ function bandNote(m) {   // guest: someone else's note
   floatNote(HEROES.find(h => h.id === m.hero)?.pad || '#fff', pl?.m?.group.position.x);
 }
 function bandDrum(m) {
-  if (!jam.open) return;
   const d = clamp(m.d | 0, 0, 7), pl = jam.band.get(m.k);
   sfx.ensure();
+  stageKick(m.k);
   sfx.drum(d);
   jam.boom = 1;
   if (pl) pl.kick = 1;
@@ -9107,9 +9165,8 @@ if (!GUEST) onFarmSave = () => {   // bought, built or moved something: guests g
 function assign(slot, hero) {
   const old = party.players.get(slot);
   if (old?.m) { jam.scene?.remove(old.m.group); disposeHero(old.m); }
-  const pl = { hero, oct: 0, sus: 0.35, drums: false, kick: 0, m: null, banjo: null, guest: !!old?.guest, local: old?.local || null, col: old?.col ?? freeColor(slot), sup: !!old?.sup };
+  const pl = { hero, oct: 0, sus: 0.35, drums: false, kick: 0, m: null, banjo: null, stage: !!old?.stage, guest: !!old?.guest, local: old?.local || null, col: old?.col ?? freeColor(slot), sup: !!old?.sup };
   party.players.set(slot, pl);
-  if (jam.scene) addPlayerModel(pl);
   if (old?.road) dropFromRoad(old);
   partySend(slot, { t: 'joined', hero, pad: HEROES.find(h => h.id === hero).pad, drums: ownedDecor.has('drums'), mark: MARK_CSS[pl.col] });
   partySend(slot, { t: 'view', v: currentView(), score: game.score });
@@ -9119,6 +9176,7 @@ function assign(slot, hero) {
   renderParty();
   syncPlayerWalkers();
   tellBand();
+  syncStage();
 }
 function addPlayerModel(pl) {
   pl.m = HEROES.find(h => h.id === pl.hero).build();
@@ -9140,26 +9198,76 @@ function dropPlayer(slot) {
   renderParty();
   syncPlayerWalkers();
   tellBand();
+  syncStage();
 }
-// Everyone squeezes onto the stage: yours in the middle of the front row, friends either
+// Everyone squeezes onto the stage: the first in the middle of the front row, others either
 // side, a second row behind once there are too many, and all a little smaller the more there are.
+function stageSeats(n) {
+  const front = n < 4 ? n : Math.ceil((n + 1) / 2), size = n < 2 ? 1 : n < 4 ? 0.82 : n < 7 ? 0.68 : 0.56;
+  const gap = Math.min(0.72, 1.8 / Math.max(1, front - 1));
+  const row = (count, spots, z) => {   // spots across the stage, filled from the middle outwards
+    const mid = (spots - 1) / 2, seats = Array.from({ length: spots }, (_, i) => i).sort((a, b) => Math.abs(a - mid) - Math.abs(b - mid));
+    return seats.slice(0, count).map(s => [(s - mid) * gap, z]);
+  };
+  return { size, at: [...row(front, front, 0.42), ...row(n - front, front - 1, 0.02)] };   // the back row looks out through the gaps in the front row
+}
+// Who's up on the stage, in the same order on every screen.
+function stageCrew() {
+  if (GUEST) {
+    const list = [...jam.band].map(([k, pl]) => [pl.n, k === 'h' ? farm.walkers.find(w => w.isHost) : walkerOf(k)]);
+    if (jam.open && guestKey) list.push([+guestKey.slice(1), walkerOf(guestKey)]);
+    return list.sort((a, b) => a[0] - b[0]).map(e => e[1]).filter(Boolean);
+  }
+  const friends = bandOf().sort((a, b) => bandN(a) - bandN(b)).map(([slot]) => walkerOf('p' + slot));
+  return [jam.open && walkerOf(heroId), ...friends].filter(Boolean);
+}
+// On the farm, each player's hopper jumps up onto the stage and plays while they're jamming,
+// and jumps back down to the grass when they leave.
+function syncStage() {
+  if (!farm.walkers || !farm.pieces?.stage) return;
+  const crew = stageCrew(), { size, at } = stageSeats(crew.length);
+  for (const w of farm.walkers) if (w.band && !crew.includes(w)) {
+    const [x, z] = stageAt(w.band.lx * 0.5, 1.7);
+    showInstrument(w.banjo, false);
+    w.m.inner.remove(w.banjo);
+    w.m.group.scale.setScalar(1);
+    w.band = w.show = w.banjo = null;
+    w.wait = rand(0.8, 2.5);
+    landLeap(w, x, z, 0.35, 0);
+  }
+  crew.forEach((w, i) => {
+    const [lx, lz] = at[i], [x, z] = stageAt(lx, lz), was = w.band;
+    if (was?.lx === lx && was?.lz === lz) { w.m.group.scale.setScalar(size); return; }
+    if (!was) {
+      if (w.sit) standUp(w);
+      w.goal = w.queued = null;
+      w.banjo = holdInstrument(w.m);
+      w.show = { role: 'perform', lx, lz, st: 'on', beat: -1, ph: 0, x, z };
+    }
+    w.band = { lx, lz };
+    w.show.lx = lx; w.show.lz = lz;
+    w.m.group.scale.setScalar(size);
+    landLeap(w, x, z, 0.35, stageY());
+  });
+}
+function stageKick(key) {   // a note from someone up on the stage: on the farm, their hopper gives a little jump
+  if (jam.open) return;
+  const w = key === 'h' ? (GUEST ? farm.walkers.find(o => o.isHost) : walkerOf(heroId)) : walkerOf(key);
+  if (w?.band) w.hop = 0.3;
+}
 function layoutStage() {
   if (!jam.scene || !jam.model) return;
+  for (const [, pl] of party.players) if (pl.m && !onStage(pl)) { jam.scene.remove(pl.m.group); disposeHero(pl.m); pl.m = pl.banjo = null; }   // left the stage
   for (const [, pl] of bandOf()) if (pl.hero && !pl.m) addPlayerModel(pl);
   const cast = [jam.model, ...bandOf().sort((a, b) => bandN(a) - bandN(b)).map(e => e[1].m).filter(Boolean)];
-  const n = cast.length, front = n < 4 ? n : Math.ceil((n + 1) / 2), size = n < 2 ? 1 : n < 4 ? 0.82 : n < 7 ? 0.68 : 0.56;
-  const gap = Math.min(0.72, 1.8 / Math.max(1, front - 1));
-  const seat = (row, spots, z) => {   // spots across the stage, filled from the middle outwards
-    const mid = (spots - 1) / 2, seats = Array.from({ length: spots }, (_, i) => i).sort((a, b) => Math.abs(a - mid) - Math.abs(b - mid));
-    row.forEach((m, i) => {
-      m.group.position.set((seats[i] - mid) * gap, 0, z);
-      m.group.scale.setScalar(size);
-    });
-  };
-  seat(cast.slice(0, front), front, 0.42);
-  seat(cast.slice(front), front - 1, 0.02);   // the back row looks out through the gaps in the front row
+  const { size, at } = stageSeats(cast.length);
+  cast.forEach((m, i) => {
+    m.group.position.set(at[i][0], 0, at[i][1]);
+    m.group.scale.setScalar(size);
+  });
 }
 function floatNote(color, x = 0) {
+  if (!jam.open) return;
   const note = document.createElement('span');
   note.className = 'jamNote';
   note.textContent = pick(['♪', '♫', '♩', '♬']);
@@ -9988,7 +10096,7 @@ function pollPad() {
     return;
   }
   if (game.state === 'farm') {          // A or Start: start the day; Y: hoppers; X: Fish Pond; B: Bunkhouse
-    if (pressed(0) || pressed(9)) goRoad();
+    if (pressed(0) || pressed(9)) startDay();
     else if (pressed(1)) openBuilds();
     else if (pressed(5)) enterDecor();     // RB
     else if (pressed(4)) stageAct();       // LB
@@ -10053,6 +10161,7 @@ if (guestNet) {
       w.isHost = !!c.host;
       w.col = c.col ?? 0;
     }
+    syncStage();
   };
   const keepHero = () => { try { sessionStorage.setItem('bl-guest-hero', heroId); } catch {} };   // the same hopper after a reload
   keepHero();
@@ -10098,13 +10207,13 @@ if (guestNet) {
     } else if (m.t === 'joined') {
       if (m.hero !== heroId) { heroId = guestKeys['bl-hero'] = m.hero; markHero(); }
       keepHero();
-    } else if (m.t === 'view') {
-      jam.hostOpen = m.v === 'jam';
+      if (jam.open) guestNet.send({ t: 'stage', on: true });   // back after a dropped connection
+    } else if (m.t === 'count') showCount(m.n | 0);
+    else if (m.t === 'view') {
       if (m.v === 'farm') {
         guestNet.note.hide();
-        closeJam();
         if (game.where === 'road' && game.state !== 'dusk') { game.state = 'dusk'; transition('dusk', 450, enterFarm); }
-      } else if (m.v === 'jam') { guestNet.note.hide(); if (!jam.open) openJam(); }
+      } else if (m.v === 'jam') guestNet.note.hide();
       else if (m.v === 'over' && game.where === 'farm' && game.state === 'farm') guestNet.note.show(t('guest.nextDay'));   // their day is ending: next time
     }
   });
@@ -10112,4 +10221,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, followBeat, earLag, heardBeat };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, followBeat, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, get counting() { return counting; } };
