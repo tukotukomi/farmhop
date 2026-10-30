@@ -893,7 +893,7 @@ function buildPumpking() {
   b.torus(0.235, 0.035, Math.PI * 2, 0, 0.16, 0, ERM, Math.PI / 2, 0, 0);   // ermine hem...
   b.torus(0.15, 0.04, Math.PI * 2, 0, 0.56, 0, ERM, Math.PI / 2, 0, 0);     // ...and collar
   for (const [x, y, z] of [[-0.12, 0.16, -0.19], [0.12, 0.16, -0.19], [0, 0.16, -0.235], [0.07, 0.565, -0.15], [-0.07, 0.565, -0.15]]) b.ball(0.012, 0.018, 0.01, x, y, z, 0x2a2033);   // its black tips
-  b.rbox(0.42, 0.44, 0.03, 0, 0.36, 0.18, 0xa3122e, 0.04, 0.12, 0, 0);     // a red cape behind
+  b.rbox(0.42, 0.44, 0.03, 0, 0.36, 0.235, 0xa3122e, 0.04, -0.26, 0, 0);   // a red cape behind: from under the collar, flaring out clear of the robe
   b.cyl(0.13, 0.12, 0.08, 0, 1.08, 0, GOLD);                              // crown band, straight and centred on top of his head
   for (let i = 0; i < 5; i++) {
     const a = i / 5 * Math.PI * 2;
