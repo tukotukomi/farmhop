@@ -725,13 +725,12 @@ body:not(.farm) :is(.fishUi, .fishCatch), :is(.fishUi, .fishCatch).away { displa
 .fishUi.big .lane .note { width: 30px; height: 30px; }
 .lane .ring { position: absolute; left: 22px; top: 50%; width: 30px; height: 30px; translate: -50% -50%; border: 3px solid #fff; border-radius: 50%; box-shadow: 0 0 0 2px #3a2442; }
 .lane .note { position: absolute; top: 50%; width: 22px; height: 22px; translate: -50% -50%; box-sizing: border-box; border-radius: 50%; background: #ffd23f; border: 2.5px solid #3a2442; }
-.lane .note[class*=" b"] { display: grid; place-items: center; color: #3a2442; font-size: 13px; font-style: normal; font-weight: 700; line-height: 1; }
-.fishUi.big .lane .note[class*=" b"] { font-size: 18px; }
-.lane .note.b1 { background: #ff6b6b; scale: 1.15; }
-.lane .note.b2 { background: #ffd23f; }
-.lane .note.b3 { background: #7ad653; }
-.lane .note.b4 { background: #d6b8ff; }
-.lane .note.eighth { background: #ff9a3c; }
+/* where a note falls in the bar: a colour and a pattern each, so it reads without the colour too */
+.lane .note.b1 { scale: 1.15; background: radial-gradient(circle, #3a2442 0 16%, #ff6b6b 19% 40%, #3a2442 43% 53%, #ff6b6b 56%); }   /* a bullseye */
+.lane .note.b2 { background: radial-gradient(circle, #3a2442 0 22%, #ffd23f 25%); }                                                /* a dot */
+.lane .note.b3 { background: radial-gradient(circle, #7ad653 0 32%, #3a2442 35% 50%, #7ad653 53%); }                               /* a ring */
+.lane .note.b4 { background: repeating-conic-gradient(#3a2442 0 45deg, #d6b8ff 45deg 90deg); }                                      /* a pinwheel */
+.lane .note.eighth { background: repeating-linear-gradient(45deg, #ff9a3c 0 3px, #c96a14 3px 6px); }                                /* stripes */
 .lane .note.sixteenth { background: #ff7fb8; scale: .82; }
 .lane .note.hit { animation: notePop .25s ease-out forwards; }
 .lane .note.missed { background: #c9c1cf; opacity: .55; }
