@@ -26,6 +26,10 @@ export const STRINGS = {
       halloween: 'HALLOWEEN HOP', tap: 'Tap for the Pumpkin Harvest!', welcome: 'Welcome to the farm!',
       days: '{n} days left', day: '1 day left', hours: '{n} hours left', hour: '1 hour left', minutes: '{n} minutes left', minute: '1 minute left',
     },
+    quests: {
+      title: 'Daily Quests', tokens: 'Buddy Tokens', say: 'Finish a quest to earn a Buddy Token. Quests are the only way to get them!', next: 'New quests tomorrow.', earned: 'Quest done! +1 Buddy Token',
+      hop: 'Hop {n} rows', flowers: 'Pick {n} sunflowers', fish: 'Catch {n} fish', sushi: 'Cook {n} sushi', jam: 'Play {n} notes on the Jam Stage', friend: 'Hop {n} rows with a friend',
+    },
     event: {
       title: 'Pumpkin Harvest', trade: 'Trade for the Pumpking', have: 'The Pumpking lives on your farm!', need: '{n} more pumpkins to go', done: 'The Pumpking moved in!',
       say: 'Find the spooky sunflower while you hop, then pick up pumpkins on the spooky farm. Trade {n} for the Pumpking, {m} for the Spooky Organ to play on the Jam Stage, or {g} to fill your pond with Glowing Goo! When the harvest ends, every pumpkin left turns into a sunflower.',
@@ -186,6 +190,10 @@ sushiBar: 'Sushi Bar', sushiPlan: 'Build a kitchen to cook your fish into sushi.
       halloween: 'SALTOS DE HALLOWEEN', tap: '¡Toca para la Cosecha de calabazas!', welcome: '¡Bienvenidos a la granja!',
       days: 'Quedan {n} días', day: 'Queda 1 día', hours: 'Quedan {n} horas', hour: 'Queda 1 hora', minutes: 'Quedan {n} minutos', minute: 'Queda 1 minuto',
     },
+    quests: {
+      title: 'Misiones diarias', tokens: 'Fichas de Amigo', say: 'Completa una misión para ganar una Ficha de Amigo. ¡Las misiones son la única forma de conseguirlas!', next: 'Mañana habrá misiones nuevas.', earned: '¡Misión cumplida! +1 Ficha de Amigo',
+      hop: 'Salta {n} filas', flowers: 'Recoge {n} girasoles', fish: 'Pesca {n} peces', sushi: 'Cocina {n} sushi', jam: 'Toca {n} notas en el escenario', friend: 'Salta {n} filas con un amigo',
+    },
     event: {
       title: 'Cosecha de calabazas', trade: 'Cambiar por el Rey Calabaza', have: '¡El Rey Calabaza vive en tu granja!', need: 'Faltan {n} calabazas', done: '¡El Rey Calabaza se mudó!',
       say: 'Busca el girasol embrujado mientras saltas y recoge calabazas en la granja embrujada. ¡Cambia {n} por el Rey Calabaza, {m} por el Órgano tenebroso para tocar en el escenario, o {g} para llenar tu estanque de baba brillante! Cuando termine la cosecha, cada calabaza que te quede se convierte en un girasol.',
@@ -345,6 +353,10 @@ sushiBar: 'Barra de sushi', sushiPlan: 'Construye una cocina para convertir tus 
     notice: {
       halloween: '万圣节蹦蹦跳', tap: '点我看南瓜丰收节！', welcome: '欢迎来到农场！',
       days: '还剩 {n} 天', day: '还剩 1 天', hours: '还剩 {n} 小时', hour: '还剩 1 小时', minutes: '还剩 {n} 分钟', minute: '还剩 1 分钟',
+    },
+    quests: {
+      title: '每日任务', tokens: '伙伴币', say: '完成任务就能赢得一枚伙伴币。任务是获得伙伴币的唯一方式！', next: '明天会有新任务。', earned: '任务完成！+1 伙伴币',
+      hop: '跳过 {n} 行', flowers: '捡 {n} 朵向日葵', fish: '钓到 {n} 条鱼', sushi: '做 {n} 份寿司', jam: '在音乐舞台上演奏 {n} 个音符', friend: '和朋友一起跳过 {n} 行',
     },
     event: {
       title: '南瓜丰收节', trade: '换南瓜王', have: '南瓜王住在你的农场啦！', need: '还差 {n} 个南瓜', done: '南瓜王搬来啦！',

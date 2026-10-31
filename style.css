@@ -143,6 +143,35 @@ body.farm #phonesBtn { display: grid; }
 }
 body.farm.event #eventBtn { display: grid; }
 body.farm.decor #eventBtn, body.guest #eventBtn { display: none; }
+/* Daily Quests: the Buddy Token button beside it (or in its place) */
+#questBtn {
+  position: fixed; top: calc(env(safe-area-inset-top) + 64px); left: calc(env(safe-area-inset-left) + 76px);
+  width: 50px; height: 50px; display: none; --c1: #cdefff; --c2: #7fc8ee;
+}
+#questBtn svg { width: 34px; height: 34px; }
+#questBtn b:not(:empty) {
+  position: absolute; right: -8px; top: -6px; min-width: 20px; padding: 0 5px; border-radius: 999px;
+  background: var(--berry); color: #fff; border: 2px solid var(--ink); font-size: 12px; line-height: 16px;
+}
+body.farm #questBtn { display: grid; }
+body.farm.event #questBtn { left: calc(env(safe-area-inset-left) + 134px); }
+body.farm.decor #questBtn { display: none; }
+#buddyIcon, #buddyIcon svg { display: block; width: 44px; height: 44px; }
+.questLabel { margin: -4px 0 8px; text-align: center; font-weight: 700; }
+.questList { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 8px; width: 100%; }
+.questList li { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px 10px; padding: 8px 12px 10px; background: #fff; border: 2.5px solid var(--ink); border-radius: 16px; }
+.questName { font-weight: 600; line-height: 1.25; }
+.questN { font-weight: 700; white-space: nowrap; }
+.questN svg { display: block; width: 26px; height: 26px; }
+.questBar { grid-column: 1 / -1; display: block; height: 10px; overflow: hidden; background: var(--cream-d); border: 2px solid var(--ink); border-radius: 999px; }
+.questBar b { display: block; height: 100%; background: var(--sky); }
+.questList li.done .questBar b { background: var(--leaf); }
+.questToast {
+  position: fixed; z-index: 40; left: 50%; top: calc(env(safe-area-inset-top) + 14px); translate: -50% 0;
+  display: flex; align-items: center; gap: 8px; width: max-content; max-width: calc(100vw - 32px); box-sizing: border-box; padding: 6px 16px 6px 8px;
+  font-size: 16px; font-weight: 700; pointer-events: none; animation: yay .4s ease-out;
+}
+.questToast svg { flex: none; width: 30px; height: 30px; }
 .eventCount { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 34px; font-weight: 700; }
 .eventCount svg { width: 44px; height: 44px; }
 .eventOffers { display: flex; gap: 8px; justify-content: center; }
@@ -776,7 +805,7 @@ body.pad .actBtn.focus, body.keys .actBtn.focus { outline: 4px solid var(--sky);
 #jam.show { display: grid; }
 #jam.show .jamDeck { animation: pop .3s cubic-bezier(.3, 1.6, .5, 1); }
 .jamStage { position: relative; overflow: hidden; min-height: 0; }   /* see-through: the real stage shows here */
-body.jamming :is(#hud, #title, #tip, #hint, #farmBtns, #gear, #sound, #fullBtn, #keyBtn, #phonesBtn, #eventBtn, #spookyPill, #homeNote, #swingHint, #camBtn) { display: none !important; }
+body.jamming :is(#hud, #title, #tip, #hint, #farmBtns, #gear, #sound, #fullBtn, #keyBtn, #phonesBtn, #eventBtn, #questBtn, #spookyPill, #homeNote, #swingHint, #camBtn) { display: none !important; }
 #jamTitle {
   position: absolute; z-index: 2; left: calc(env(safe-area-inset-left) + 16px); top: calc(env(safe-area-inset-top) + 12px);
   margin: 0; padding: 4px 16px 6px; font-size: 20px; transform: rotate(-3deg);
@@ -1222,6 +1251,9 @@ body.pad .navFocus { outline: 4px solid var(--sky); outline-offset: 3px; }
   #phonesBtn { top: calc(env(safe-area-inset-top) + 12px); left: auto; right: calc(env(safe-area-inset-right) + 260px); }
   #eventBtn { top: calc(env(safe-area-inset-top) + 12px); left: auto; right: calc(env(safe-area-inset-right) + 440px); }
   body.noFull #eventBtn { right: calc(env(safe-area-inset-right) + 380px); }
+  #questBtn, body.noFull.farm.event #questBtn { top: calc(env(safe-area-inset-top) + 12px); left: auto; right: calc(env(safe-area-inset-right) + 440px); }
+  body.noFull #questBtn { right: calc(env(safe-area-inset-right) + 380px); }
+  body.farm.event #questBtn { left: auto; right: calc(env(safe-area-inset-right) + 500px); }
   #decorBar { bottom: calc(env(safe-area-inset-bottom) + 14px); }
   .shopBtn, .rotateBtn { width: 64px; height: 64px; }
   .playBtn { width: 84px; height: 84px; }

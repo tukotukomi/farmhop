@@ -3321,6 +3321,11 @@ function land(h = P) {
   const coin = !h.remote && lane.coins.find(c => c.c === h.x);   // a friend's device reports their own pickups, and they're shared by the whole team
   if (coin) pickUp(h, lane, coin);
   if (mealOf(h) === 'magnet') for (const o of lane.coins.filter(c => !c.spooky)) pickUp(h, lane, o);   // the Magnet Roll: the whole row
+  if (h === P && h.r > (P.far || 0)) {   // this player's own new ground (a friend may be ahead, so not the team's score)
+    P.far = h.r;
+    questAdd('hop');
+    if (GUEST || game.crew.length > 1) questAdd('friend');
+  }
   if (h.r > game.score) {   // new ground: the sun climbs back up a little
     game.day = Math.min(1, game.day + DAY_GAIN * (h.r - game.score));
     game.score = h.r;
@@ -3338,6 +3343,7 @@ function pickUp(h, lane, coin) {
     gainPumpkin(h);
   } else {
     roadSend({ t: 'rc', r: h.r, c: coin.c });
+    questAdd('flowers');
     game.coins++;
     game.today++;
     store.set('bl-coins', game.coins);
@@ -4808,6 +4814,7 @@ function cookSushi(id) {
   store.set(BAG_KEY, fishBag);
   sushiStock[id] = (sushiStock[id] || 0) + 1;
   store.set(SUSHI_KEY, sushiStock);
+  questAdd('sushi');
   sfx.place();
   hud();
   refreshSushi();
@@ -6534,6 +6541,7 @@ function newWorld() {
   queue = [];
   genRow = -BEHIND - 3;
   game.score = 0;
+  P.far = 0;
   game.today = game.todayPk = 0;
   roadBank = null;
   game.record = false;
@@ -7010,6 +7018,7 @@ window.addEventListener('keydown', e => {
   }
   if (game.picking && bookOpen()) { if (e.code === 'Escape' || e.code === 'Enter') closeBook(); e.preventDefault(); return; }
   if (game.picking && photoOpen()) { if (e.code === 'Escape') closePhoto(); return; }
+  if (game.picking && questsOpen()) { if (e.code === 'Escape') closeQuests(); e.preventDefault(); return; }
   if (game.picking && eventOpen()) { if (e.code === 'Escape') { if (eventAsk()) { closeAsk(); refreshEvent(); } else closeEvent(); } else if ((e.code === 'Enter' || e.code === 'Space') && eventAsk()) sayYes(); e.preventDefault(); return; }
   if (game.picking && bagOpen()) { bagKey(e.code); e.preventDefault(); return; }
   if (game.picking && landOpen()) {   // More Land: Enter buys, Escape closes
@@ -7728,6 +7737,7 @@ function logFish(id, cm) {   // into this device's Fish Book: is it a new kind, 
 function landFish(f) {
   const sp = f.sp, cm = Math.round(sp.cm[0] + (sp.cm[1] - sp.cm[0]) * Math.random() ** 1.6);
   const rec = logFish(sp.id, cm);
+  if (f.key === myKey()) questAdd('fish');
   if (sp.price) addToBag(sp.id);   // to sell from the Fish Pond, or craft with
   showCatch(f.w, sp, cm, rec);
   burst(f.rig.bx, 0.1, FARM_Z + f.rig.bz, [0xffffff, 0xbfe9ff, 0xffd23f], 14, 1.2, 3.5, 0.07, 0.6);
@@ -9065,6 +9075,7 @@ DRUM_GRID.forEach(d => {
 function playDrum(d) {
   sfx.ensure();
   sfx.drum(d);
+  questAdd('jam');
   if (GUEST) guestNet.send({ t: 'drum', d });
   else toGuests({ t: 'jd', k: 'h', d });
   const pad = drumPads.querySelector(`[data-drum="${d}"]`);
@@ -9121,6 +9132,7 @@ function playPad(row, col, by) {
   // the host tells its guests.
   if (GUEST) { guestNet.send({ t: 'note', r: row, c: col, on: true, id }); if (by) jam.byRC.set(by, [row, col]); }
   else toGuests({ t: 'jn', k: 'h', by: by || 'x', hero: id, f: padFreq(row, col), sus: jam.sustain, on: true, hold: !!by });
+  questAdd('jam');
   const pad = padAt(row, col);
   pad.classList.remove('hit'); void pad.offsetWidth; pad.classList.add('hit');
   if (by) { jam.heldPads.get(by)?.classList.remove('held'); pad.classList.add('held'); jam.heldPads.set(by, pad); }   // stays lit while it's held
@@ -10358,6 +10370,7 @@ function applyLang() {
   showKeyBtn();
   drawNotice();
   if (eventOpen()) refreshEvent();
+  if (questsOpen()) refreshQuests();
   hud();
   setHint();
   if (pondOpen()) refreshPond();
@@ -10626,6 +10639,79 @@ for (const type of ['fullscreenchange', 'webkitfullscreenchange']) document.addE
 $('setClose').addEventListener('click', closeSettings);
 $('settings').addEventListener('click', e => { if (e.target.id === 'settings') closeSettings(); });
 
+// ---------- Daily Quests and Buddy Tokens ----------
+// Three new quests every day: two from the list, the same for everyone that day, as far as
+// their farm has what they need, and always one to do with a friend. Each pays one Buddy
+// Token, and quests are the only way to earn them. Quests and tokens are the player's own, so
+// they count on a friend's farm too, and neither is one of the FARM_KEYS.
+const QUESTS = { hop: 60, flowers: 15, fish: 3, sushi: 1, jam: 40, friend: 20 };   // how many it takes
+const questsOpen = () => $('quests').classList.contains('show');
+function questsToday() {
+  const day = new Date().toLocaleDateString('en-CA');   // this player's own date: YYYY-MM-DD
+  let q = store.get('bl-quests', null);
+  if (q?.day === day) return q;
+  const can = ['hop', 'flowers', farm.level >= 1 && 'fish', farm.sushiBuilt && 'sushi', farm.stageBuilt && 'jam'].filter(Boolean);
+  const dice = seeded(+day.replace(/-/g, '')), two = [];
+  while (two.length < 2) two.push(can.splice(Math.floor(dice() * can.length), 1)[0]);
+  q = { day, list: [...two, 'friend'].map(id => ({ id, n: 0 })) };
+  store.set('bl-quests', q);
+  return q;
+}
+function questAdd(id) {
+  const q = questsToday(), o = q.list.find(c => c.id === id);
+  if (!o || o.n >= QUESTS[id]) return;
+  o.n++;
+  store.set('bl-quests', q);
+  if (o.n === QUESTS[id]) {
+    store.set('bl-buddy', store.get('bl-buddy', 0) + 1);
+    questToast(id);
+  }
+  markQuests();
+}
+function questToast(id) {
+  const el = document.createElement('div');
+  el.className = 'questToast pill';
+  el.innerHTML = BUDDY_SVG + '<span></span>';
+  el.querySelector('span').textContent = t('quests.earned');
+  document.body.append(el);
+  setTimeout(() => el.remove(), 3200);
+  sfx.upgrade();
+}
+const BUDDY_SVG = $('questBtn').querySelector('svg').outerHTML;
+function markQuests() {
+  const left = questsToday().list.filter(o => o.n < QUESTS[o.id]).length;
+  $('questCount').textContent = left || '';
+  if (questsOpen()) refreshQuests();
+}
+function refreshQuests() {
+  $('buddyN').textContent = store.get('bl-buddy', 0);
+  $('questList').replaceChildren(...questsToday().list.map(({ id, n }) => {
+    const goal = QUESTS[id], li = document.createElement('li');
+    li.classList.toggle('done', n >= goal);
+    li.innerHTML = '<span class="questName"></span><span class="questN"></span><i class="questBar"><b></b></i>';
+    li.querySelector('.questName').textContent = t('quests.' + id, { n: goal });
+    if (n >= goal) li.querySelector('.questN').innerHTML = CHECK_SVG; else li.querySelector('.questN').textContent = n + '/' + goal;
+    li.querySelector('b').style.width = n / goal * 100 + '%';
+    return li;
+  }));
+}
+function openQuests() {
+  if (game.state !== 'farm') return;
+  closeHeroes(); closePond(); closeBunk(); closeBuilds(); closeStage(); closeEvent();
+  refreshQuests();
+  $('quests').classList.add('show');
+  game.picking = true;
+}
+function closeQuests() {
+  $('quests').classList.remove('show');
+  game.picking = anyPanel();
+}
+$('buddyIcon').innerHTML = BUDDY_SVG;
+$('questBtn').addEventListener('click', () => { sfx.ensure(); openQuests(); });
+$('questsClose').addEventListener('click', closeQuests);
+$('quests').addEventListener('click', e => { if (e.target.id === 'quests') closeQuests(); });
+markQuests();
+
 // ---------- Become a Hop Supporter ----------
 // The player gets a code (HOP-XXXXXX), supports on Ko-fi with it in their message,
 // and this panel asks the support worker every few seconds until it's paid. Lost
@@ -10845,6 +10931,7 @@ function pollPad() {
     return;
   }
   if (game.picking && photoOpen()) { if (menu($('photo'))) return; if (pressed(0)) savePhoto(); else if (pressed(1)) closePhoto(); return; }
+  if (game.picking && questsOpen()) { if (pressed(0) || pressed(1)) closeQuests(); return; }
   if (game.picking && eventOpen()) { if (menu(eventAsk() ? $('eventAsk') : $('event'))) return; if ((pressed(0) || pressed(9)) && eventAsk()) sayYes(); else if (pressed(1)) { if (eventAsk()) { closeAsk(); refreshEvent(); } else closeEvent(); } return; }
   if (game.picking && landOpen()) { if (menu($('land'))) return; if (pressed(0) || pressed(9)) buyLand(); else if (pressed(1)) closeLand(); return; }
   if (game.picking && bagOpen()) {   // d-pad chooses a fish, A one more, X one fewer, Y all, Start sells, B closes; asked to be sure: A sells, B keeps them
@@ -11086,4 +11173,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, syncTune, tuneSync, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, rowDice, flipLane, startReel, reelBeats, showCatch, sushi, dash, mealOf, feedSushi, openSushi, closeSushi, cookSushi, eatSushi, buySushi, startSushi, SUSHI, dropFlower, get pumpkins() { return pumpkins; }, get counting() { return counting; } };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, syncTune, tuneSync, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, questAdd, questsToday, openQuests, rowDice, flipLane, startReel, reelBeats, showCatch, sushi, dash, mealOf, feedSushi, openSushi, closeSushi, cookSushi, eatSushi, buySushi, startSushi, SUSHI, dropFlower, get pumpkins() { return pumpkins; }, get counting() { return counting; } };
