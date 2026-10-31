@@ -12,10 +12,17 @@
 const ICE = [{ urls: 'stun:stun.cloudflare.com:3478' }];
 
 // A full-screen note while connecting or when the host is away.
-function waitNote() {
+function waitNote(home, text) {
   const el = document.createElement('div');
   el.id = 'guestWait';
   el.innerHTML = '<div class="guestCard"><span class="guestDot"></span><p></p></div>';
+  if (home) {   // never stuck waiting: a way back to your own farm
+    const b = document.createElement('button');
+    b.className = 'chipBtn';
+    b.textContent = text('guest.home');
+    b.addEventListener('click', home);
+    el.firstChild.append(b);
+  }
   document.body.append(el);
   return {
     show(text) { el.querySelector('p').textContent = text; el.hidden = false; },
@@ -23,14 +30,14 @@ function waitNote() {
   };
 }
 
-export function joinFarm(room, relay, text, wantHero, about = () => ({})) {
+export function joinFarm(room, relay, text, wantHero, about = () => ({}), home = null) {
   let pid;
   try {
     pid = sessionStorage.getItem('bl-guest-pid');
     if (!pid) sessionStorage.setItem('bl-guest-pid', pid = crypto.randomUUID().replace(/-/g, ''));
   } catch { pid = crypto.randomUUID().replace(/-/g, ''); }
 
-  const note = waitNote();
+  const note = waitNote(home, text);
   let ws = null, retry = 0, ping = null, pc = null, dc = null, ended = false;
   let handler = null, first = null;
   const early = [];   // messages that came before the game was ready for them

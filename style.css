@@ -814,12 +814,14 @@ body.guest #phonesBtn, body.guest #partyBtn, body.guest #play { display: none !i
   background: rgba(36, 24, 48, .55);
 }
 #guestWait[hidden] { display: none; }
+#homeBtn { display: none; position: fixed; z-index: 5; left: calc(env(safe-area-inset-left) + 14px); bottom: calc(env(safe-area-inset-bottom) + 18px); }
+body.canGoHome.farm:not(.fishing, .swinging, .jamming) #homeBtn { display: block; }
 .guestCard {
-  max-width: 340px; display: flex; align-items: center; gap: 12px; padding: 16px 20px;
+  max-width: 340px; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px; padding: 16px 20px;
   background: var(--cream); color: var(--ink); border: 3px solid var(--ink); border-radius: 20px;
   font: 600 17px/1.35 Fredoka, 'Noto Sans SC', system-ui, sans-serif;
 }
-.guestCard p { margin: 0; }
+.guestCard p { margin: 0; flex: 1; min-width: 200px; }
 .guestDot { flex: none; width: 14px; height: 14px; border-radius: 50%; background: var(--leaf); animation: guestPulse 1.2s ease-in-out infinite; }
 @keyframes guestPulse { 50% { transform: scale(.6); opacity: .5; } }
 .partyChip b { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--c); border: 2px solid var(--ink); font-size: 11px; }
@@ -857,7 +859,7 @@ body.guest #phonesBtn, body.guest #partyBtn, body.guest #play { display: none !i
 .partyCode { margin: 0; font-size: 15px; font-weight: 600; }
 .partyCode b { font-size: 24px; letter-spacing: .12em; margin-left: 4px; }
 .partyCode b:empty, .partyCode:has(b:empty) { display: none; }
-.partyJoin { width: 100%; }
+.partyJoin { width: 100%; box-sizing: border-box; padding: 0 0 10px; border-top: 0; border-bottom: 2px dashed rgba(58, 36, 66, .2); }
 .joinRow { display: flex; gap: 8px; justify-content: center; }
 #joinCode {
   width: 8.5em; padding: 5px 12px 7px; border: 2.5px solid var(--ink); border-radius: 999px; background: #fff; color: var(--ink);

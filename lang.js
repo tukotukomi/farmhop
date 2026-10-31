@@ -57,7 +57,7 @@ export const STRINGS = {
     hintGuest: "Your friend's farm", hintGuestSub: 'Tap the grass to hop around',
     hintGuestPad: "Your friend's farm", hintGuestPadSub: 'D-pad: hop around · Y: hopper',
     guest: {
-      joining: "Joining your friend's farm…", waiting: 'Waiting for your friend to open Farm Hop…', reconnecting: 'Reconnecting…',
+      home: 'Back to my farm', joining: "Joining your friend's farm…", waiting: 'Waiting for your friend to open Farm Hop…', reconnecting: 'Reconnecting…',
       ended: 'Your friend stopped playing together. Thanks for hopping by!', full: 'This farm is full: four friends are already playing.',
       away: "Your friend is on the Jam Stage. Jamming together from afar is coming soon. You'll be back on the farm when they are.",
       nextDay: "Your friend's day on the road is ending. You'll hop along with them from the start of the next one.",
@@ -217,7 +217,7 @@ sushiBar: 'Sushi Bar', sushiPlan: 'Build a kitchen to cook your fish into sushi.
     hintGuest: 'La granja de tu amigo', hintGuestSub: 'Toca la hierba para saltar',
     hintGuestPad: 'La granja de tu amigo', hintGuestPadSub: 'Cruceta: saltar · Y: saltarín',
     guest: {
-      joining: 'Entrando a la granja de tu amigo…', waiting: 'Esperando a que tu amigo abra Farm Hop…', reconnecting: 'Reconectando…',
+      home: 'Volver a mi granja', joining: 'Entrando a la granja de tu amigo…', waiting: 'Esperando a que tu amigo abra Farm Hop…', reconnecting: 'Reconectando…',
       ended: 'Tu amigo dejó de jugar en grupo. ¡Gracias por pasar a saltar!', full: 'Esta granja está llena: ya hay cuatro amigos jugando.',
       away: 'Tu amigo está en el escenario. Tocar juntos a distancia llegará pronto. Volverás a la granja cuando vuelva.',
       nextDay: 'El día de tu amigo en el camino está terminando. Saltarás con él desde el comienzo del próximo.',
@@ -377,7 +377,7 @@ sushiBar: 'Barra de sushi', sushiPlan: 'Construye una cocina para convertir tus 
     hintGuest: '朋友的农场', hintGuestSub: '点草地跳来跳去',
     hintGuestPad: '朋友的农场', hintGuestPadSub: '方向键：跳来跳去 · Y：选角色',
     guest: {
-      joining: '正在进入朋友的农场…', waiting: '等待朋友打开 Farm Hop…', reconnecting: '正在重新连接…',
+      home: '回到我的农场', joining: '正在进入朋友的农场…', waiting: '等待朋友打开 Farm Hop…', reconnecting: '正在重新连接…',
       ended: '朋友已结束一起玩。谢谢你来跳一跳！', full: '这个农场已满：已经有四位朋友在玩了。',
       away: '朋友正在音乐舞台上。远程一起合奏即将推出。朋友回来时你也会回到农场。',
       nextDay: '朋友这一天的路程快结束了。从下一天开始你就能和他们一起跳。',

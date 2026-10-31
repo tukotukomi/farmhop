@@ -48,9 +48,12 @@ const heroName = id => t('heroes.' + id);
 const FARM_KEYS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-sushibar', 'bl-coins', 'bl-top', 'bl-dnb', 'bl-song', 'bl-land', 'bl-wide', 'bl-key', 'bl-scale', 'bl-pumpkins', 'bl-organ', 'bl-pond-skins', 'bl-pond-skin'];
 const joinArgs = new URLSearchParams(location.hash.slice(1));
 const GUEST = /^[A-Za-z0-9_-]{22,64}$/.test(joinArgs.get('join') || '') ? joinArgs.get('join') : null;
+// A signed-in guest has a farm of their own to go back to.
+const signedIn = () => { try { return !!JSON.parse(localStorage.getItem('tuko-signed-in')); } catch { return false; } };   // (set by account/tuko-account.js)
+const goHome = () => { history.replaceState(null, '', location.pathname + location.search); location.reload(); };
 const guestNet = GUEST && window.FARMHOP_RELAY_URL
   ? await joinFarm(GUEST, joinArgs.get('relay') || window.FARMHOP_RELAY_URL, t, () => { try { return sessionStorage.getItem('bl-guest-hero') || JSON.parse(localStorage.getItem('bl-hero')); } catch { return null; } },
-    () => { try { return { sup: !!JSON.parse(localStorage.getItem('bl-supporter')) }; } catch { return {}; } })
+    () => { try { return { sup: !!JSON.parse(localStorage.getItem('bl-supporter')) }; } catch { return {}; } }, signedIn() ? goHome : null)
   : null;
 let guestKeys = guestNet ? { ...guestNet.farm.keys, 'bl-owned-v2': true } : null;
 let guestKey = guestNet?.farm.me || null;   // which hopper on the farm is ours: 'p' + our slot
@@ -10163,6 +10166,8 @@ $('joinForm').addEventListener('submit', e => {
   location.reload();
 });
 $('joinCode').addEventListener('input', () => { $('joinNote').textContent = ''; });
+$('homeBtn').addEventListener('click', goHome);
+if (GUEST && signedIn()) document.body.classList.add('canGoHome');
 // A friend who opened the invite in Safari on an iPhone or iPad, where links don't
 // open the Home Screen app: tell them the code, in case they'd rather play there.
 if (GUEST && roomCode(GUEST) && /iPhone|iPad|iPod/.test(navigator.userAgent) && !navigator.standalone) {
