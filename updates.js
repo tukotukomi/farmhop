@@ -19,6 +19,7 @@ export const UPDATES = [
       'New: Daily Quests! Team up with a Buddy for three fresh quests every day, each one worth a Buddy Token.',
       'Spend 10 Buddy Tokens to turn your swing into a porch swing for two.',
       'The Pond menu now shows the name of your pond, with a Change Style button once you have more than one.',
+      'The farm view now follows you as you hop around, and zooms out to fit friends on the same screen.',
       'More sunflowers on the road, and the Sunny Roll now doubles them for the whole team.',
     ],
     es: {
@@ -34,6 +35,7 @@ export const UPDATES = [
         '¡Nuevo: Misiones diarias! Únete a un amigo para tres misiones cada día, y cada una vale una Ficha de Amigo.',
         'Gasta 10 Fichas de Amigo para convertir tu columpio en un columpio de porche para dos.',
         'El menú del estanque ahora lleva el nombre de tu estanque, con un botón Cambiar estilo si tienes más de uno.',
+        'La vista de la granja ahora te sigue mientras saltas, y se aleja para que quepan los amigos en la misma pantalla.',
         'Más girasoles en el camino, y el Rollo soleado ahora los duplica para todo el equipo.',
       ],
     },
@@ -50,6 +52,7 @@ export const UPDATES = [
         '新功能：每日任务！和伙伴一起完成每天三个新任务，每完成一个可得一枚伙伴币。',
         '花 10 枚伙伴币，把秋千升级成双人门廊秋千。',
         '池塘菜单现在显示你的池塘名称；拥有多种样式后，会出现“更换样式”按钮。',
+        '农场视角现在会跟着你跳动，同屏朋友走远时还会自动拉远。',
         '路上的向日葵变多了，阳光卷现在能让全队路上的向日葵翻倍。',
       ],
     },

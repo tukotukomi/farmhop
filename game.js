@@ -3693,10 +3693,11 @@ function updateCamera(dt) {
   markSplit();
   if (splitActive()) return updateSplit(dt, V);
   useCamera(V.ortho ? orthoCam : perspCam);
-  const zoom = game.where === 'farm' ? farmCam.zoom : 1;
+  if (game.where === 'farm') trackPlayers(dt);
+  const zoom = game.where === 'farm' ? farmCam.zoom * farmCam.fit : 1;
   if (orthoCam.zoom !== zoom) { orthoCam.zoom = zoom; orthoCam.updateProjectionMatrix(); }
   if (game.where === 'farm') {   // the farm: framed, but you can drag and zoom to look around; zoomed right out, the whole farm sits in the middle
-    const out = clamp((FARM_ZOOM0 - zoom) / (FARM_ZOOM0 - FARM_ZOOM[0]), 0, 1);
+    const out = clamp((FARM_ZOOM0 - farmCam.zoom) / (FARM_ZOOM0 - FARM_ZOOM[0]), 0, 1);
     _t.set(lerp(farmCam.x, viewMid(), out * out), 0, FARM_Z - 1.4 + farmCam.z);
   }
   else {
@@ -6887,11 +6888,46 @@ window.addEventListener('pointercancel', () => { press = null; P.held = false; }
 
 // ---------- exploring the farm: drag to look around, pinch or scroll to zoom, tap things ----------
 const FARM_ZOOM0 = 0.85;   // the farm starts a little zoomed out: there's a lot of it
-const farmCam = { x: 0, z: 0, zoom: FARM_ZOOM0 };
+const farmCam = { x: 0, z: 0, zoom: FARM_ZOOM0, fit: 1, chase: 0 };   // fit: how far it's zoomed out to keep everyone in; chase: how much longer it follows
 const FARM_PAN = { x0: -12, x1: WIDE_X1 + 4.8, z0: -12, z1: 10 }, FARM_ZOOM = [0.35, 1.7];   // room to look out over the countryside
 const touches = new Map();   // pointerId -> {x, y}
 let farmTap = null, pinch = 0;
 const _ray = new THREE.Raycaster(), _ndc = new THREE.Vector2(), GROUND = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+// Hopping towards the edge of the screen, the view comes along: everyone playing on this device
+// stays inside these bounds, which are clear of the buttons (-1 to 1 across the screen). If
+// they split up it zooms out to fit them, and back in as they come together. It only follows
+// while someone's on the move, so a parked farm can still be dragged around and looked at.
+const TRACK = { x: 0.78, up: 0.66, down: -0.6 };
+const _tp = new THREE.Vector3(), _tq = new THREE.Vector3(), _tr = new THREE.Vector3();
+const farmPlayers = () => (farm.walkers || []).filter(w => !w.hidden && (w.key === myKey() || (!GUEST && isPlayerKey(w.key) && !party.players.get(+w.key.slice(1))?.guest)));
+function trackPlayers(dt) {
+  if (!dt || decor.on || game.state !== 'farm') return;
+  if (touches.size) { farmCam.chase = 0; return; }   // the player's own finger has the view
+  const who = farmPlayers();
+  if (who.some(w => w.leap || w.goal)) farmCam.chase = 0.8;
+  else if ((farmCam.chase -= dt) <= 0) return;
+  if (!who.length) return;
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const w of who) {
+    w.m.group.getWorldPosition(_tp).project(camera);
+    x0 = Math.min(x0, _tp.x); x1 = Math.max(x1, _tp.x);
+    y0 = Math.min(y0, _tp.y); y1 = Math.max(y1, _tp.y);
+  }
+  const over = Math.max((x1 - x0) / (2 * TRACK.x), (y1 - y0) / (TRACK.up - TRACK.down));
+  const fit = who.length < 2 ? 1 : clamp(farmCam.fit * 0.92 / Math.max(over, 0.01), FARM_ZOOM[0] / farmCam.zoom, 1);
+  farmCam.fit += (fit - farmCam.fit) * Math.min(1, dt * 2);
+  const off = (lo, hi, a, b) => hi - lo > b - a ? (lo + hi) / 2 - (a + b) / 2 : hi > b ? hi - b : lo < a ? lo - a : 0;
+  const dx = off(x0, x1, -TRACK.x, TRACK.x), dy = off(y0, y1, TRACK.down, TRACK.up);
+  if (!dx && !dy) return;
+  _ray.setFromCamera(_ndc.set(dx, dy), camera);
+  const a = _ray.ray.intersectPlane(GROUND, _tq);
+  _ray.setFromCamera(_ndc.set(0, 0), camera);
+  const b = _ray.ray.intersectPlane(GROUND, _tr);
+  if (!a || !b) return;
+  const k = Math.min(1, dt * 6);
+  farmCam.x = clamp(farmCam.x + (a.x - b.x) * k, FARM_PAN.x0, FARM_PAN.x1);
+  farmCam.z = clamp(farmCam.z + (a.z - b.z) * k, FARM_PAN.z0, FARM_PAN.z1);
+}
 function groundAt(x, y, out) {
   _ndc.set(x / window.innerWidth * 2 - 1, -(y / window.innerHeight) * 2 + 1);
   _ray.setFromCamera(_ndc, camera);
@@ -11277,4 +11313,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, syncTune, tuneSync, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, buyPorch, questAdd, questsToday, openQuests, rowDice, flipLane, startReel, reelBeats, showCatch, sushi, dash, mealOf, feedSushi, openSushi, closeSushi, cookSushi, eatSushi, buySushi, startSushi, SUSHI, dropFlower, get pumpkins() { return pumpkins; }, get counting() { return counting; } };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, syncTune, tuneSync, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, trackPlayers, farmPlayers, buyPorch, questAdd, questsToday, openQuests, rowDice, flipLane, startReel, reelBeats, showCatch, sushi, dash, mealOf, feedSushi, openSushi, closeSushi, cookSushi, eatSushi, buySushi, startSushi, SUSHI, dropFlower, get pumpkins() { return pumpkins; }, get counting() { return counting; } };
