@@ -3321,7 +3321,7 @@ function land(h = P) {
   const coin = !h.remote && lane.coins.find(c => c.c === h.x);   // a friend's device reports their own pickups, and they're shared by the whole team
   if (coin) pickUp(h, lane, coin);
   if (mealOf(h) === 'magnet') for (const o of lane.coins.filter(c => !c.spooky)) pickUp(h, lane, o);   // the Magnet Roll: the whole row
-  if (h === P && h.r > (P.far || 0)) {   // this player's own new ground (a friend may be ahead, so not the team's score)
+  if (!h.remote && h.r > (P.far || 0)) {   // new ground for this screen's players, phones included (a friend on their own device may be ahead, so not the team's score)
     P.far = h.r;
     if (buddyHere()) questAdd('hop');
   }
@@ -4833,7 +4833,7 @@ function feedSushi(slot, id) {
   sushiStock[id]--;
   store.set(SUSHI_KEY, sushiStock);
   pl.eat = id;
-  if (pl.guest) questAdd('sushi');
+  questAdd('sushi');
   partySend(slot, { t: 'fed', id });
   sfx.upgrade();
   refreshSushi();
@@ -7736,7 +7736,7 @@ function logFish(id, cm) {   // into this device's Fish Book: is it a new kind, 
 function landFish(f) {
   const sp = f.sp, cm = Math.round(sp.cm[0] + (sp.cm[1] - sp.cm[0]) * Math.random() ** 1.6);
   const rec = logFish(sp.id, cm);
-  if (f.key === myKey() && buddyHere()) questAdd('fish');
+  if (buddyHere() && (f.key === myKey() || (isPlayerKey(f.key) && !party.players.get(+f.key.slice(1))?.guest))) questAdd('fish');
   if (sp.price) addToBag(sp.id);   // to sell from the Fish Pond, or craft with
   showCatch(f.w, sp, cm, rec);
   burst(f.rig.bx, 0.1, FARM_Z + f.rig.bz, [0xffffff, 0xbfe9ff, 0xffd23f], 14, 1.2, 3.5, 0.07, 0.6);
@@ -9676,6 +9676,7 @@ function onPlayer(slot, m, direct = false) {
   else if (m.t === 'note') {
     const r = clamp(m.r | 0, 0, JAM_ROWS - 1), c = clamp(m.c | 0, 0, padCols() - 1), key = 'r' + slot + '-' + r + '-' + c;
     if (!m.on) { letGo(key); toGuests({ t: 'jn', k, by: key, on: false }, others); return; }
+    if (!pl.guest) questAdd('jam');
     sfx.ensure();
     const f = noteFreq(pl.oct, r, c), id = m.id === 'organ' || anyHero(m.id) ? m.id : pl.hero;   // the voice they're playing: their hopper's, or the Spooky Organ's
     if (id !== 'organ') sfx.voice(id, f, true);
@@ -9688,6 +9689,7 @@ function onPlayer(slot, m, direct = false) {
     toGuests({ t: 'jn', k, by: key, hero: id, f, sus: pl.sus, on: true, hold: true }, others);
   } else if (m.t === 'drum') {
     const d = clamp(m.d | 0, 0, 7);
+    if (!pl.guest) questAdd('jam');
     sfx.ensure();
     sfx.drum(d);
     pl.kick = 1;
@@ -9986,6 +9988,7 @@ function assign(slot, hero) {
   if (old?.m) { jam.scene?.remove(old.m.group); disposeHero(old.m); }
   const pl = { hero, oct: 0, sus: 0.35, drums: false, kick: 0, m: null, banjo: null, stage: !!old?.stage, eat: old?.eat || null, guest: !!old?.guest, local: old?.local || null, col: old?.col ?? freeColor(slot), sup: !!old?.sup };
   party.players.set(slot, pl);
+  if (!pl.guest) questAdd('visit');   // they came over in person: same screen, or a phone
   if (old?.road) dropFromRoad(old);
   partySend(slot, { t: 'joined', hero, pad: HEROES.find(h => h.id === hero).pad, drums: ownedDecor.has('drums'), mark: MARK_CSS[pl.col] });
   partySend(slot, { t: 'view', v: currentView(), score: game.score });
@@ -10639,14 +10642,14 @@ $('setClose').addEventListener('click', closeSettings);
 $('settings').addEventListener('click', e => { if (e.target.id === 'settings') closeSettings(); });
 
 // ---------- Daily Quests and Buddy Tokens ----------
-// Three new quests every day, all done with a Buddy: someone on their own device visiting
-// your farm, or you visiting theirs. Two come from the list, the same for everyone that day, as
-// far as their farm has what they need, and the third is always to visit a Buddy's farm. Each
+// Three new quests every day, all done with a Buddy: anyone playing alongside you, on the same
+// screen, on a phone, or on their own device on your farm or you on theirs. Two come from the list, the same for everyone that day, as
+// far as their farm has what they need, and the third is always a visit: going to a Buddy's farm, or one coming over to play in person. Each
 // pays one Buddy Token, and quests are the only way to earn them. Quests and tokens are the
 // player's own, so they count on a friend's farm too, and neither is one of the FARM_KEYS.
 const QUESTS = { hop: 60, flowers: 15, fish: 3, sushi: 1, jam: 40, visit: 1 };   // how many it takes
-const buddyHere = () => !!GUEST || guests().length > 0;
-const buddyOnStage = () => GUEST ? jam.band.size > 0 : guests().some(([, p]) => onStage(p));
+const buddyHere = () => !!GUEST || [...party.players.values()].some(p => p.hero);
+const buddyOnStage = () => GUEST ? jam.band.size > 0 : bandOf().length > 0;
 const questsOpen = () => $('quests').classList.contains('show');
 function questsToday() {
   const day = new Date().toLocaleDateString('en-CA');   // this player's own date: YYYY-MM-DD
