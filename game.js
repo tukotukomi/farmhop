@@ -4707,12 +4707,15 @@ const organOwned = () => store.get('bl-organ', false);
 // Sushi: cooked from the Fish Backpack at the Sushi Bar. Eat one and it lasts your whole next
 // round; only one at a time, so the next can't be eaten till you've been out hopping.
 const SUSHI = [
-  { id: 'sunny', col: '#ffd23f', fish: { minnow: 3, picklefish: 1, mudmuffin: 1 } },
-  { id: 'magnet', col: '#ff7fb8', fish: { guppy: 2, candystripe: 1, haybelly: 1, banjofin: 1 } },
-  { id: 'spare', col: '#7ad653', fish: { bluegill: 1, buttonfish: 1, koi: 1, tractortail: 1, cloudfin: 1 } },
-  { id: 'zoom', col: '#7fd0ff', fish: { goldfish: 1, whiskers: 1, shiner: 1, thunderbelly: 1, ribbon: 1 } },
-  { id: 'midnight', col: '#8a5cff', fish: { fireflyfry: 1, snoozefin: 1, lanternfish: 1, wispfin: 1 } },
+  { id: 'sunny', col: '#ffd23f', fish: { minnow: 2 } },
+  { id: 'magnet', col: '#ff7fb8', fish: { guppy: 1, picklefish: 1 } },
+  { id: 'spare', col: '#7ad653', fish: { bluegill: 1, buttonfish: 1 } },
+  { id: 'zoom', col: '#7fd0ff', fish: { goldfish: 1, candystripe: 1 } },
+  { id: 'midnight', col: '#8a5cff', fish: { fireflyfry: 1, snoozefin: 1 } },
 ];
+// Saved for a bigger menu later, not in any recipe yet: Mud Muffin, Koi, Haybelly, Grandpa
+// Whiskers, Banjofin, Lanternfish, Tractortail, Sunflower Shiner, Cloudfin, Thunderbelly,
+// Rainbow Ribbon and Wispfin.
 const SUSHI_KEY = 'bl-sushi', SUSHI_NEXT = 'bl-sushi-next', DASH_ROWS = 10, DASH_MAX = 2, DASH_CD = 30, STOP_EVERY = 60, STOP_LEN = 10;
 let sushiStock = store.get(SUSHI_KEY, {});   // id -> how many are cooked
 const sushi = { on: null, life: false, rise: false, stops: false, charges: 0, cd: 0, stopIn: 0 };   // the one being enjoyed this round (life and stops: anyone's, for the team)
@@ -4928,6 +4931,7 @@ function buildSushi() {
   if (!g) return;
   clearPiece(g);
   const v = new VB(0.6), OAK = 0xd9b98a, OAK_D = 0xb8925f, WHITE = 0xf4f1ea, STEEL = 0xb9c0c7, DARK = 0x3a3440;
+  g.userData.chef = null;
   if (!farm.sushiBuilt) {   // a plot with a sign that has a fish on it
     v.rbox(2.7, 0.05, 1.7, 0, 0, 0, 0xc9a06a, 0.2);
     for (const [x, z] of [[-1.3, -0.8], [1.3, -0.8], [1.3, 0.8], [-1.3, 0.8]]) {
@@ -4978,13 +4982,85 @@ function buildSushi() {
   v.cyl(0.05, 0.06, 0.1, 1.05, 0.9, 0.26, WHITE);                              // and a little plant
   v.ball(0.09, 0.1, 0.09, 1.05, 1.02, 0.26, 0x6cbf3f);
   g.add(v.mesh());
+  // The lights: the pendants and a string of warm fairy bulbs swagged along the beam. They
+  // glow softly after dark, and pool a little warm light over the bar.
   const warm = new VB(0.6);
   for (const x of [-0.8, 0, 0.8]) warm.ball(0.04, 0.03, 0.04, x, 1.11, 0.3, 0xfff1c4);
+  const bulbs = [];
+  for (const [a, b] of [[-1.3, 0], [0, 1.3]]) for (let i = 0; i <= 7; i++) {   // two swags, meeting in the middle
+    const u = i / 7;
+    if (a === 0 && !i) continue;
+    bulbs.push([a + (b - a) * u, 1.5 - Math.sin(u * Math.PI) * 0.09]);
+  }
+  for (const [x, y] of bulbs) {
+    warm.ball(0.02, 0.028, 0.02, x, y, 0.33, 0xffe6a8);
+    glowAt(g, x, y, 0.34, 0xffe6a8, 0.17);
+  }
   const lit = warm.mesh(MARKER_MAT);
   lit.castShadow = false;
   lit.layers.set(GLOW_LAYER);
   g.add(lit);
   for (const x of [-0.8, 0, 0.8]) glowAt(g, x, 1.08, 0.3, 0xfff1c4, 0.5);
+  const pool = new THREE.Object3D();
+  pool.position.set(0, 0.8, 0.3);
+  g.add(pool);
+  lamps.push({ o: pool, r: 1.7, s: 0.55, y: 0.8 });
+  // The sign, up on the roofline: cream letters on dark walnut, with a soft glow behind.
+  const board = new VB(0.6);
+  board.rbox(1.24, 0.34, 0.05, 0, 1.84, -0.55, 0x4a3a2c, 0.02);
+  for (const x of [-0.45, 0.45]) board.rbox(0.05, 0.06, 0.05, x, 1.64, -0.55, OAK_D, 0.01);
+  g.add(board.mesh());
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 128;
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const paint = () => {
+    const k = c.getContext('2d');
+    k.fillStyle = '#4a3a2c';
+    k.fillRect(0, 0, 512, 128);
+    k.fillStyle = '#fff1d0';
+    k.font = '700 84px Fredoka, system-ui, sans-serif';
+    k.textAlign = 'center';
+    k.textBaseline = 'middle';
+    k.fillText(t('sushi.sign'), 256, 68);
+    tex.needsUpdate = true;
+  };
+  paint();
+  document.fonts?.load('700 84px Fredoka').then(paint).catch(() => {});
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.18, 0.295), new THREE.MeshBasicMaterial({ map: tex }));
+  sign.position.set(0, 1.84, -0.522);
+  sign.userData.tag = true;
+  g.add(sign);
+  glowAt(g, 0, 1.84, -0.6, 0xfff1d0, 1.7);
+  g.userData.chef = buildChef(g);
+}
+// Chef Salmón, always at the bar: a Spanish grizzly in his whites and tall hat, with a red
+// and gold neckerchief and a neat moustache.
+function buildChef(g) {
+  const FUR = 0x7a4f2c, FUR_D = 0x54341b, MUZZLE = 0xdcb88e, WHITE = 0xfaf7ef, v = new VB(0.6), chef = new THREE.Group();
+  v.ball(0.27, 0.34, 0.21, 0, 0.62, 0, WHITE);                                 // his chef's jacket
+  for (const y of [0.5, 0.62, 0.74]) v.ball(0.016, 0.016, 0.01, 0, y, 0.205, 0x8a8f98);
+  for (const s of [-1, 1]) {
+    v.ball(0.085, 0.2, 0.085, s * 0.27, 0.68, 0.08, WHITE, -0.7, 0, s * 0.35);  // arms, reaching for the board
+    v.ball(0.075, 0.06, 0.08, s * 0.2, 0.84, 0.25, FUR);                       // paws
+  }
+  v.torus(0.135, 0.03, Math.PI * 2, 0, 0.92, 0, 0xc8102e, Math.PI / 2, 0, 0);   // his neckerchief
+  v.ball(0.04, 0.035, 0.03, 0, 0.9, 0.14, 0xffc400);
+  v.ball(0.21, 0.2, 0.2, 0, 1.09, 0, FUR);                                     // head
+  v.ball(0.1, 0.075, 0.09, 0, 1.04, 0.17, MUZZLE);
+  v.ball(0.038, 0.028, 0.025, 0, 1.08, 0.255, 0x2a1c14);                       // nose
+  for (const s of [-1, 1]) {
+    v.ball(0.07, 0.07, 0.04, s * 0.17, 1.26, 0, FUR);                          // round ears
+    v.ball(0.04, 0.04, 0.02, s * 0.17, 1.26, 0.03, MUZZLE);
+    v.ball(0.019, 0.022, 0.012, s * 0.08, 1.15, 0.18, 0x20140e);               // eyes
+    v.ball(0.05, 0.012, 0.018, s * 0.05, 1.03, 0.25, FUR_D, 0, 0, s * 0.3);     // moustache
+  }
+  v.cyl(0.13, 0.12, 0.09, 0, 1.28, 0, WHITE);                                  // his tall hat
+  v.ball(0.18, 0.11, 0.18, 0, 1.38, 0, WHITE);
+  chef.add(v.mesh());
+  chef.position.set(0.42, 0.08, -0.14);
+  g.add(chef);
+  return chef;
 }
 function stageK() { return farm.stageBuilt && ownedDecor.has('bigstage') ? BIG_STAGE : 1; }
 function buildStage() {
@@ -5479,6 +5555,11 @@ function updateFarm(dt) {
     burst(_fw.x, 0.65, _fw.z, [0xbfe9ff, 0xffffff], 1, 0.35, 3.2, 0.07, 0.6, true);
   }
   for (const p of Object.values(farm.pieces)) p.update?.(t);
+  const chef = farm.sushi?.userData.chef;
+  if (chef) {   // Chef Salmón, busy at the board
+    chef.position.y = 0.08 + Math.abs(Math.sin(t * 2.4)) * 0.014;
+    chef.rotation.y = Math.sin(t * 0.6) * 0.28;
+  }
   updateTorches(t);
   stageShows(dt);
   updateWalkers(dt, t);
