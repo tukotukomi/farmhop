@@ -5,7 +5,7 @@
 (`?client_reference_id=HOP-7KQ3MX`), so there's nothing to paste. Or they support on
 Ko-fi (ko-fi.com/funbytuko) with the code in their message. Stripe or Ko-fi tells
 this worker. The game asks `/check` every few seconds and
-unlocks: DJ Ribbit and Moonbun, the supporter heart, and the drum and bass farm song.
+unlocks: DJ Ribbit and Moonbun, the supporter heart, and the Drum & Bass, Farm House and Psy Farm songs.
 See `worker.js` for the endpoints. Emails are only kept as a SHA-256 hash, so a
 supporter can restore on a new device with the email they used on Ko-fi.
 

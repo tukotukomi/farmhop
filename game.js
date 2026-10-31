@@ -4,7 +4,7 @@
 // the cells outside the playable strip are shaded darker, like Crossy Road.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { createMusic, breakHit, SCALES, inScale } from './music.js';
+import { createMusic, breakHit, SCALES, SONGS, inScale } from './music.js';
 import { STRINGS, LANGS } from './lang.js';
 import { joinFarm } from './guest.js';
 import { createAccount } from './account/tuko-account.js';
@@ -45,7 +45,7 @@ const heroName = id => t('heroes.' + id);
 // before anything reads a setting, wait for the host to send it (guest.js). The
 // farm's settings then come from the host and are only kept in memory, so this
 // device's own farm is never touched.
-const FARM_KEYS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-sushibar', 'bl-coins', 'bl-top', 'bl-dnb', 'bl-land', 'bl-wide', 'bl-key', 'bl-scale', 'bl-pumpkins', 'bl-organ', 'bl-pond-skins', 'bl-pond-skin'];
+const FARM_KEYS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-sushibar', 'bl-coins', 'bl-top', 'bl-dnb', 'bl-song', 'bl-land', 'bl-wide', 'bl-key', 'bl-scale', 'bl-pumpkins', 'bl-organ', 'bl-pond-skins', 'bl-pond-skin'];
 const joinArgs = new URLSearchParams(location.hash.slice(1));
 const GUEST = /^[A-Za-z0-9_-]{22,64}$/.test(joinArgs.get('join') || '') ? joinArgs.get('join') : null;
 const guestNet = GUEST && window.FARMHOP_RELAY_URL
@@ -1245,7 +1245,7 @@ function buildMoonbun() {   // Moonbun: a lavender bunny with a crescent-moon cl
 
 // ---------- Hop Supporters ----------
 // $5 on Ko-fi (see support/): supporters get DJ Ribbit and Moonbun, a badge, and the
-// drum and bass version of the farm tune, which their guests hear too. bl-supporter
+// drum and bass, house and psytrance versions of the farm tune, which their guests hear too. bl-supporter
 // holds their code once it's paid; bl-sup-pending the one they're paying with.
 const SUPPORT_URL = (new URLSearchParams(location.search).get('support') || window.FARMHOP_SUPPORT_URL || '').replace(/\/$/, '');
 const KOFI_URL = 'https://ko-fi.com/funbytuko';
@@ -2617,6 +2617,7 @@ function missedSpooky() {
   planSpooky(8, 16);
 }
 function updateSpooky(dt) {
+  keepTempo();
   updateWave(dt);
   const road = game.where === 'road';
   if (spooky.on && road && (game.state === 'play' || game.state === 'title')) { spooky.t -= dt; if (spooky.t <= 0 && !GUEST) endSpooky(); }
@@ -7588,7 +7589,13 @@ function stepFisher(f, dt) {
 // level 1 is plain quarter notes; then eighths, off-beats, dotted rhythms, and at
 // the top, runs of sixteenths. Harder fish also have a tighter window and allow
 // fewer misses. A tap with no note at the ring costs the next one.
-const BEAT = 60 / 84, SIXTEENTH = BEAT / 4, BAR = 4 * BEAT;   // the song's beat (84 BPM), four to the bar
+let BEAT = 60 / 84, BAR = 4 * BEAT, LOOP_S = 512 * BEAT / 4;   // the song's beat, four to the bar, and its 32-bar loop (they follow the song's tempo)
+function keepTempo() {
+  if (!music || music.beat === BEAT) return;
+  BEAT = music.beat;
+  BAR = 4 * BEAT;
+  LOOP_S = music.loop;
+}
 const reelBeats = lvl => lvl < 2 ? 4 : lvl < 6 ? 8 : lvl < 8 ? 12 : 16;   // whole bars, so a reel lines up with the song's own measures: one for the easiest fish, four for the hardest
 const songNow = () => performance.now() / 1000;
 // One beat's worth of rhythm each: which sixteenths of the beat have a note (0 is
@@ -7634,6 +7641,7 @@ function startReel(f) {
   const toBar = BAR - h.pos % BAR, start = h.at + (toBar < 2 * BEAT ? toBar + BAR : toBar);   // on the next downbeat at least a couple of beats away: the first note is always the "1"
   const dnb = music?.style === 'dnb';
   const steps = dnb ? breakRhythm(lvl, music.stepAt(h.pos + start - h.at)) : fishRhythm(lvl), notes = [];
+  const beat = BEAT * (BEAT < 0.5 ? 2 : 1), SIXTEENTH = beat / 4;   // the fast songs fish at half time: sixteenths at 144 would be more taps than fingers can do
   const lane = f.ui.querySelector('.lane');
   lane.classList.toggle('dnb', dnb);
   lane.querySelectorAll('.note').forEach(e => e.remove());
@@ -7647,7 +7655,7 @@ function startReel(f) {
   const fast = steps.some(s => s % 2) ? 2 : steps.some(s => s % 4) ? 3 : 4;   // closer notes: the lane shows fewer beats, so they spread out
   const k = (lvl - 1) / 8;
   f.g = {
-    notes, ahead: fast * BEAT,
+    notes, ahead: fast * beat, tempo: BEAT,
     win: Math.min(0.2 - k * 0.11, SIXTEENTH * 0.48),            // 0.2 s either side down to under half a sixteenth
     need: Math.ceil(notes.length * (0.5 + k * 0.35)),           // half the notes, up to 85%
     hits: 0, miss: 0, sung: 0, offs: [], off: 0,
@@ -7658,7 +7666,7 @@ function startReel(f) {
 // lining up with the host's, say), they shift with it.
 function lockReel(g) {
   const h = music?.heard(), first = g.notes.find(n => !n.done);
-  if (!h || !first) return;
+  if (!h || !first || g.tempo !== BEAT) return;   // (the song changed under this reel: the notes just carry on)
   let gap = (first.pos - h.pos) % LOOP_S;
   if (gap > LOOP_S / 2) gap -= LOOP_S;
   if (gap < -LOOP_S / 2) gap += LOOP_S;
@@ -8498,7 +8506,6 @@ function setKeyScale(sc) {
 const nextScale = d => { const all = SHOP_SCALES; setKeyScale(all[(all.indexOf(keyScale) + d + all.length) % all.length]); };
 $('tabDecor').addEventListener('click', () => setShopTab('decor'));
 $('tabMusic').addEventListener('click', () => setShopTab('music'));
-const STEP_SEC = 60 / 84 / 2;   // an eighth note of the farm tune (84 BPM)
 function buyKey(i) {
   const id = keyId(i, keyScale), n = SONG_KEYS[i][1], sc = keyScale, owned = ownedKeys();
   if (!owned.has(id)) {
@@ -8522,7 +8529,7 @@ function useKey(n, sc) {
   const wait = music?.setKey(tuneN, tuneSc) ?? 0;
   // Right as the tune changes key, your hopper sings up its chord: the root, third, fifth and octave.
   const deg = SCALES[tuneSc].deg;
-  [0, 4 + deg[2], 7 + deg[4], 12].forEach((st, j) => sfx.note(heroId, 293.66 * 2 ** ((tuneN + st) / 12), wait + j * STEP_SEC));
+  [0, 4 + deg[2], 7 + deg[4], 12].forEach((st, j) => sfx.note(heroId, 293.66 * 2 ** ((tuneN + st) / 12), wait + j * BEAT / 2));
   showKeyBtn();
   return true;
 }
@@ -9841,7 +9848,6 @@ function bandDrum(m) {
   if (pl) pl.kick = 1;
   floatNote(DRUM_COLORS[d], pl?.m?.group.position.x);
 }
-const LOOP_S = 512 * 60 / 84 / 4;   // the tune's 32-bar loop, in seconds (music.js)
 // Guest: keep our tune with the host's, wherever we each are in the game. Every couple of
 // seconds we ask where theirs is and time the round trip: a quick trip means an accurate
 // answer, and half of it is how old that answer was. Each side's own speaker delay is
@@ -9952,7 +9958,7 @@ function farmSnap(slot) {   // the farm's settings, which hopper they're playing
   for (const k of FARM_KEYS) { const v = store.get(k, null); if (v !== null) keys[k] = v; }
   keys['bl-hero'] = party.players.get(slot)?.hero || 'betty';
   if (supporter) keys['bl-owned'] = [...new Set([...(keys['bl-owned'] || []), ...SUP_HEROES])];   // a supporter's own hoppers live here too
-  keys['bl-dnb'] = songStyle() === 'dnb';
+  keys['bl-song'] = songStyle();
   return { keys, me: 'p' + slot, walkers: farm.walkers ? crewList() : [] };
 }
 const anyHero = id => HEROES.some(h => h.id === id);
@@ -10308,7 +10314,7 @@ function renderSettings() {
   $('supBtn').hidden = supporter;
   $('supHave').hidden = !supporter;
   $('songRow').hidden = !supporter || !!GUEST;   // on a friend's farm, the farm's song is theirs to pick
-  if (supporter && !GUEST) segment($('segSong'), t('sup.songs'), songStyle() === 'dnb' ? 1 : 0, i => setSong(!!i));
+  if (supporter && !GUEST) segment($('segSong'), t('sup.songs'), SONGS.indexOf(songStyle()), i => setSong(SONGS[i]));
   const nav = document.body.classList.contains('pad') || document.body.classList.contains('keys');
   document.querySelectorAll('.setRow').forEach(r => r.classList.toggle('focus', nav && r.dataset.row === SET_ROWS[setFocus]));
 }
@@ -10420,7 +10426,7 @@ function settingsNav(dir) {
   else if (row === 'hand') setLefty(!lefty);
   else if (row === 'gfx') setGfx(GFX_CHOICES[(GFX_CHOICES.indexOf(gfx) + d + GFX_CHOICES.length) % GFX_CHOICES.length]);
   else if (row === 'acct') { if (!account.state.user) account.signIn().catch(accountError); }
-  else if (row === 'sup') { if (supporter && !GUEST) setSong(songStyle() !== 'dnb'); else if (!supporter) openSupport(); }
+  else if (row === 'sup') { if (supporter && !GUEST) setSong(SONGS[(SONGS.indexOf(songStyle()) + 1) % SONGS.length]); else if (!supporter) openSupport(); }
 }
 for (const [id, which] of [['volMusic', 'music'], ['volFx', 'fx']]) {
   $(id).addEventListener('input', e => {
@@ -10451,7 +10457,7 @@ $('latHelp').addEventListener('click', () => { sfx.ensure(); openTap(); });
 // and two beats a little apart pull the ear off), each sound set on the audio clock to
 // reach the ears right on its beat. Each tap is compared with that moment; the middle
 // of those differences (leaving out any wild ones) is your latency.
-const TAP_BEAT = BEAT, TAP_COUNT = 4, TAP_BEATS = 12;
+const TAP_COUNT = 4, TAP_BEATS = 12;
 const tapOpen = () => $('tapHelp').classList.contains('show');
 const tap = { run: 0, beats: [], taps: [], timers: [], result: null };
 const tapNow = () => performance.now() / 1000;
@@ -10496,7 +10502,7 @@ function tapStart() {
   let first = h ? h.at + (BEAT - h.pos % BEAT) : tapNow() + 0.8;
   while (first - tapNow() < 0.8) first += BEAT;
   for (let k = 0; k < TAP_COUNT + TAP_BEATS; k++) {
-    const heard = first + k * TAP_BEAT;
+    const heard = first + k * BEAT;
     tap.beats[k] = heard;
     // The hop takes off before the beat and lands on it (92% of the way through tapHop).
     later(heard - 0.32 * 0.92, () => {
@@ -10513,7 +10519,7 @@ function tapStart() {
       }
     });
   }
-  later(first + (TAP_COUNT + TAP_BEATS) * TAP_BEAT + 0.5, tapFinish);
+  later(first + (TAP_COUNT + TAP_BEATS) * BEAT + 0.5, tapFinish);
 }
 function tapHit(at) {   // at: when the tap happened (seconds, performance clock)
   const pad = $('tapPad');
@@ -10533,7 +10539,7 @@ function tapFinish() {
   const beats = tap.beats.slice(TAP_COUNT).filter(Boolean), offs = [];
   for (const at of tap.taps) {
     const near = beats.reduce((b, x) => Math.abs(x - at) < Math.abs(b - at) ? x : b, Infinity);
-    if (Math.abs(at - near) < TAP_BEAT * 0.45) offs.push(at - near);
+    if (Math.abs(at - near) < BEAT * 0.45) offs.push(at - near);
   }
   offs.sort((a, b) => a - b);
   const mid = offs[offs.length >> 1], keep = offs.filter(o => Math.abs(o - mid) < 0.09);
@@ -10621,10 +10627,13 @@ $('settings').addEventListener('click', e => { if (e.target.id === 'settings') c
 // it? Their code, or the email they used on Ko-fi, brings it back.
 const supportOpen = () => $('support').classList.contains('show');
 let supTimer = null;
-function songStyle() { return (GUEST || supporter) && store.get('bl-dnb', false) ? 'dnb' : 'classic'; }
+function songStyle() {
+  const song = store.get('bl-song', store.get('bl-dnb', false) ? 'dnb' : 'classic');   // (bl-dnb: from when there were only the two)
+  return (GUEST || supporter) && SONGS.includes(song) ? song : 'classic';
+}
 function applySong() { music?.setStyle(songStyle()); music?.setKey(songKey(), music.haunted ? 'spooky' : songScale()); }
-function setSong(on) {
-  store.set('bl-dnb', on);   // a farm setting: the guests on this farm hear it too
+function setSong(song) {
+  store.set('bl-song', song);   // a farm setting: the guests on this farm hear it too
   applySong();
   renderSettings();
 }

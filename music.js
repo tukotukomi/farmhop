@@ -5,16 +5,22 @@
 // echo and a soft reverb. D major, 84 BPM, 32 bars (about 90 s) on a loop:
 // A (band only), A (fiddle comes in), B, A.
 //
-// Hop Supporters can switch to a drum and bass version: the same chords, banjo
-// and fiddle over a two-step break at double time (168), a reese bass, and no swing.
+// Hop Supporters can switch to other versions, all the same chords and fiddle tune:
+// drum and bass (a two-step break at double time, 168, a reese bass, no swing), Farm
+// House (minimal house at 125) and Psy Farm (psytrance at 144). The tempo changes over
+// on a bar line, and the song carries on from the same bar.
 //
 // Players can buy other keys and scales: setKey(n, scale) moves every note n semitones
 // (-6..5) from D and into the scale (see SCALES), on a bar line, and the game's hopper
 // sounds follow the same key (see `key` and `scale`).
 
-const BPM = 84;
-const STEP = 60 / BPM / 4;          // one sixteenth note, in seconds
 const SWING = 0.06;                 // a touch of lilt on the off-sixteenths
+const STYLES = {
+  classic: { bpm: 84, swing: SWING }, dnb: { bpm: 84, swing: 0 }, house: { bpm: 125, swing: 0 }, psy: { bpm: 144, swing: 0 },
+  organ: { bpm: 84, swing: SWING },   // the spooky farm's: not a choice, the song goes there by itself
+};
+export const SONGS = ['classic', 'dnb', 'house', 'psy'];
+const stepOf = st => 60 / STYLES[st].bpm / 4;   // one sixteenth note, in seconds
 
 // Chords as MIDI note lists (low to high). A: I-vi-IV-V with sevenths and ninths.
 const C = {
@@ -118,6 +124,7 @@ export function createMusic(ctx, out) {
   verbIn.gain.value = 0.5;
   verbIn.connect(verb).connect(dusty);
 
+  let STEP = stepOf('classic');
   const echo = ctx.createDelay(1);                  // dotted-eighth echo for the banjo
   echo.delayTime.value = STEP * 3;
   const echoFb = ctx.createGain();
@@ -203,6 +210,13 @@ export function createMusic(ctx, out) {
   const fifthOf = (chord, r) => chord.some(m => (m - r - 7) % 12 === 0) || !chord.some(m => (m - r - 6) % 12 === 0) ? r + 7 : r + 6;
   const rootOf = chord => { let r = chord[0]; while (r > 45) r -= 12; while (r < 33) r += 12; return r; };
 
+  // The house and psy parts that duck out of the kick's way go through here.
+  const pump = ctx.createGain();
+  pump.connect(bus);
+  function duck(t) {
+    pump.gain.setValueAtTime(0.3, t);
+    pump.gain.linearRampToValueAtTime(1, t + STEP * 3);
+  }
   function snare(t, vol) {   // a crack of noise over a short tone
     noise(t, 0.13, vol, 'bandpass', 1900);
     noise(t, 0.05, vol * 0.6, 'highpass', 5000);
@@ -235,20 +249,120 @@ export function createMusic(ctx, out) {
     if (s === 13) bass(nr !== root ? nr : root + 12, t, STEP * 2.6, 0.13);
   }
 
+  // Farm House: minimal, a lot of space. Four to the floor, a clap on 2 and 4, an off-beat
+  // hat and a rim tick, an off-beat sub, and dub chord stabs that open up as each section
+  // goes on. The banjo comes down to a quiet roll, and the tune is a short pluck.
+  const HOUSE_RIM = '...x..x...x..x..', HOUSE_BASS = { 2: 0, 6: 0, 10: 0, 13: 7, 14: 12 };
+  function playHouse(t, bar, s, chord, tune, i) {
+    const sec = Math.floor(bar / 8), root = rootOf(chord), open = 600 + 110 * i + 220 * sec;
+    if (s % 4 === 0 && !(i === 7 && s === 12)) { kick(t, 0.4, 0.2); duck(t); }   // (a breath before each new section)
+    if (s === 4 || s === 12) { noise(t, 0.11, 0.08, 'bandpass', 1700); noise(t, 0.04, 0.04, 'highpass', 4200); }
+    if (s % 4 === 2) noise(t, 0.1, 0.055, 'highpass', 8500);
+    else if (s % 2) noise(t, 0.02, 0.014, 'highpass', 9500);
+    if (HOUSE_RIM[s] === 'x') noise(t, 0.025, 0.05, 'bandpass', 3400);
+    const b = HOUSE_BASS[s];
+    if (b !== undefined) {
+      voice('sine', root + b, t, STEP * 1.7, 0.2, { attack: 0.006 });
+      voice('sawtooth', root + b + 12, t, STEP * 1.3, 0.022, { attack: 0.006, cutoff: 420 });
+    }
+    if (s === 3 || s === 11 || (sec && s === 6)) {
+      for (const m of inRange(chord, 57, 72).slice(0, 4)) voice('sawtooth', m, t, STEP * 1.3, 0.018, { attack: 0.004, cutoff: open, to: [pump, echo, verbIn] });
+    }
+    if (sec && s % 2 === 0) {
+      const tones = inRange(chord, 62, 79);
+      voice('pulse', tones[ROLL[s] % tones.length], t, 0.09, s % 4 ? 0.011 : 0.017, { attack: 0.002, cutoff: 1500 + 180 * i, to: [pump, echo] });
+    }
+    if (tune) {
+      for (const [at, m, len] of tune[i]) {
+        if (at === s) voice('pulse', note(m), t, Math.min(STEP * len, 0.42), 0.055, { attack: 0.003, cutoff: 2000, to: [bus, echo, verbIn] });
+      }
+    }
+  }
+  // Psy Farm: a kick on every beat with the rolling bass filling the three sixteenths
+  // between, a squelchy acid line picking the banjo's roll, the tune soaring on a detuned
+  // lead, and a rush of noise into each new section. The bridge opens on two bars with no kick.
+  const PSY_GATE = 'x.xx.xx.xx.x.xx.';
+  function acid(m, t, dur, vol, cut) {
+    const o = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(hz(m), t);
+    f.type = 'lowpass';
+    f.Q.value = 13;
+    f.frequency.setValueAtTime(cut * 2.6, t);
+    f.frequency.exponentialRampToValueAtTime(cut * 0.7, t + dur);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(f).connect(g);
+    g.connect(pump);
+    g.connect(echo);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+  function riser(t, len) {
+    const n = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+    n.buffer = noiseBuf;
+    n.loop = true;
+    f.type = 'bandpass';
+    f.Q.value = 1.4;
+    f.frequency.setValueAtTime(300, t);
+    f.frequency.exponentialRampToValueAtTime(6500, t + len);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.09, t + len);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + len + 0.03);
+    n.connect(f).connect(g).connect(bus);
+    n.start(t); n.stop(t + len + 0.04);
+  }
+  function playPsy(t, bar, s, chord, tune, i) {
+    const sec = Math.floor(bar / 8), root = rootOf(chord), open = bar === 16 || bar === 17;
+    if (!open) {
+      if (s % 4 === 0) { kick(t, 0.42, 0.15); noise(t, 0.012, 0.1, 'highpass', 3000); duck(t); }
+      else {
+        voice('sawtooth', root, t, STEP * 0.85, 0.12, { attack: 0.003, cutoff: 300 + 30 * i });
+        voice('sine', root, t, STEP * 0.8, 0.09, { attack: 0.003 });
+      }
+    }
+    if (s % 4 === 2) noise(t, 0.07, 0.05, 'highpass', 9000);
+    noise(t, 0.014, s % 2 ? 0.01 : 0.016, 'highpass', 10000);
+    if (sec && (s === 4 || s === 12)) noise(t, 0.09, 0.05, 'bandpass', 2100);
+    if (PSY_GATE[s] === 'x') {
+      const tones = inRange(chord, 50, 74);
+      acid(tones[ROLL[s] % tones.length], t, STEP * 0.95, 0.042, 420 + 260 * i);
+    }
+    if (open && s === 0) {   // the bridge: the chord held, wide
+      for (const m of inRange(chord, 50, 69)) for (const dt of [-9, 9]) voice('sawtooth', m, t, STEP * 16, 0.016, { attack: 0.25, cutoff: 1600, detune: dt, to: [bus, verbIn] });
+    }
+    if (i === 7 && s === 0) riser(t, STEP * 16);
+    if (i === 0 && s === 0 && bar) noise(t, 1.2, 0.07, 'highpass', 6000);
+    if (tune) {
+      for (const [at, m, len] of tune[i]) {
+        if (at !== s) continue;
+        for (const dt of [-8, 8]) voice('sawtooth', note(m) + 12, t, STEP * len * 0.92, 0.021, { attack: 0.012, cutoff: 3000, detune: dt, vibrato: len >= 4 ? 12 : 0, to: [bus, echo, verbIn] });
+      }
+    }
+  }
+
   // ---- the arrangement, one sixteenth at a time ----
-  let lastFiddle = 0, style = 'classic', want = 'classic', swing = SWING, haunted = false;
+  let lastFiddle = 0, style = 'classic', want = 'classic', swing = SWING, haunted = false, LOOP = 512 * STEP;
   // The key: [semitones from D, scale]. keyAt: when (context time) it took over from lastKey.
   let key = [0, 'major'], wantKey = key, lastKey = key, keyAt = 0;
   const note = m => inScale(m, key[1], key[0]);
   function play(step, t) {
     const bar = Math.floor(step / 16) % 32, s = step % 16;
-    if (s === 0 && style !== (haunted ? 'organ' : want)) { style = haunted ? 'organ' : want; }   // switch on a bar line
+    if (s === 0 && style !== (haunted ? 'organ' : want)) {   // switch on a bar line, and pick up the same bar at the new tempo
+      style = haunted ? 'organ' : want;
+      STEP = stepOf(style);
+      LOOP = 512 * STEP;
+      swing = STYLES[style].swing;
+      t0 = t - at(step);
+      echo.delayTime.setValueAtTime(STEP * 3, t);
+    }
     if (s === 0 && key !== wantKey) { lastKey = key; key = wantKey; keyAt = t; }
     const dnb = style === 'dnb', org = style === 'organ';
     const [prog, tune] = FORM[Math.floor(bar / 8)];
     const i = bar % 8, chord = prog[i].map(note), next = prog[(i + 1) % 8].map(note);
 
     if (org) { playOrgan(t, s, chord, tune, i); return; }
+    if (style === 'house') { playHouse(t, bar, s, chord, tune, i); return; }
+    if (style === 'psy') { playPsy(t, bar, s, chord, tune, i); return; }
     // vaporwave pad: the whole chord, slow swell, mostly reverb
     if (s === 0) {
       for (const m of inRange(chord, 50, 66)) {
@@ -318,14 +432,14 @@ export function createMusic(ctx, out) {
 
   // ---- scheduler: queues notes a little ahead of the audio clock ----
   // Step k of the song starts at t0 + at(k) (swing shifts the odd sixteenths, pairs stay even).
-  const LOOP = 512 * STEP;   // 32 bars of sixteenths
+  // (LOOP, above: 32 bars of sixteenths.)
   const at = k => Math.floor(k / 2) * 2 * STEP + (k % 2 ? STEP * (1 + swing) : 0);
   let step = 0, next = 0, timer = null, playing = false, t0 = 0;
   function tick() {
     if (next < ctx.currentTime - 0.1) { next = ctx.currentTime + 0.05; t0 = next - at(step); }   // fell behind (tab was hidden): skip ahead
     while (next < ctx.currentTime + 0.25) {
       play(step, next);
-      swing = style === 'dnb' ? 0 : SWING;
+      swing = STYLES[style].swing;
       next += STEP * (1 + (step % 2 ? -swing : swing));
       step++;
     }
@@ -359,9 +473,12 @@ export function createMusic(ctx, out) {
     // The haunted farm's arrangement: the spooky organ takes over from the band at the next bar line.
     setHaunted(on) { haunted = !!on; },
     get haunted() { return haunted; },
-    // 'classic' or 'dnb' (Hop Supporters): changes over at the next bar line.
-    setStyle(s) { want = s === 'dnb' ? 'dnb' : 'classic'; },
+    // One of SONGS (Hop Supporters): changes over at the next bar line.
+    setStyle(s) { want = SONGS.includes(s) ? s : 'classic'; },
     get style() { return want; },
+    // The song's beat and its 32-bar loop right now, in seconds.
+    get beat() { return STEP * 4; },
+    get loop() { return LOOP; },
     // Bought keys: n semitones from D, in a scale from SCALES. Changes over at the next bar
     // line, like the style; returns how many seconds from now that is (0 when the tune isn't playing).
     setKey(n, scale = 'major') {
@@ -388,7 +505,7 @@ export function createMusic(ctx, out) {
       const ts = ctx.getOutputTimestamp?.(), now = performance.now() / 1000;
       let ct = ctx.currentTime, pt = now + (ctx.outputLatency || ctx.baseLatency || 0);
       if (ts && ts.contextTime > 0 && Math.abs(ts.performanceTime / 1000 - now) < 1) { ct = ts.contextTime; pt = ts.performanceTime / 1000; }
-      return { pos: (((ct - t0) % LOOP) + LOOP) % LOOP, at: pt, swing: style === 'dnb' ? 0 : SWING };
+      return { pos: (((ct - t0) % LOOP) + LOOP) % LOOP, at: pt, swing };
     },
     // How long (seconds) a sound started right now takes to reach the ears. The output
     // timestamp says when an earlier moment of the context was heard, so add on how far
@@ -412,7 +529,7 @@ export function createMusic(ctx, out) {
       bus.gain.value = 1.2;
       while (next < secs) {
         play(step, next);
-        swing = style === 'dnb' ? 0 : SWING;
+        swing = STYLES[style].swing;
         next += STEP * (1 + (step % 2 ? -swing : swing));
         step++;
       }
