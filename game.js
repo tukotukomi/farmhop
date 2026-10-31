@@ -4707,15 +4707,14 @@ const organOwned = () => store.get('bl-organ', false);
 // Sushi: cooked from the Fish Backpack at the Sushi Bar. Eat one and it lasts your whole next
 // round; only one at a time, so the next can't be eaten till you've been out hopping.
 const SUSHI = [
-  { id: 'sunny', col: '#ffd23f', fish: { minnow: 2 } },
-  { id: 'magnet', col: '#ff7fb8', fish: { guppy: 1, picklefish: 1 } },
-  { id: 'spare', col: '#7ad653', fish: { bluegill: 1, buttonfish: 1 } },
-  { id: 'zoom', col: '#7fd0ff', fish: { goldfish: 1, candystripe: 1 } },
-  { id: 'midnight', col: '#8a5cff', fish: { fireflyfry: 1, snoozefin: 1 } },
+  { id: 'sunny', col: '#ffd23f', fish: { minnow: 2, mudmuffin: 1 } },
+  { id: 'magnet', col: '#ff7fb8', fish: { guppy: 2, picklefish: 1 } },
+  { id: 'spare', col: '#7ad653', fish: { bluegill: 2, buttonfish: 1 } },
+  { id: 'zoom', col: '#7fd0ff', fish: { goldfish: 1, candystripe: 1, koi: 1 } },
+  { id: 'midnight', col: '#8a5cff', fish: { fireflyfry: 2, snoozefin: 1 } },
 ];
-// Saved for a bigger menu later, not in any recipe yet: Mud Muffin, Koi, Haybelly, Grandpa
-// Whiskers, Banjofin, Lanternfish, Tractortail, Sunflower Shiner, Cloudfin, Thunderbelly,
-// Rainbow Ribbon and Wispfin.
+// Saved for a bigger menu later, not in any recipe yet: Haybelly, Grandpa Whiskers, Banjofin,
+// Lanternfish, Tractortail, Sunflower Shiner, Cloudfin, Thunderbelly, Rainbow Ribbon and Wispfin.
 const SUSHI_KEY = 'bl-sushi', SUSHI_NEXT = 'bl-sushi-next', DASH_ROWS = 10, DASH_MAX = 2, DASH_CD = 30, STOP_EVERY = 60, STOP_LEN = 10;
 let sushiStock = store.get(SUSHI_KEY, {});   // id -> how many are cooked
 const sushi = { on: null, life: false, rise: false, stops: false, charges: 0, cd: 0, stopIn: 0 };   // the one being enjoyed this round (life and stops: anyone's, for the team)
