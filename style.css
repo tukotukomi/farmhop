@@ -725,6 +725,12 @@ body:not(.farm) :is(.fishUi, .fishCatch), :is(.fishUi, .fishCatch).away { displa
 .fishUi.big .lane .note { width: 30px; height: 30px; }
 .lane .ring { position: absolute; left: 22px; top: 50%; width: 30px; height: 30px; translate: -50% -50%; border: 3px solid #fff; border-radius: 50%; box-shadow: 0 0 0 2px #3a2442; }
 .lane .note { position: absolute; top: 50%; width: 22px; height: 22px; translate: -50% -50%; box-sizing: border-box; border-radius: 50%; background: #ffd23f; border: 2.5px solid #3a2442; }
+.lane .note[class*=" b"] { display: grid; place-items: center; color: #3a2442; font-size: 13px; font-style: normal; font-weight: 700; line-height: 1; }
+.fishUi.big .lane .note[class*=" b"] { font-size: 18px; }
+.lane .note.b1 { background: #ff6b6b; scale: 1.15; }
+.lane .note.b2 { background: #ffd23f; }
+.lane .note.b3 { background: #7ad653; }
+.lane .note.b4 { background: #d6b8ff; }
 .lane .note.eighth { background: #ff9a3c; }
 .lane .note.sixteenth { background: #ff7fb8; scale: .82; }
 .lane .note.hit { animation: notePop .25s ease-out forwards; }
