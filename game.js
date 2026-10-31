@@ -5577,7 +5577,6 @@ function stageOut() {   // which way a hopper faces to look out from the stage
 }
 function stageShows(dt) {
   if (GUEST) return;
-  if (!jam.open && guests().some(([, p]) => p.stage) && (jam.beatIn = (jam.beatIn || 0) - dt) <= 0) { jam.beatIn = 3; tellBeat(); }   // a friend's up there: keep their tune in step
   const live = game.state === 'farm' && farm.stageBuilt && farm.pieces.stage && !decor.on && !jam.open && !farm.walkers.some(w => w.band);   // the band has the stage
   const players = new Set(playerMarks().map(([w]) => w));
   for (const c of show.cast) {   // anyone who's been picked to play, or gone, leaves the show
@@ -8840,7 +8839,7 @@ function playPad(row, col, by) {
   }
   // The band hears it too: a guest tells the host (who plays it in the guest's own octave);
   // the host tells its guests.
-  if (GUEST) { guestNet.send({ t: 'note', r: row, c: col, on: true }); if (by) jam.byRC.set(by, [row, col]); }
+  if (GUEST) { guestNet.send({ t: 'note', r: row, c: col, on: true, id }); if (by) jam.byRC.set(by, [row, col]); }
   else toGuests({ t: 'jn', k: 'h', by: by || 'x', hero: id, f: padFreq(row, col), sus: jam.sustain, on: true, hold: !!by });
   const pad = padAt(row, col);
   pad.classList.remove('hit'); void pad.offsetWidth; pad.classList.add('hit');
@@ -8989,7 +8988,7 @@ function openJam() {
   jam.input = null;   // start with hints for the last thing used, or what this device has
   setJamInput(document.body.classList.contains('pad') ? 'pad' : document.body.classList.contains('keys') || matchMedia('(hover: hover) and (pointer: fine)').matches ? 'keys' : 'touch');
   if (GUEST) guestNet.send({ t: 'stage', on: true });
-  else { tellBand(); tellBeat(); }
+  else tellBand();
   syncStage();
 }
 // Jam tracks: what the band plays along to. The farm song, and (once the harvest's three are
@@ -9072,7 +9071,6 @@ function jamFrame(dt) {
     const sw = Math.sin(q * 4.4) * 0.2 + pk * 0.3;
     for (const tl of pl.m.tails) tl.rotation[tl.userData.axis || 'z'] = tl.userData.side * sw;
   }
-  if (!GUEST && jam.t - (jam.beatAt || 0) > 3) tellBeat();   // keep the guests' tune in step
 }
 $('octUp').addEventListener('click', () => setOctave(1));
 $('octDown').addEventListener('click', () => setOctave(-1));
@@ -9335,6 +9333,7 @@ function onPlayer(slot, m, direct = false) {
     return;
   }
   // A guest may play any hopper: one from their own farm, or one of ours.
+  if (m.t === 'syn') { if (pl?.guest && music) partySend(slot, { t: 'syr', a: +m.a || 0, pos: music.position(), lag: earLag() }); return; }
   if (m.t === 'pick' && pl?.guest) { if (anyHero(m.hero)) assign(slot, m.hero); return; }
   if (m.t === 'sup' && pl?.guest) { pl.sup = true; renderParty(); return; }   // a friend just became a supporter
   if (/^r[hdbpcf]$/.test(m.t)) {   // a guest's hopper on the road
@@ -9381,22 +9380,21 @@ function onPlayer(slot, m, direct = false) {
     layoutStage();
     tellBand();
     syncStage();
-    if (pl.stage) tellBeat();
   }
   else if (!onStage(pl)) return;   // notes only sound from players on the stage
   else if (m.t === 'note') {
     const r = clamp(m.r | 0, 0, JAM_ROWS - 1), c = clamp(m.c | 0, 0, padCols() - 1), key = 'r' + slot + '-' + r + '-' + c;
     if (!m.on) { letGo(key); toGuests({ t: 'jn', k, by: key, on: false }, others); return; }
     sfx.ensure();
-    const f = noteFreq(pl.oct, r, c);
-    sfx.voice(pl.hero, f, true);
+    const f = noteFreq(pl.oct, r, c), id = m.id === 'organ' || anyHero(m.id) ? m.id : pl.hero;   // the voice they're playing: their hopper's, or the Spooky Organ's
+    if (id !== 'organ') sfx.voice(id, f, true);
     letGo(key);
-    const release = sfx.hold(pl.hero, f, pl.sus);
+    const release = sfx.hold(id, f, pl.sus);
     if (release) jam.held.set(key, release);
     pl.kick = 1;
     stageKick(k);
     floatNote(HEROES.find(h => h.id === pl.hero).pad, pl.m?.group.position.x);
-    toGuests({ t: 'jn', k, by: key, hero: pl.hero, f, sus: pl.sus, on: true, hold: true }, others);
+    toGuests({ t: 'jn', k, by: key, hero: id, f, sus: pl.sus, on: true, hold: true }, others);
   } else if (m.t === 'drum') {
     const d = clamp(m.d | 0, 0, 7);
     sfx.ensure();
@@ -9515,7 +9513,7 @@ function guestRoadDt(dt) {
 
 // ---------- the Jam Stage with friends on their own devices ----------
 // The host lists the band for its guests (tellBand), and every few seconds says
-// where the tune is (tellBeat) so their soundtrack plays the same bar. Notes and
+// where the tune is (followTune) so their soundtrack plays the same bar. Notes and
 // drum hits go to everyone: jn (a note, with its pitch, held until a matching
 // note-off) and jd (a drum).
 function tellBand() {
@@ -9527,10 +9525,6 @@ function tellBand() {
 // How long a sound takes to reach this player's ears: the delay the browser reports, plus
 // whatever more the rhythm offset has found (Bluetooth the browser doesn't know about).
 const earLag = () => music ? clamp(music.lag(), 0, 0.5) + clamp(beatLag, 0, 0.35) : 0;
-function tellBeat() {
-  jam.beatAt = jam.t;
-  if (music && guests().length) toGuests({ t: 'beat', pos: music.position(), lag: earLag() });
-}
 function applyBand(list) {   // guest: the rest of the band, as the host lists it
   const keys = new Set(list.map(b => b.k));
   for (const [k, pl] of [...jam.band]) {
@@ -9556,7 +9550,7 @@ function bandNote(m) {   // guest: someone else's note
   sfx.ensure();
   stageKick(m.k);
   const f = +m.f;
-  sfx.voice(m.hero, f, true);
+  if (m.hero !== 'organ' || !m.hold) sfx.voice(m.hero, f, true);   // a held organ note is all in the hold
   if (m.hold) { const release = sfx.hold(m.hero, f, clamp(+m.sus || 0, 0, 1)); if (release) jam.held.set(id, release); }
   const pl = jam.band.get(m.k);
   if (pl) pl.kick = 1;
@@ -9572,14 +9566,26 @@ function bandDrum(m) {
   floatNote(DRUM_COLORS[d], pl?.m?.group.position.x);
 }
 const LOOP_S = 512 * 60 / 84 / 4;   // the tune's 32-bar loop, in seconds (music.js)
-function followBeat(pos, hostLag = 0) {   // guest: line up what we hear with what the host hears, if it's drifted
+// Guest: keep our tune with the host's, wherever we each are in the game. Every couple of
+// seconds we ask where theirs is and time the round trip: a quick trip means an accurate
+// answer, and half of it is how old that answer was. Each side's own speaker delay is
+// allowed for, so the two tunes meet in the air, which matters when you're sitting side by side.
+const tuneSync = { trips: [], off: 0, drift: 0 };
+function syncTune() { if (music) guestNet.send({ t: 'syn', a: performance.now() }); }
+function followTune(m) {
   if (!music) return;
-  const want = (((+pos + 0.04 + earLag() - (+hostLag || 0)) % LOOP_S) + LOOP_S) % LOOP_S;   // a little for the trip, and a slower speaker plays ahead to make up for it
-  let off = Math.abs(music.position() - want);
-  off = Math.min(off, LOOP_S - off);
-  if (off > 0.08) music.seek(want);
+  const trip = Math.max(0, (performance.now() - m.a) / 1000), trips = tuneSync.trips;
+  trips.push(trip);
+  if (trips.length > 8) trips.shift();
+  if (trip > Math.min(...trips) + 0.015) return;   // a slow trip: can't tell how old this one is
+  const want = (((+m.pos + trip / 2 + earLag() - (+m.lag || 0)) % LOOP_S) + LOOP_S) % LOOP_S;
+  let off = want - music.position();
+  if (off > LOOP_S / 2) off -= LOOP_S;
+  if (off < -LOOP_S / 2) off += LOOP_S;
+  tuneSync.off = off;
+  tuneSync.drift = Math.abs(off) > 0.025 ? tuneSync.drift + 1 : 0;
+  if (Math.abs(off) > 0.2 || tuneSync.drift >= 2) { music.seek(want); tuneSync.drift = 0; }   // twice in a row, so one odd reading doesn't make it skip
 }
-
 // ---------- player colours ----------
 // The host is player 1 (red); everyone else takes the first colour free when they
 // join: blue, yellow, green, then purple.
@@ -10724,6 +10730,7 @@ if (guestNet) {
   const keepHero = () => { try { sessionStorage.setItem('bl-guest-hero', heroId); } catch {} };   // the same hopper after a reload
   keepHero();
   const LOOKS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-sushibar', 'bl-wide'];
+  setInterval(syncTune, 2000);
   guestNet.on(m => {
     if (m.t === 'leap') { const w = walkerOf(m.k); if (w && m.k !== myKey()) landLeap(w, +m.x, +m.z, +m.up, isFinite(m.y) ? clamp(+m.y, 0, 0.5) : null); }
     else if (m.t === 'crew') applyCrew(m.walkers || []);
@@ -10732,7 +10739,7 @@ if (guestNet) {
     else if (m.t === 'band') applyBand(m.list || []);
     else if (m.t === 'jn') bandNote(m);
     else if (m.t === 'jd') bandDrum(m);
-    else if (m.t === 'beat') followBeat(m.pos, m.lag);
+    else if (m.t === 'syr') followTune(m);
     else if (m.t === 'road') { if (game.where === 'farm') { guestNet.note.hide(); goRoadGuest(m); } }
     else if (/^r[hdbp]$/.test(m.t)) { if (game.where === 'road' && m.k !== guestKey) onRoadNews(game.crew.find(h => h.key === m.k), m); }
     else if (m.t === 'rc') { if (game.where === 'road') takeSunflower(m.r | 0, m.c | 0, false, !!m.p); }
@@ -10788,4 +10795,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, followBeat, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, sushi, dash, mealOf, feedSushi, openSushi, closeSushi, cookSushi, eatSushi, buySushi, startSushi, SUSHI, dropFlower, get pumpkins() { return pumpkins; }, get counting() { return counting; } };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, syncTune, tuneSync, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, sushi, dash, mealOf, feedSushi, openSushi, closeSushi, cookSushi, eatSushi, buySushi, startSushi, SUSHI, dropFlower, get pumpkins() { return pumpkins; }, get counting() { return counting; } };
