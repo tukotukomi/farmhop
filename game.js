@@ -10748,7 +10748,7 @@ for (const type of ['fullscreenchange', 'webkitfullscreenchange']) document.addE
 $('setClose').addEventListener('click', closeSettings);
 $('settings').addEventListener('click', e => { if (e.target.id === 'settings') closeSettings(); });
 
-// ---------- Daily Quests and Buddy Tokens ----------
+// ---------- Buddy Quests and Buddy Tokens ----------
 // Three new quests every day, all done with a Buddy: anyone playing alongside you, on the same
 // screen, on a phone, or on their own device on your farm or you on theirs. Two come from the list, the same for everyone that day, as
 // far as their farm has what they need, and the third is always a visit: going to a Buddy's farm, or one coming over to play in person. Each
@@ -10761,7 +10761,7 @@ const questsOpen = () => $('quests').classList.contains('show');
 function questsToday() {
   const day = new Date().toLocaleDateString('en-CA');   // this player's own date: YYYY-MM-DD
   let q = store.get('bl-quests', null);
-  if (q?.day === day) return q;
+  if (q?.day === day && q.list.every(o => QUESTS[o.id])) return q;   // (a quest that's since been retired: today's are dealt again)
   const can = ['hop', 'flowers', farm.level >= 1 && 'fish', farm.sushiBuilt && 'sushi', farm.stageBuilt && 'jam'].filter(Boolean);
   const dice = seeded(+day.replace(/-/g, '')), two = [];
   while (two.length < 2) two.push(can.splice(Math.floor(dice() * can.length), 1)[0]);
