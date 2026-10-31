@@ -7387,8 +7387,7 @@ function startReel(f) {
   lane.querySelectorAll('.note').forEach(e => e.remove());
   for (const s of steps) {
     const el = document.createElement('i');
-    const beat = s / 4 % 4 + 1;   // reels start on a 1, so this is the note's place in the bar
-    el.className = 'note ' + (s % 4 === 0 ? 'b' + beat : s % 2 ? 'sixteenth' : 'eighth');   // coloured and patterned by where it falls: each of the four beats, the "and" between, the sixteenths
+    el.className = 'note ' + (s % 4 === 0 ? 'quarter' : s % 2 ? 'sixteenth' : 'eighth');   // on the beat, on the .5, or on the .25 and .75: each its own look
     lane.append(el);
     const at = start + s * SIXTEENTH + (s % 2 ? h.swing * SIXTEENTH : 0);   // the tune swings its off-sixteenths
     notes.push({ at, pos: h.pos + at - h.at, el, done: 0 });   // pos: its place in the song; done: 1 caught, -1 missed
