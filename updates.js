@@ -18,7 +18,7 @@ export const UPDATES = [
       'Signed in and visiting a friend? Tap Back to my farm to head home.',
       'New: Daily Quests! Team up with a Buddy for three fresh quests every day, each one worth a Buddy Token.',
       'Spend 10 Buddy Tokens to turn your swing into a porch swing for two.',
-      'The Pond menu now goes by your pond's name, with a Change Style button once you have more than one.',
+      'The Pond menu now shows the name of your pond, with a Change Style button once you have more than one.',
       'More sunflowers on the road, and the Sunny Roll now doubles them for the whole team.',
     ],
     es: {
