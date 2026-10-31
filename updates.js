@@ -6,6 +6,28 @@
 // This file is plain data: { date: 'YYYY-MM-DD', title, notes: [...], es: { title, notes }, zh: { title, notes } }.
 export const UPDATES = [
   {
+    date: '2026-10-31',
+    title: 'Lanterns in the redbud',
+    notes: [
+      'A redbud tree in full bloom now leans over the Sushi Bar, with bright lanterns that light it up after dark.',
+      'More sunflowers on the road, and the Sunny Roll now doubles them for the whole team.',
+    ],
+    es: {
+      title: 'Faroles en el árbol de Judas',
+      notes: [
+        'Un árbol de Judas en plena flor se asoma ahora sobre la barra de sushi, con faroles brillantes que la iluminan de noche.',
+        'Más girasoles en el camino, y el Rollo soleado ahora los duplica para todo el equipo.',
+      ],
+    },
+    zh: {
+      title: '紫荆树上的灯笼',
+      notes: [
+        '一棵盛开的紫荆树如今探到寿司吧上方，明亮的灯笼在入夜后照亮四周。',
+        '路上的向日葵变多了，阳光卷现在能让全队路上的向日葵翻倍。',
+      ],
+    },
+  },
+  {
     date: '2026-10-30',
     title: 'The band takes the stage',
     notes: [
@@ -26,7 +48,6 @@ export const UPDATES = [
       'The Spooky Organ now stands on the stage too.',
       'Playing on different devices, everyone now hears the tune together all the time, even side by side or on Bluetooth, and the hoppers bounce to the beat you hear.',
       'Friends on your farm now hear your real instrument, Spooky Organ included.',
-      'More sunflowers on the road, and the Sunny Roll now doubles them for the whole team.',
       'Visiting a friend, your counters show your own sunflowers and pumpkins.',
       'Fishing rhythms now start on the 1 and last whole bars, with quarter, eighth and sixteenth notes each in their own colour and pattern.',
     ],
@@ -50,7 +71,6 @@ export const UPDATES = [
         'El Órgano tenebroso ahora también está en el escenario.',
         'Al jugar en varios dispositivos, todos oís la música a la vez en todo momento, incluso lado a lado o con Bluetooth, y los saltarines botan al ritmo que oyes.',
         'Los amigos en tu granja ahora oyen tu instrumento de verdad, Órgano tenebroso incluido.',
-        'Más girasoles en el camino, y el Rollo soleado ahora los duplica para todo el equipo.',
         'De visita en la granja de un amigo, los contadores muestran tus propios girasoles y calabazas.',
         'Los ritmos de pesca ahora empiezan en el 1 y duran compases enteros, con negras, corcheas y semicorcheas de distinto color y dibujo.',
       ],
@@ -75,7 +95,6 @@ export const UPDATES = [
         '阴森管风琴现在也摆在舞台上了。',
         '用不同设备一起玩时，大家现在随时都能同时听到音乐，坐在一起或用蓝牙耳机也一样，伙伴们也会跟着你听到的节拍跳动。',
         '农场上的朋友现在能听到你真正的乐器，阴森管风琴也一样。',
-        '路上的向日葵变多了，阳光卷现在能让全队路上的向日葵翻倍。',
         '到朋友的农场做客时，计数器显示的是你自己的向日葵和南瓜。',
         '钓鱼节奏现在从第一拍开始，并以完整小节为单位，四分、八分和十六分音符各有自己的颜色和图案。',
       ],

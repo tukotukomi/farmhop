@@ -3867,7 +3867,7 @@ const PIECES = {
   barn: { build: buildBarn, foot: [-2.05, 1.6, -1.6, 1.95], at: [4, -8.5, 0] },
   pond: { build: g => { farm.pond = g; buildPond(); }, foot: [-2.8, 2.8, -2.1, 2.1], at: [2, 2, 0], pond: true },   // room for its biggest size
   bunk: { build: g => { farm.bunk = g; buildBunk(); }, foot: [-1.3, 1.3, -1.1, 1.45], block: [-1.3, 1.3, -1.1, 1.0], at: [0.5, -3.5, 0] },
-  sushi: { build: g => { farm.sushi = g; buildSushi(); }, foot: [-1.45, 1.45, -0.85, 1.1], at: [5.2, -3.5, 0] },
+  sushi: { build: g => { farm.sushi = g; buildSushi(); }, foot: [-1.45, 2.05, -0.85, 1.1], at: [4.9, -3.5, 0] },
   stage: {
     build: g => { farm.stage = g; buildStage(); return stageTick; }, at: [-4.5, -1.5, 0],
     get foot() { const k = stageK(); return [-1.3 * k, 1.3 * k, -1.0 * k, 1.25 * k]; },   // the Big Jam Stage takes more room
@@ -5055,6 +5055,39 @@ function buildSushi() {
   g.add(sign);
   glowAt(g, 0, 1.84, -0.6, 0xfff1d0, 1.7);
   g.userData.chef = buildChef(g);
+  buildRedbud(g);
+}
+// A redbud in full flower beside the bar, its pink canopy draping over the corner of the
+// roof, with glass globe lanterns hanging from its branches that light the scene after dark.
+function buildRedbud(g) {
+  const BARK = 0x4a3328, PINKS = [0xd6418f, 0xe85fa8, 0xf28fc0, 0xc9358a], v = new VB(0.45), glass = new VB(0.6);
+  v.cyl(0.07, 0.11, 1.2, 1.72, 0.6, -0.3, BARK, 0, 0, 0.1);                     // the trunk, leaning in a little
+  for (const [x, y, z, ax, az] of [[1.5, 1.42, -0.2, 0.3, 0.75], [1.8, 1.5, -0.1, 0.5, -0.5], [1.62, 1.55, -0.5, -0.5, 0.2]]) v.cyl(0.03, 0.05, 0.8, x, y, z, BARK, ax, 0, az);   // boughs
+  const dot = (i, k) => { const x = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453; return x - Math.floor(x); };   // the same tree every time
+  for (let i = 0; i < 170; i++) {                                                // the blossom, in soft clumps
+    const a = dot(i, 1) * Math.PI * 2, d = Math.sqrt(dot(i, 2)), x = 1.5 + Math.cos(a) * d * 0.72, z = -0.15 + Math.sin(a) * d * 0.62;
+    const y = 2.02 - d * d * 0.42 + (dot(i, 3) - 0.5) * 0.3, r = 0.055 + dot(i, 4) * 0.055;
+    v.ball(r, r * 0.8, r, x, y, z, PINKS[i % 4]);
+  }
+  for (const [x0, z0, n] of [[0.98, 0.02, 5], [1.12, 0.3, 4], [0.92, -0.32, 4], [1.28, 0.42, 3]]) {   // sprays draping down over the roof
+    for (let i = 0; i < n; i++) v.ball(0.065 - i * 0.006, 0.075, 0.065 - i * 0.006, x0 - i * 0.02, 1.72 - i * 0.075, z0, PINKS[(i + n) % 4]);
+  }
+  const lit = [[1.12, 1.02, 0.62], [1.48, 0.86, 0.72], [1.84, 1.0, 0.62], [2.08, 1.14, 0.2]];
+  for (const [x, y, z] of lit) {
+    v.cyl(0.005, 0.005, 1.68 - y, x, (1.68 + y) / 2 + 0.05, z, 0x3a3440);       // its cord
+    v.cyl(0.03, 0.04, 0.02, x, y + 0.075, z, 0x3a3440);                         // its little cap
+    glass.ball(0.075, 0.085, 0.075, x, y, z, 0xffdf8c);
+    glowAt(g, x, y, z + 0.02, 0xffdf8c, 0.85);
+  }
+  g.add(v.mesh());
+  const bulbs = glass.mesh(MARKER_MAT);
+  bulbs.castShadow = false;
+  bulbs.layers.set(GLOW_LAYER);
+  g.add(bulbs);
+  const pool = new THREE.Object3D();
+  pool.position.set(1.55, 0.8, 0.3);
+  g.add(pool);
+  lamps.push({ o: pool, r: 2, s: 0.95, y: 0.6 });
 }
 // Chef Salmón, always at the bar: a Spanish grizzly in his whites and tall hat, with a red
 // and gold neckerchief and a neat moustache.
