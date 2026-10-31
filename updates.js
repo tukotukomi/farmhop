@@ -27,6 +27,7 @@ export const UPDATES = [
       'Playing on different devices, everyone now hears the tune together all the time, even side by side or on Bluetooth, and the hoppers bounce to the beat you hear.',
       'Friends on your farm now hear your real instrument, Spooky Organ included.',
       'Visiting a friend, your counters show your own sunflowers and pumpkins.',
+      'Fishing rhythms now start on the 1 and last whole bars, so they feel right with the music.',
     ],
     es: {
       title: 'La banda sube al escenario',
@@ -49,6 +50,7 @@ export const UPDATES = [
         'Al jugar en varios dispositivos, todos oís la música a la vez en todo momento, incluso lado a lado o con Bluetooth, y los saltarines botan al ritmo que oyes.',
         'Los amigos en tu granja ahora oyen tu instrumento de verdad, Órgano tenebroso incluido.',
         'De visita en la granja de un amigo, los contadores muestran tus propios girasoles y calabazas.',
+        'Los ritmos de pesca ahora empiezan en el 1 y duran compases enteros, para ir mejor con la música.',
       ],
     },
     zh: {
@@ -72,6 +74,7 @@ export const UPDATES = [
         '用不同设备一起玩时，大家现在随时都能同时听到音乐，坐在一起或用蓝牙耳机也一样，伙伴们也会跟着你听到的节拍跳动。',
         '农场上的朋友现在能听到你真正的乐器，阴森管风琴也一样。',
         '到朋友的农场做客时，计数器显示的是你自己的向日葵和南瓜。',
+        '钓鱼节奏现在从第一拍开始，并以完整小节为单位，更贴合音乐。',
       ],
     },
   },

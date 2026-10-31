@@ -7336,7 +7336,8 @@ function stepFisher(f, dt) {
 // level 1 is plain quarter notes; then eighths, off-beats, dotted rhythms, and at
 // the top, runs of sixteenths. Harder fish also have a tighter window and allow
 // fewer misses. A tap with no note at the ring costs the next one.
-const BEAT = 60 / 84, SIXTEENTH = BEAT / 4;   // the song's beat (84 BPM)
+const BEAT = 60 / 84, SIXTEENTH = BEAT / 4, BAR = 4 * BEAT;   // the song's beat (84 BPM), four to the bar
+const reelBeats = lvl => lvl < 2 ? 4 : lvl < 6 ? 8 : lvl < 8 ? 12 : 16;   // whole bars, so a reel lines up with the song's own measures: one for the easiest fish, four for the hardest
 const songNow = () => performance.now() / 1000;
 // One beat's worth of rhythm each: which sixteenths of the beat have a note (0 is
 // on the beat, 2 the "and", 1 and 3 the sixteenths between), and the fish level
@@ -7360,7 +7361,7 @@ function fishRhythm(lvl) {   // [sixteenths from the start, ...]: a phrase a few
     for (const c of can) if ((r -= 1 + c.lvl) <= 0) return c;
     return can[0];
   };
-  const beats = Math.min(4 + lvl, 12), out = [];
+  const beats = reelBeats(lvl), out = [];
   for (let b = 0; b < beats; b++) {
     const c = b === 0 || b === beats - 1 ? RHYTHMS[0] : pick();   // starts and ends on a plain beat, to find your feet
     for (const s of c.at) out.push(b * 4 + s);
@@ -7371,14 +7372,14 @@ function fishRhythm(lvl) {   // [sixteenths from the start, ...]: a phrase a few
 // backbeat first, then kicks, the kick that skips in a sixteenth early, ghost
 // notes and, at the top, the snare rolls of the fill.
 function breakRhythm(lvl, from) {
-  const beats = Math.min(4 + lvl, 12), out = [];
+  const beats = reelBeats(lvl), out = [];
   for (let s = 0; s < beats * 4; s++) { const d = breakHit(from + s); if (d && d <= lvl) out.push(s); }
   return out;
 }
 function startReel(f) {
   const lvl = Math.min(f.sp.rhy || f.sp.lvl, 9);   // how tricky its rhythm is, not the pond level it came with
   const h = music ? music.heard() : { pos: 0, at: songNow(), swing: 0 };   // the beat as it comes out of the speakers
-  const start = h.at + (BEAT - h.pos % BEAT) + 2 * BEAT;   // on the beat, a couple of beats from now
+  const toBar = BAR - h.pos % BAR, start = h.at + (toBar < 2 * BEAT ? toBar + BAR : toBar);   // on the next downbeat at least a couple of beats away: the first note is always the "1"
   const dnb = music?.style === 'dnb';
   const steps = dnb ? breakRhythm(lvl, music.stepAt(h.pos + start - h.at)) : fishRhythm(lvl), notes = [];
   const lane = f.ui.querySelector('.lane');
@@ -10804,4 +10805,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, syncTune, tuneSync, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, showCatch, sushi, dash, mealOf, feedSushi, openSushi, closeSushi, cookSushi, eatSushi, buySushi, startSushi, SUSHI, dropFlower, get pumpkins() { return pumpkins; }, get counting() { return counting; } };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, syncTune, tuneSync, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, startReel, reelBeats, showCatch, sushi, dash, mealOf, feedSushi, openSushi, closeSushi, cookSushi, eatSushi, buySushi, startSushi, SUSHI, dropFlower, get pumpkins() { return pumpkins; }, get counting() { return counting; } };
