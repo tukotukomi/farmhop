@@ -7641,7 +7641,7 @@ function startReel(f) {
   const toBar = BAR - h.pos % BAR, start = h.at + (toBar < 2 * BEAT ? toBar + BAR : toBar);   // on the next downbeat at least a couple of beats away: the first note is always the "1"
   const dnb = music?.style === 'dnb';
   const steps = dnb ? breakRhythm(lvl, music.stepAt(h.pos + start - h.at)) : fishRhythm(lvl), notes = [];
-  const beat = BEAT * (music?.style === 'house' ? 2 : 1), SIXTEENTH = beat / 4;   // Farm House fishes at half time; Psy Farm at full speed
+  const SIXTEENTH = BEAT / 4;   // the song's own tempo: Farm House is the medium ride, Psy Farm the hard one
   const lane = f.ui.querySelector('.lane');
   lane.classList.toggle('dnb', dnb);
   lane.querySelectorAll('.note').forEach(e => e.remove());
@@ -7655,7 +7655,7 @@ function startReel(f) {
   const fast = steps.some(s => s % 2) ? 2 : steps.some(s => s % 4) ? 3 : 4;   // closer notes: the lane shows fewer beats, so they spread out
   const k = (lvl - 1) / 8;
   f.g = {
-    notes, ahead: fast * beat, tempo: BEAT,
+    notes, ahead: fast * BEAT, tempo: BEAT,
     win: Math.min(0.2 - k * 0.11, SIXTEENTH * 0.48),            // 0.2 s either side down to under half a sixteenth
     need: Math.ceil(notes.length * (0.5 + k * 0.35)),           // half the notes, up to 85%
     hits: 0, miss: 0, sung: 0, offs: [], off: 0,
