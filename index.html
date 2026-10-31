@@ -133,16 +133,15 @@
 
 <div id="pond" class="sheet" role="dialog" aria-modal="true" aria-labelledby="pondTitle">
   <div class="panel pondPanel">
-    <h2 id="pondTitle" data-i18n="fishPond">Fish Pond</h2>
+    <h2 id="pondTitle">Pond</h2>
     <div class="panelBody">
-    <div id="pondStyles" class="setTabs pondStyles" role="radiogroup" data-i18n-aria="pondStyle" aria-label="Pond style" hidden></div>
     <div id="pondLevel" class="pondLevel">Level 0</div>
     <div class="pondNextRow"><span class="label" data-i18n="next">Next</span><span id="pondNext">Fish move in</span></div>
     <button id="pondBuy" class="buyBtn bubble">
       <span data-i18n="upgrade">Upgrade</span>
       <span class="price"><svg class="flower" viewBox="0 0 24 24" aria-hidden="true"><g stroke="#3a2442" stroke-width="1.4" stroke-linejoin="round"><path d="M12 1.5l2.6 4.2 4.8-1.2-1.2 4.8 4.3 2.7-4.3 2.7 1.2 4.8-4.8-1.2L12 22.5l-2.6-4.2-4.8 1.2 1.2-4.8L1.5 12l4.3-2.7-1.2-4.8 4.8 1.2z" fill="#ffcc1a"/><circle cx="12" cy="12" r="4.4" fill="#7a4a1c"/></g></svg><span id="pondCost">1</span></span>
     </button>
-    <p id="pondNeed" class="pondNeed"></p>
+    <button id="pondStyleBtn" class="chipBtn" data-i18n="pondChange" hidden>Change Style</button>
     </div>
     <div class="panelFoot">
       <div class="buildActs">

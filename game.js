@@ -7391,7 +7391,8 @@ $('pondBtn').addEventListener('click', () => { sfx.ensure(); openPond(); });
 // ---------- Fish Pond panel ----------
 const pondOpen = () => $('pond').classList.contains('show');
 const needText = short => short <= 0 ? '' : short === 1 ? t('pondNeed1') : t('pondNeedN', { n: short });
-// Switching the pond's style: buttons in the Fish Pond menu, once there's more than one.
+// Switching the pond's style: the menu is named for the pond, and once there's more than
+// one style, Change Style steps on to the next.
 function setPondSkin(s) {
   if (s === pondSkin() || !pondSkins().includes(s)) return;
   store.set('bl-pond-skin', s);
@@ -7402,24 +7403,13 @@ function setPondSkin(s) {
   refreshPond();
 }
 function refreshPond() {
-  const skins = pondSkins(), row = $('pondStyles');
-  row.hidden = skins.length < 2;
-  row.replaceChildren(...skins.map(s => {
-    const b = document.createElement('button');
-    b.className = 'setTab';
-    b.setAttribute('role', 'radio');
-    b.setAttribute('aria-checked', String(s === pondSkin()));
-    b.classList.toggle('on', s === pondSkin());
-    b.textContent = t('pondSkin.' + s);
-    b.addEventListener('click', () => setPondSkin(s));
-    return b;
-  }));
+  $('pondTitle').textContent = t('pondName.' + pondSkin());
+  $('pondStyleBtn').hidden = pondSkins().length < 2;
   const cost = pondCost(farm.level), short = cost - game.coins;
   $('pondLevel').textContent = farm.level === 0 ? t('pondMuddy') : t('pondLevel', { n: farm.level });
   $('pondNext').textContent = pondNext(farm.level);
   $('pondCost').textContent = cost;
   $('pondBuy').disabled = short > 0;
-  $('pondNeed').textContent = needText(short);
   $('bagN').textContent = bagCount() || '';
 }
 function openPond() {
@@ -7440,6 +7430,10 @@ function buyPond() {
   b.classList.remove('yay'); void b.offsetWidth; b.classList.add('yay');
 }
 $('pondBuy').addEventListener('click', buyPond);
+$('pondStyleBtn').addEventListener('click', () => {
+  const skins = pondSkins();
+  setPondSkin(skins[(skins.indexOf(pondSkin()) + 1) % skins.length]);
+});
 $('pondClose').addEventListener('click', closePond);
 $('pond').addEventListener('click', e => { if (e.target.id === 'pond') closePond(); });
 

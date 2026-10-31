@@ -213,8 +213,6 @@ body.farm.decor #questBtn { display: none; }
 .eventOffers .eventKing img { max-width: 86px; }
 .eventOffers .eventOrganCard img { width: 66px; height: 66px; margin: 10px 0; }
 #event .panelFoot { gap: 7px; }
-.pondStyles { margin-top: 2px; }
-.pondStyles .setTab { font-size: 14px; padding: 5px 12px 6px; }
 .eventEnds { margin: 0; font-size: 13px; opacity: .75; }
 #eventPrice[hidden] { display: none; }
 body.farm.decor #phonesBtn { display: none; }
