@@ -740,6 +740,17 @@ body:not(.farm) :is(.fishUi, .fishCatch), :is(.fishUi, .fishCatch).away { displa
   background: #fff4e0; border: 3px solid #3a2442; border-radius: 20px; box-shadow: 0 4px 0 var(--ink-soft); color: #3a2442;
   animation: yay .45s cubic-bezier(.3, 1.8, .5, 1);
 }
+.fishCatch.mine { left: 50%; top: calc(100dvh - clamp(110px, 30dvh, 196px)); width: min(520px, calc(100vw - 48px)); height: auto; translate: -50% 0; z-index: 6; }
+.fishCatch.mine .card {
+  position: relative; left: auto; bottom: auto; translate: none; box-sizing: border-box; width: 100%; max-width: none; min-height: 62px;
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; justify-items: start; gap: 0 10px; padding: 3px 20px 3px 8px; text-align: left;
+  border-radius: 31px; background: linear-gradient(#8edcf6, #3f9fd8); box-shadow: none;
+}
+.fishCatch.mine img { grid-row: 1 / 3; width: 54px; height: 54px; }
+.fishCatch.mine b { grid-column: 2; align-self: end; max-width: 100%; font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fishCatch.mine .cm { grid-column: 2; align-self: start; font-size: 14px; opacity: 1; }
+.fishCatch.mine .gain { grid-column: 3; grid-row: 1 / 3; margin: 0; }
+.fishCatch.mine .badge { top: -14px; right: 12px; }
 .fishCatch img { width: 92px; height: 92px; }
 .fishCatch b { font-size: 17px; line-height: 1.1; }
 .fishCatch .cm { font-size: 14px; font-weight: 600; opacity: .75; }

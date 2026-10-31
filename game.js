@@ -7462,8 +7462,8 @@ function landFish(f) {
 }
 // A card over the hopper's head: the fish, its size, into the backpack, and New! or Best!
 function showCatch(w, sp, cm, rec) {
-  const el = document.createElement('div');
-  el.className = 'fishCatch';
+  const el = document.createElement('div'), mine = w === walkerOf(myKey());   // yours shows where the beat lane was; a friend's floats over their hopper
+  el.className = 'fishCatch' + (mine ? ' mine' : '');
   const badge = rec?.isNew ? t('fish.new') : rec?.isBest ? t('fish.best') : '';
   el.innerHTML = `<div class="card"><img alt="" src="${shots.fish[FISH.indexOf(sp)]}"><b></b><span class="cm"></span>${sp.price ? `<span class="gain">+1 ${BAG_SVG}</span>` : ''}${badge ? '<i class="badge"></i>' : ''}</div>`;
   el.querySelector('b').textContent = fishName(sp.id);
@@ -7471,7 +7471,7 @@ function showCatch(w, sp, cm, rec) {
   if (badge) el.querySelector('.badge').textContent = badge;
   document.body.append(el);
   for (const c of catches.filter(c => c.w === w)) c.t = Math.min(c.t, 0);   // one card per hopper
-  catches.push({ el, w, t: 3 });
+  catches.push({ el, w, t: 3, mine });
 }
 // Tell everyone else on the farm what we're up to, so they see our rod and bobber.
 function tellFish(f, on = true) {
@@ -7585,8 +7585,10 @@ function updateFishing(dt) {
   for (let i = catches.length - 1; i >= 0; i--) {
     const c = catches[i];
     if ((c.t -= dt) <= 0 || !farm.walkers.includes(c.w)) { c.el.remove(); catches.splice(i, 1); continue; }
-    const [x, y] = screenAt(c.w, 0.35);
-    c.el.style.transform = `translate(${x}px, ${y}px)`;
+    if (!c.mine) {
+      const [x, y] = screenAt(c.w, 0.35);
+      c.el.style.transform = `translate(${x}px, ${y}px)`;
+    }
     c.el.classList.toggle('away', paused);
   }
 }
@@ -10795,4 +10797,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, syncTune, tuneSync, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, sushi, dash, mealOf, feedSushi, openSushi, closeSushi, cookSushi, eatSushi, buySushi, startSushi, SUSHI, dropFlower, get pumpkins() { return pumpkins; }, get counting() { return counting; } };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, syncTune, tuneSync, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, showCatch, sushi, dash, mealOf, feedSushi, openSushi, closeSushi, cookSushi, eatSushi, buySushi, startSushi, SUSHI, dropFlower, get pumpkins() { return pumpkins; }, get counting() { return counting; } };
