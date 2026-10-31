@@ -241,6 +241,7 @@ const rtNormal = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType }
 rtNormal.depthTexture = new THREE.DepthTexture(1, 1, THREE.FloatType);   // float depth: precise enough for perspective outlines
 const normalMat = new THREE.MeshNormalMaterial();
 const postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const LAMP_MAX = 40;   // night lights on the screen at once
 const postMat = new THREE.ShaderMaterial({
   uniforms: {
     tColor: { value: rtColor.texture },
@@ -257,10 +258,10 @@ const postMat = new THREE.ShaderMaterial({
     sat: { value: 1 },
     // Night lights (torches, fireflies, the players' hoppers): ellipses on the screen
     // (centre and radii, in uv) where the night tint gives way to warm light.
-    lamps: { value: Array.from({ length: 24 }, () => new THREE.Vector4()) },
-    lampS: { value: new Array(24).fill(0) },
-    lampC: { value: Array.from({ length: 24 }, () => new THREE.Color(1, 0.96, 0.82)) },   // each halo's colour (warm white, unless it's something green, say)
-    lampW: { value: new Array(24).fill(1) },   // 1: warm torchlight; 0: white, so a glowing thing keeps its own colour; -1: plain white light, no halo (stage lighting)
+    lamps: { value: Array.from({ length: LAMP_MAX }, () => new THREE.Vector4()) },
+    lampS: { value: new Array(LAMP_MAX).fill(0) },
+    lampC: { value: Array.from({ length: LAMP_MAX }, () => new THREE.Color(1, 0.96, 0.82)) },   // each halo's colour (warm white, unless it's something green, say)
+    lampW: { value: new Array(LAMP_MAX).fill(1) },   // 1: warm torchlight; 0: white, so a glowing thing keeps its own colour; -1: plain white light, no halo (stage lighting)
     lampN: { value: 0 },
     lampK: { value: 0 },   // how dark it is: 0 in the day, 1 at night
     lampCol: { value: new THREE.Color(1, 0.8, 0.5) },
@@ -274,10 +275,10 @@ const postMat = new THREE.ShaderMaterial({
     uniform vec3 ink;
     uniform float inkMix, sat;
     uniform vec3 grade;
-    uniform vec4 lamps[24];
-    uniform float lampS[24];
-    uniform float lampW[24];
-    uniform vec3 lampC[24];
+    uniform vec4 lamps[${LAMP_MAX}];
+    uniform float lampS[${LAMP_MAX}];
+    uniform float lampW[${LAMP_MAX}];
+    uniform vec3 lampC[${LAMP_MAX}];
     uniform int lampN;
     uniform float lampK;
     uniform vec3 lampCol;
@@ -294,7 +295,7 @@ const postMat = new THREE.ShaderMaterial({
       vec3 col = texture2D(tColor, vUv).rgb;
       float lit = 0., warm = 0., halo = 0.;
       vec3 haloC = vec3(0.);
-      for (int i = 0; i < 24; i++) {
+      for (int i = 0; i < ${LAMP_MAX}; i++) {
         if (i >= lampN) break;
         vec2 q = (vUv - lamps[i].xy) / lamps[i].zw;
         float f = max(0., 1. - dot(q, q));
@@ -3773,10 +3774,12 @@ function placeLamps(views) {
   for (let i = lamps.length - 1; i >= 0; i--) if (!inScene(lamps[i].o)) lamps.splice(i, 1);   // its piece was rebuilt or moved
   if (!k) return;
   // the players' own hoppers glow a little, and so do a few fireflies
-  const list = lamps.slice();
+  const list = [];
   const close = camera.isPerspectiveCamera;   // the fishing camera, right beside them: light their whole body
   for (const w of playerMarks().map(([w]) => w)) if (w && !w.hidden) list.push({ o: w.m.group, r: close ? 0.9 : 1.5, s: close ? 0.95 : 0.75, y: close ? 0.6 + (w.y || 0) : 0.35 });
   for (const m of farm.markers || []) if (m.visible) list.push({ o: m, r: 0.42, s: 1.3, w: 0, flame: true });   // the players' sunflowers glow, in their own colours
+  for (const L of lamps) if (!L.flame) list.push(L);      // if there's ever too many: the pools of light first, the flames' own glow after
+  for (const L of lamps) if (L.flame) list.push(L);
   for (const f of flies.slice(0, 4)) list.push({ o: f.m, r: 0.7, s: 0.5 * Math.min(1, f.m.scale.x * 12), y: 0, fly: true });
   const W = rtColor.width, H = rtColor.height;
   let n = 0;
@@ -3784,7 +3787,7 @@ function placeLamps(views) {
     const cam = v ? v.cam : camera, [rx0, ry0, rw, rh] = v ? v.rect : [0, 0, W, H];
     const toUv = p => [(rx0 + (p.x * 0.5 + 0.5) * rw) / W, (ry0 + (p.y * 0.5 + 0.5) * rh) / H];
     for (const L of list) {
-      if (n >= 24) break;
+      if (n >= LAMP_MAX) break;
       L.o.getWorldPosition(_lp);
       if (!L.flame) _lp.y = L.y ?? 0.35;                    // light on the ground and on whoever stands there
       _lq.copy(_lp).project(cam);
@@ -3887,9 +3890,18 @@ const PIECES = {
   cauldron: { build: buildCauldron, foot: [-0.5, 0.5, -0.5, 0.5], decor: true, price: 30, bg: '#d9f5d0' },
   ghost: { build: buildGhostDecor, foot: [-0.45, 0.45, -0.4, 0.4], decor: true, price: 40, bg: '#ece6ff' },
   spookytree: { build: buildSpookyTree, foot: [-0.75, 0.75, -0.4, 0.4], decor: true, price: 25, bg: '#e0d6f0', icon: 0.8 },
+  // Lights for the dark. max: how many you can own
+  tiki: { build: buildTiki, foot: [-0.25, 0.25, -0.25, 0.25], decor: true, price: 10, max: 10, bg: '#ffe3b0', icon: 0.85 },
+  streetlamp: { build: buildStreetLamp, foot: [-0.25, 0.25, -0.25, 0.25], decor: true, price: 10, max: 10, bg: '#dbe6e0', icon: 0.68 },
+  lantern: { build: buildLantern, foot: [-0.55, 0.55, -0.25, 0.25], decor: true, price: 10, max: 10, bg: '#f3e2c8', icon: 0.85 },
+  campfire: { build: buildCampfire, foot: [-0.55, 0.55, -0.55, 0.55], decor: true, price: 50, max: 2, bg: '#ffd2b0' },
 };
-const DECOR = Object.keys(PIECES).filter(id => PIECES[id].decor);
-const ownedDecor = new Set(store.get('bl-decor', []).filter(id => DECOR.includes(id)));
+// Each extra one of a max piece is a piece of its own ('tiki-2', 'tiki-3'...), saved and moved like any other.
+for (const id of Object.keys(PIECES)) for (let i = 2; i <= (PIECES[id].max || 1); i++) PIECES[`${id}-${i}`] = { ...PIECES[id], copyOf: id };
+const DECOR = Object.keys(PIECES).filter(id => PIECES[id].decor && !PIECES[id].copyOf);
+const ownedDecor = new Set(store.get('bl-decor', []).filter(id => PIECES[id]?.decor));
+const decorCopies = id => [id, ...Array.from({ length: (PIECES[id].max || 1) - 1 }, (_, i) => `${id}-${i + 2}`)];
+const nextCopy = id => decorCopies(id).find(c => !ownedDecor.has(c));   // the next one to buy; none left: you have them all
 const savedLayout = store.get('bl-layout', {});
 const snap = v => Math.round(v / GRID) * GRID;
 // A footprint turned r quarter turns (three.js y rotation), as an x0, x1, z0, z1 box.
@@ -5027,7 +5039,7 @@ function buildSushi() {
       glowAt(g, x, 0.13, z, PANEL, 0.62);
     }
   }
-  const lit = warm.mesh(MARKER_MAT), glowing = panels.mesh(PANEL_MAT);
+  const lit = warm.mesh(MARKER_MAT), glowing = panels.mesh(NIGHT_MAT);
   lit.castShadow = glowing.castShadow = false;
   lit.layers.set(GLOW_LAYER);
   glowing.layers.set(GLOW_LAYER);
@@ -5098,6 +5110,109 @@ function buildRedbud(g) {
   pool.position.set(1.55, 0.8, 0.3);
   g.add(pool);
   lamps.push({ o: pool, r: 2, s: 0.95, y: 0.6 });
+}
+// Glass lit only after dark (it's made in white and takes its colour from NIGHT_MAT).
+function nightGlass(g, v) {
+  const m = v.mesh(NIGHT_MAT);
+  m.castShadow = false;
+  m.layers.set(GLOW_LAYER);
+  g.add(m);
+}
+function lampLight(g, x, y, z, size, r, s) {   // its glow, its pool of light on the ground, and the bright heart of it
+  glowAt(g, x, y, z, 0xffd98a, size);
+  const bulb = new THREE.Object3D();
+  bulb.position.set(x, y, z);
+  g.add(bulb);
+  lamps.push({ o: bulb, r, s });
+  lamps.push({ o: bulb, r: 0.3, s: 1, flame: true });
+}
+function buildTiki(g) {
+  const v = new VB(0.6), h = 1.15;
+  torch(g, 0, 0, h);
+  v.cyl(0.085, 0.125, 0.15, 0, h - 0.1, 0, 0xd1a95c);                          // a raffia skirt under the cup...
+  v.cyl(0.05, 0.06, 0.03, 0, h - 0.19, 0, 0x8a6236);                           // ...tied on with twine
+  v.ball(0.09, 0.04, 0.09, 0, 0.02, 0, 0x8a6236);
+  g.add(v.mesh());
+}
+// A Victorian street lamp in black iron: a fluted base, a tapering post, a ladder bar and a
+// tall four-sided glass lantern under a little roof.
+function buildStreetLamp(g) {
+  const IRON = 0x2b3330, v = new VB(0.6), glass = new VB(0.6);
+  v.cyl(0.11, 0.16, 0.12, 0, 0.06, 0, IRON);
+  v.cyl(0.075, 0.105, 0.24, 0, 0.24, 0, IRON);
+  v.ball(0.09, 0.04, 0.09, 0, 0.37, 0, IRON);
+  v.cyl(0.03, 0.05, 1.2, 0, 0.96, 0, IRON);
+  for (const y of [0.64, 1.2]) v.ball(0.056, 0.022, 0.056, 0, y, 0, IRON);
+  v.cyl(0.012, 0.012, 0.44, 0, 1.5, 0, IRON, 0, 0, Math.PI / 2);               // the bar a lamplighter rests a ladder on
+  for (const s of [-1, 1]) {
+    v.ball(0.024, 0.024, 0.024, s * 0.22, 1.5, 0, IRON);
+    v.torus(0.055, 0.011, Math.PI * 1.4, s * 0.08, 1.42, 0, IRON, 0, 0, s > 0 ? -0.5 : Math.PI + 0.5 - Math.PI * 0.4);   // and a scroll under each side
+  }
+  v.cyl(0.05, 0.04, 0.06, 0, 1.59, 0, IRON);
+  v.cyl(0.095, 0.08, 0.03, 0, 1.63, 0, IRON);
+  glass.cyl(0.145, 0.085, 0.36, 0, 1.82, 0, 0xffffff);
+  for (let i = 0; i < 4; i++) {                                                // the panes' iron frame
+    const a = Math.PI / 4 + i * Math.PI / 2;
+    v.cyl(0.008, 0.008, 0.37, Math.cos(a) * 0.118, 1.82, Math.sin(a) * 0.118, IRON, Math.sin(a) * 0.165, 0, -Math.cos(a) * 0.165);
+  }
+  v.cyl(0.165, 0.15, 0.02, 0, 2.01, 0, IRON);
+  v.cone(0.175, 0.16, 0, 2.1, 0, IRON);
+  v.ball(0.03, 0.03, 0.03, 0, 2.2, 0, IRON);
+  v.cone(0.012, 0.07, 0, 2.25, 0, IRON);
+  g.add(v.mesh());
+  nightGlass(g, glass);
+  lampLight(g, 0, 1.82, 0, 1.5, 2.8, 1.1);
+}
+// An old iron lantern hung from a wooden crossbeam, swaying a little.
+function buildLantern(g) {
+  const WOOD = 0x7a5533, IRON = 0x2f2a28, v = new VB(0.6), iron = new VB(0.6), glass = new VB(0.6), hang = new THREE.Group();
+  v.rbox(0.24, 0.06, 0.24, -0.34, 0.03, 0, 0x8f8a80, 0.02);
+  v.rbox(0.13, 1.5, 0.13, -0.34, 0.77, 0, WOOD, 0.02);
+  v.rbox(1.0, 0.12, 0.12, 0, 1.42, 0, WOOD, 0.02);
+  v.rbox(0.07, 0.5, 0.07, -0.16, 1.2, 0, 0x5f4026, 0.01, 0, 0, -0.75);         // a brace
+  g.add(v.mesh());
+  iron.cyl(0.008, 0.008, 0.18, 0, -0.09, 0, IRON);                             // its chain
+  iron.torus(0.03, 0.007, Math.PI * 2, 0, -0.2, 0, IRON);
+  iron.cone(0.095, 0.09, 0, -0.27, 0, IRON);
+  iron.cyl(0.1, 0.1, 0.02, 0, -0.325, 0, IRON);
+  for (const [x, z] of [[-0.07, -0.07], [0.07, -0.07], [0.07, 0.07], [-0.07, 0.07]]) iron.cyl(0.009, 0.009, 0.22, x, -0.44, z, IRON);
+  iron.cyl(0.1, 0.085, 0.03, 0, -0.565, 0, IRON);
+  glass.cyl(0.08, 0.08, 0.21, 0, -0.44, 0, 0xffffff);
+  hang.add(iron.mesh());
+  nightGlass(hang, glass);
+  lampLight(hang, 0, -0.44, 0, 0.95, 2.2, 0.95);
+  hang.position.set(0.28, 1.36, 0);
+  g.add(hang);
+  const ph = Math.random() * 6;
+  return t => { hang.rotation.z = Math.sin(t * 1.2 + ph) * 0.045; };
+}
+function buildCampfire(g) {
+  const LOG = 0x6a4428, v = new VB(0.6), f = new THREE.Group();
+  v.cyl(0.3, 0.32, 0.02, 0, 0.01, 0, 0x4a4440);                                // the ash
+  for (let i = 0; i < 10; i++) {                                               // a ring of stones
+    const a = i / 10 * Math.PI * 2;
+    v.ball(0.105, 0.075, 0.09, Math.cos(a) * 0.42, 0.05, Math.sin(a) * 0.42, [0x8f8a80, 0x7c7870, 0xa39e92][i % 3], 0, -a, 0);
+  }
+  for (const a of [0.5, 2.6, 4.7]) {                                           // the logs, stacked like a tent
+    v.cyl(0.035, 0.045, 0.56, Math.cos(a) * 0.13, 0.2, Math.sin(a) * 0.13, LOG, -Math.sin(a) * 0.6, 0, Math.cos(a) * 0.6);
+    v.cyl(0.045, 0.045, 0.5, Math.cos(a + 1) * 0.1, 0.07, Math.sin(a + 1) * 0.1, LOG, 0, a, Math.PI / 2);
+  }
+  g.add(v.mesh());
+  for (const [x, z, k] of [[0, 0, 1.9], [0.11, 0.06, 1.2], [-0.1, 0.07, 1.1], [0.01, -0.11, 1.25]]) {
+    const outer = new THREE.Mesh(FLAME_GEO, FLAME_MAT), inner = new THREE.Mesh(FLAME_GEO, EMBER_MAT);
+    outer.position.set(x, (k - 1) * 0.15, z);
+    outer.scale.setScalar(k);
+    inner.position.set(x, (k - 1) * 0.15 - 0.04 * k, z);
+    inner.scale.setScalar(k * 0.55);
+    for (const m of [outer, inner]) { m.layers.set(GLOW_LAYER); f.add(m); }
+  }
+  f.position.y = 0.3;
+  f.userData.flame = true;
+  g.add(f);
+  glowAt(g, 0, 0.5, 0, 0xffb45a, 1.8);
+  const ph = Math.random() * 6;
+  lamps.push({ o: f, r: 3.2, s: 1.15, torch: true, ph });
+  lamps.push({ o: f, r: 0.55, s: 1.2, torch: true, flame: true, ph });
 }
 // Chef Salmón, who runs the bar: a Spanish grizzly in his whites and tall hat, with a red
 // and gold neckerchief and a neat moustache.
@@ -5361,7 +5476,7 @@ const GLOW_TEX = (() => {
   return new THREE.CanvasTexture(c);
 })();
 const GLOW_MATS = new Map();
-const PANEL_MAT = new THREE.MeshBasicMaterial({ vertexColors: true }), PANEL_OFF = new THREE.Color(0xdcd6ca), PANEL_ON = new THREE.Color(0xffd98a);   // the bar's floor panels: plain frosted glass by day
+const NIGHT_MAT = new THREE.MeshBasicMaterial({ vertexColors: true }), NIGHT_OFF = new THREE.Color(0xdcd6ca), NIGHT_ON = new THREE.Color(0xffd98a);   // lights that are plain frosted glass by day: the bar's floor panels, the lamps
 const _up = new THREE.Vector3(0, 1, 0);
 const CAN_GEO = new THREE.CylinderGeometry(0.07, 0.1, 0.16, 12), CAN_MAT = new THREE.MeshLambertMaterial({ color: 0x2b2233 });
 // A spotlight's beam: brightest at the light, fading toward the boards.
@@ -5391,7 +5506,7 @@ function glowAt(g, x, y, z, color, size) {
 function stageTick(t) {
   const k = nightK();
   for (const m of GLOW_MATS.values()) { m.opacity = k; m.visible = k > 0.02; }
-  PANEL_MAT.color.lerpColors(PANEL_OFF, PANEL_ON, k);
+  NIGHT_MAT.color.lerpColors(NIGHT_OFF, NIGHT_ON, k);
   BEAM_MAT.opacity = 0.16 * k;
   BEAM_MAT.visible = k > 0.02;
   if (!farm.disco) return;
@@ -8359,7 +8474,7 @@ function setShopTab(tab) {
   shopGrid.hidden = tab === 'music';
   keyGrid.hidden = scaleChips.hidden = tab !== 'music';
   if (tab === 'music') keyScale = songScale();
-  shopFocus = tab === 'music' ? keyFocus() : Math.max(0, DECOR.findIndex(id => !ownedDecor.has(id)));
+  shopFocus = tab === 'music' ? keyFocus() : Math.max(0, DECOR.findIndex(nextCopy));
   refreshShop();
   document.querySelector('#shop .panelBody').scrollTop = 0;
 }
@@ -8478,10 +8593,10 @@ function refreshShop(msg) {
     c.setAttribute('aria-label', t(on ? 'aria.keyOn' : have ? 'aria.keyHave' : 'aria.keyBuy', { name, n: KEY_PRICE }));
   });
   [...shopGrid.children].forEach((c, i) => {
-    const id = DECOR[i], have = ownedDecor.has(id), price = PIECES[id].price, name = t('decor.' + id);
+    const id = DECOR[i], have = !nextCopy(id), price = PIECES[id].price, name = t('decor.' + id), max = PIECES[id].max, got = decorCopies(id).filter(c => ownedDecor.has(c)).length;
     c.classList.toggle('short', !have && (game.coins < price || (PIECES[id].needsStage && !farm.stageBuilt)));
     c.classList.toggle('focus', nav && shopTab === 'decor' && i === shopFocus);
-    c.querySelector('.heroName').textContent = name;
+    c.querySelector('.heroName').textContent = max && got ? `${name} ${got}/${max}` : name;
     const tag = c.querySelector('.tag');
     tag.className = 'tag ' + (have ? 'check' : 'cost');
     tag.innerHTML = have ? CHECK_SVG : FLOWER_SVG + `<span>${price}</span>`;
@@ -8501,8 +8616,9 @@ function closeShop() {
   game.picking = anyPanel();
 }
 function buyDecor(id) {
-  if (ownedDecor.has(id) && PIECES[id].onStage) { closeShop(); return; }
-  if (ownedDecor.has(id)) {   // already on the farm: go and pick it up
+  const copy = nextCopy(id);
+  if (!copy && PIECES[id].onStage) { closeShop(); return; }
+  if (!copy) {   // already on the farm: go and pick it up
     closeShop();
     enterDecor();   // (if not arranging already)
     selectPiece(id);
@@ -8514,7 +8630,7 @@ function buyDecor(id) {
   if (game.coins < price) { sfx.bump(); refreshShop(needText(price - game.coins)); return; }
   game.coins -= price;
   store.set('bl-coins', game.coins);
-  ownedDecor.add(id);
+  ownedDecor.add(copy);
   store.set('bl-decor', [...ownedDecor]);
   if (PIECES[id].onStage) {   // the drum kit goes straight onto the Jam Stage
     if (id === 'bigstage') {   // the stage grows where it stands, or moves to the nearest place with room
@@ -8532,7 +8648,7 @@ function buyDecor(id) {
     refreshShop(t({ disco: 'discoHere', bigstage: 'bigHere' }[id] || 'drumsHere'));
     return;
   }
-  const p = addPiece(id, [snap(farmCam.x), snap(farmCam.z - 1.4), 0]);   // the nearest free spot to the middle of the view
+  const p = addPiece(copy, [snap(farmCam.x), snap(farmCam.z - 1.4), 0]);   // the nearest free spot to the middle of the view
   saveLayout();
   settleWalkers();
   hud();
@@ -8540,7 +8656,7 @@ function buyDecor(id) {
   cheer(p.x, p.z);
   closeShop();
   enterDecor();
-  selectPiece(id);
+  selectPiece(copy);
 }
 $('shopClose').addEventListener('click', closeShop);
 $('shop').addEventListener('click', e => { if (e.target.id === 'shop') closeShop(); });
