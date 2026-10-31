@@ -3323,8 +3323,7 @@ function land(h = P) {
   if (mealOf(h) === 'magnet') for (const o of lane.coins.filter(c => !c.spooky)) pickUp(h, lane, o);   // the Magnet Roll: the whole row
   if (h === P && h.r > (P.far || 0)) {   // this player's own new ground (a friend may be ahead, so not the team's score)
     P.far = h.r;
-    questAdd('hop');
-    if (GUEST || game.crew.length > 1) questAdd('friend');
+    if (buddyHere()) questAdd('hop');
   }
   if (h.r > game.score) {   // new ground: the sun climbs back up a little
     game.day = Math.min(1, game.day + DAY_GAIN * (h.r - game.score));
@@ -3343,7 +3342,7 @@ function pickUp(h, lane, coin) {
     gainPumpkin(h);
   } else {
     roadSend({ t: 'rc', r: h.r, c: coin.c });
-    questAdd('flowers');
+    if (buddyHere()) questAdd('flowers');
     game.coins++;
     game.today++;
     store.set('bl-coins', game.coins);
@@ -4814,7 +4813,6 @@ function cookSushi(id) {
   store.set(BAG_KEY, fishBag);
   sushiStock[id] = (sushiStock[id] || 0) + 1;
   store.set(SUSHI_KEY, sushiStock);
-  questAdd('sushi');
   sfx.place();
   hud();
   refreshSushi();
@@ -4835,6 +4833,7 @@ function feedSushi(slot, id) {
   sushiStock[id]--;
   store.set(SUSHI_KEY, sushiStock);
   pl.eat = id;
+  if (pl.guest) questAdd('sushi');
   partySend(slot, { t: 'fed', id });
   sfx.upgrade();
   refreshSushi();
@@ -7737,7 +7736,7 @@ function logFish(id, cm) {   // into this device's Fish Book: is it a new kind, 
 function landFish(f) {
   const sp = f.sp, cm = Math.round(sp.cm[0] + (sp.cm[1] - sp.cm[0]) * Math.random() ** 1.6);
   const rec = logFish(sp.id, cm);
-  if (f.key === myKey()) questAdd('fish');
+  if (f.key === myKey() && buddyHere()) questAdd('fish');
   if (sp.price) addToBag(sp.id);   // to sell from the Fish Pond, or craft with
   showCatch(f.w, sp, cm, rec);
   burst(f.rig.bx, 0.1, FARM_Z + f.rig.bz, [0xffffff, 0xbfe9ff, 0xffd23f], 14, 1.2, 3.5, 0.07, 0.6);
@@ -9075,7 +9074,7 @@ DRUM_GRID.forEach(d => {
 function playDrum(d) {
   sfx.ensure();
   sfx.drum(d);
-  questAdd('jam');
+  if (buddyOnStage()) questAdd('jam');
   if (GUEST) guestNet.send({ t: 'drum', d });
   else toGuests({ t: 'jd', k: 'h', d });
   const pad = drumPads.querySelector(`[data-drum="${d}"]`);
@@ -9132,7 +9131,7 @@ function playPad(row, col, by) {
   // the host tells its guests.
   if (GUEST) { guestNet.send({ t: 'note', r: row, c: col, on: true, id }); if (by) jam.byRC.set(by, [row, col]); }
   else toGuests({ t: 'jn', k: 'h', by: by || 'x', hero: id, f: padFreq(row, col), sus: jam.sustain, on: true, hold: !!by });
-  questAdd('jam');
+  if (buddyOnStage()) questAdd('jam');
   const pad = padAt(row, col);
   pad.classList.remove('hit'); void pad.offsetWidth; pad.classList.add('hit');
   if (by) { jam.heldPads.get(by)?.classList.remove('held'); pad.classList.add('held'); jam.heldPads.set(by, pad); }   // stays lit while it's held
@@ -10640,11 +10639,14 @@ $('setClose').addEventListener('click', closeSettings);
 $('settings').addEventListener('click', e => { if (e.target.id === 'settings') closeSettings(); });
 
 // ---------- Daily Quests and Buddy Tokens ----------
-// Three new quests every day: two from the list, the same for everyone that day, as far as
-// their farm has what they need, and always one to do with a friend. Each pays one Buddy
-// Token, and quests are the only way to earn them. Quests and tokens are the player's own, so
-// they count on a friend's farm too, and neither is one of the FARM_KEYS.
-const QUESTS = { hop: 60, flowers: 15, fish: 3, sushi: 1, jam: 40, friend: 20 };   // how many it takes
+// Three new quests every day, all done with a Buddy: someone on their own device visiting
+// your farm, or you visiting theirs. Two come from the list, the same for everyone that day, as
+// far as their farm has what they need, and the third is always to visit a Buddy's farm. Each
+// pays one Buddy Token, and quests are the only way to earn them. Quests and tokens are the
+// player's own, so they count on a friend's farm too, and neither is one of the FARM_KEYS.
+const QUESTS = { hop: 60, flowers: 15, fish: 3, sushi: 1, jam: 40, visit: 1 };   // how many it takes
+const buddyHere = () => !!GUEST || guests().length > 0;
+const buddyOnStage = () => GUEST ? jam.band.size > 0 : guests().some(([, p]) => onStage(p));
 const questsOpen = () => $('quests').classList.contains('show');
 function questsToday() {
   const day = new Date().toLocaleDateString('en-CA');   // this player's own date: YYYY-MM-DD
@@ -10653,7 +10655,7 @@ function questsToday() {
   const can = ['hop', 'flowers', farm.level >= 1 && 'fish', farm.sushiBuilt && 'sushi', farm.stageBuilt && 'jam'].filter(Boolean);
   const dice = seeded(+day.replace(/-/g, '')), two = [];
   while (two.length < 2) two.push(can.splice(Math.floor(dice() * can.length), 1)[0]);
-  q = { day, list: [...two, 'friend'].map(id => ({ id, n: 0 })) };
+  q = { day, list: [...two, 'visit'].map(id => ({ id, n: 0 })) };
   store.set('bl-quests', q);
   return q;
 }
@@ -10711,6 +10713,7 @@ $('questBtn').addEventListener('click', () => { sfx.ensure(); openQuests(); });
 $('questsClose').addEventListener('click', closeQuests);
 $('quests').addEventListener('click', e => { if (e.target.id === 'quests') closeQuests(); });
 markQuests();
+if (guestNet) questAdd('visit');   // here, on a Buddy's farm
 
 // ---------- Become a Hop Supporter ----------
 // The player gets a code (HOP-XXXXXX), supports on Ko-fi with it in their message,
