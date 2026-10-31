@@ -7414,15 +7414,6 @@ function lockReel(g) {
   if (Math.abs(drift) < 0.012) return;   // the speakers' clock jitters a little: leave that be
   for (const n of g.notes) n.at += drift;
 }
-// A menu was open while the song played on: the notes left pick up a whole number of bars
-// later, so they're still on the same beats of the bar, with time to see them coming.
-function resumeReel(g) {
-  lockReel(g);
-  const first = g.notes.find(n => !n.done), late = first ? songNow() + 2 * BEAT - first.at : 0;
-  if (late <= 0) return;
-  const bars = Math.ceil(late / BAR) * BAR;
-  for (const n of g.notes) if (!n.done) { n.at += bars; n.pos += bars; }
-}
 function judge(f, nt, ok, perfect) {
   const g = f.g;
   nt.done = ok ? 1 : -1;
@@ -7598,12 +7589,9 @@ function updateFishing(dt) {
   if (game.where !== 'farm') return;
   const t = game.time, paused = game.picking;
   for (const f of fishers.values()) {
-    if (f.st === 'reel') {
-      if (paused) f.g.held = true;   // a menu open: the notes wait
-      else if (f.g.held) { f.g.held = false; resumeReel(f.g); }
-      else lockReel(f.g);
-    }
+    if (f.st === 'reel') lockReel(f.g);
     if (!paused) stepFisher(f, dt);
+    else if (f.st === 'reel') reelGame(f, false);   // no pausing a reel: the song plays on, so a menu left open loses the fish
     drawRig(f.rig, f.st, t);
     placeFishUi(f, paused);
     if ((f.tell -= dt) < 0 && f.st !== 'walk' && f.st !== 'settle') tellFish(f);   // now and then, for anyone who just arrived
