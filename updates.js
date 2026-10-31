@@ -10,12 +10,16 @@ export const UPDATES = [
     title: 'Lanterns in the redbud',
     notes: [
       'A redbud tree in full bloom now leans over the Sushi Bar, with bright lanterns that light it up after dark.',
+      'Chef Salmón now gets around: he works the whole bar and takes strolls around the building.',
+      'Warm LED panels now glow all around the Sushi Bar floor.',
       'More sunflowers on the road, and the Sunny Roll now doubles them for the whole team.',
     ],
     es: {
       title: 'Faroles en el árbol de Judas',
       notes: [
         'Un árbol de Judas en plena flor se asoma ahora sobre la barra de sushi, con faroles brillantes que la iluminan de noche.',
+        'El chef Salmón ya no se está quieto: trabaja por toda la barra y da paseos alrededor del local.',
+        'Paneles LED cálidos brillan ahora en todo el borde del suelo de la barra de sushi.',
         'Más girasoles en el camino, y el Rollo soleado ahora los duplica para todo el equipo.',
       ],
     },
@@ -23,6 +27,8 @@ export const UPDATES = [
       title: '紫荆树上的灯笼',
       notes: [
         '一棵盛开的紫荆树如今探到寿司吧上方，明亮的灯笼在入夜后照亮四周。',
+        '萨尔蒙主厨动起来了：他在吧台里忙前忙后，还会绕着店铺散步。',
+        '寿司吧地面四周亮起了温暖的 LED 灯板。',
         '路上的向日葵变多了，阳光卷现在能让全队路上的向日葵翻倍。',
       ],
     },

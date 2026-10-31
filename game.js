@@ -3867,7 +3867,7 @@ const PIECES = {
   barn: { build: buildBarn, foot: [-2.05, 1.6, -1.6, 1.95], at: [4, -8.5, 0] },
   pond: { build: g => { farm.pond = g; buildPond(); }, foot: [-2.8, 2.8, -2.1, 2.1], at: [2, 2, 0], pond: true },   // room for its biggest size
   bunk: { build: g => { farm.bunk = g; buildBunk(); }, foot: [-1.3, 1.3, -1.1, 1.45], block: [-1.3, 1.3, -1.1, 1.0], at: [0.5, -3.5, 0] },
-  sushi: { build: g => { farm.sushi = g; buildSushi(); }, foot: [-1.45, 2.05, -0.85, 1.1], at: [4.9, -3.5, 0] },
+  sushi: { build: g => { farm.sushi = g; buildSushi(); }, foot: [-1.7, 2.3, -1.25, 1.35], at: [4.9, -3.5, 0] },
   stage: {
     build: g => { farm.stage = g; buildStage(); return stageTick; }, at: [-4.5, -1.5, 0],
     get foot() { const k = stageK(); return [-1.3 * k, 1.3 * k, -1.0 * k, 1.25 * k]; },   // the Big Jam Stage takes more room
@@ -4718,7 +4718,7 @@ function costTag(g, n, x, y, z) {
 function clearPiece(g) {
   for (const c of [...g.children]) {
     g.remove(c);
-    c.geometry?.dispose();
+    c.traverse(o => o.geometry?.dispose());
     if (c.userData.tag) { c.material.map.dispose(); c.material.dispose(); }
   }
 }
@@ -4968,7 +4968,7 @@ function buildSushi() {
     costTag(g, SUSHI_COST, 0, 1.5, 0.3);
     return;
   }
-  v.rbox(2.8, 0.08, 1.8, 0, 0.04, 0, 0xcfc8bc, 0.03);                          // a stone floor
+  v.rbox(2.96, 0.08, 1.96, 0, 0.04, 0, 0xcfc8bc, 0.03);                        // a stone floor
   v.rbox(2.7, 1.5, 0.1, 0, 0.8, -0.75, WHITE, 0.02);                           // the tiled back wall
   for (let y = 0.36; y < 1.5; y += 0.22) v.rbox(2.68, 0.008, 0.01, 0, y, -0.695, 0xdcd7cd, 0.002);
   for (let x = -1.2; x < 1.3; x += 0.3) v.rbox(0.008, 1.45, 0.01, x, 0.8, -0.695, 0xdcd7cd, 0.002);
@@ -5017,6 +5017,15 @@ function buildSushi() {
   for (const [x, y] of bulbs) {
     warm.ball(0.02, 0.028, 0.02, x, y, 0.33, 0xffe6a8);
     glowAt(g, x, y, 0.34, 0xffe6a8, 0.17);
+  }
+  const PANEL = 0xffd98a;
+  for (const [edge, along, n] of [[0.92, 1.42, 10], [-0.92, 1.42, 10], [1.42, 0.84, 6], [-1.42, 0.84, 6]]) {   // LED panels set in the floor, all the way round its edge
+    const long = n === 10;
+    for (let i = 0; i < n; i++) {
+      const u = -along + (i + 0.5) * 2 * along / n, x = long ? u : edge, z = long ? edge : u, size = 2 * along / n - 0.022;
+      warm.rbox(long ? size : 0.08, 0.012, long ? 0.08 : size, x, 0.086, z, PANEL, 0.004);
+      glowAt(g, x, 0.13, z, PANEL, 0.62);
+    }
   }
   const lit = warm.mesh(MARKER_MAT);
   lit.castShadow = false;
@@ -5072,7 +5081,7 @@ function buildRedbud(g) {
   for (const [x0, z0, n] of [[0.98, 0.02, 5], [1.12, 0.3, 4], [0.92, -0.32, 4], [1.28, 0.42, 3]]) {   // sprays draping down over the roof
     for (let i = 0; i < n; i++) v.ball(0.065 - i * 0.006, 0.075, 0.065 - i * 0.006, x0 - i * 0.02, 1.72 - i * 0.075, z0, PINKS[(i + n) % 4]);
   }
-  const lit = [[1.12, 1.02, 0.62], [1.48, 0.86, 0.72], [1.84, 1.0, 0.62], [2.08, 1.14, 0.2]];
+  const lit = [[1.06, 1.02, 0.62], [1.38, 0.86, 0.72], [1.98, 0.98, 0.6], [2.0, 1.14, 0.16]];   // with room for the chef to pass under the tree
   for (const [x, y, z] of lit) {
     v.cyl(0.005, 0.005, 1.68 - y, x, (1.68 + y) / 2 + 0.05, z, 0x3a3440);       // its cord
     v.cyl(0.03, 0.04, 0.02, x, y + 0.075, z, 0x3a3440);                         // its little cap
@@ -5089,7 +5098,7 @@ function buildRedbud(g) {
   g.add(pool);
   lamps.push({ o: pool, r: 2, s: 0.95, y: 0.6 });
 }
-// Chef Salmón, always at the bar: a Spanish grizzly in his whites and tall hat, with a red
+// Chef Salmón, who runs the bar: a Spanish grizzly in his whites and tall hat, with a red
 // and gold neckerchief and a neat moustache.
 function buildChef(g) {
   const FUR = 0x7a4f2c, FUR_D = 0x54341b, MUZZLE = 0xdcb88e, WHITE = 0xfaf7ef, v = new VB(0.6), chef = new THREE.Group();
@@ -5113,9 +5122,65 @@ function buildChef(g) {
   v.cyl(0.13, 0.12, 0.09, 0, 1.28, 0, WHITE);                                  // his tall hat
   v.ball(0.18, 0.11, 0.18, 0, 1.38, 0, WHITE);
   chef.add(v.mesh());
+  const legs = [-1, 1].map(s => {                                              // dark trousers, swung from the hip
+    const leg = new VB(0.6), hip = new THREE.Group();
+    leg.cyl(0.075, 0.06, 0.24, 0, -0.12, 0, 0x3a3440);
+    leg.ball(0.075, 0.04, 0.115, 0, -0.26, 0.03, 0x2a2430);
+    hip.add(leg.mesh());
+    hip.position.set(s * 0.1, 0.3, 0);
+    chef.add(hip);
+    return hip;
+  });
   chef.position.set(0.42, 0.08, -0.14);
+  chef.userData = { legs, yaw: 0, floor: 0.08, stride: 0, busy: 1, way: [], left: null };
   g.add(chef);
   return chef;
+}
+// His day, in the bar's own space: [x, z, which way he faces, how long he stays]. He potters
+// between the jobs behind the bar, and now and then comes out from the tree end for a stroll
+// right round the building, stopping to look over the stools and to admire his redbud.
+const CHEF_SPEED = 0.75;
+const CHEF_JOBS = [[0.42, -0.14, 0, 6], [-0.3, -0.14, 0, 4], [0.6, -0.14, Math.PI, 4], [-0.35, -0.34, -Math.PI / 2, 3.5]];   // the board, the rolls, the prep counter, the fridge
+const CHEF_LAP = [[1.3, -0.14], [1.52, 0.05], [1.68, 0.6], [1.68, 1.22], [0, 1.22, 0, 3], [-1.6, 1.22], [-1.6, -1.12], [2.25, -1.12], [2.25, -0.3, -Math.PI / 2, 3.5], [2.25, 0.9], [1.68, 1.22], [1.68, 0.6], [1.52, 0.05], [1.3, -0.14]];
+function chefLapClear() {   // the lap takes in a little ground past the bar: he stays in if something's been built there
+  const p = farm.pieces.sushi, B = FARM_BOUNDS;
+  return CHEF_LAP.every(([ax, az], i) => {
+    const [bx, bz] = CHEF_LAP[i + 1] || [ax, az];
+    for (let k = 0; k < 8; k++) {
+      const [x, z] = pieceToFarm(p, lerp(ax, bx, k / 8), lerp(az, bz, k / 8));
+      if (x < B.x0 || x > B.x1 || z < B.z0 || z > B.z1 || blockedAt(x, z, p)) return false;
+    }
+    return true;
+  });
+}
+function chefPlan() {   // Math.random: he's only for looking at, so he leaves the game's own dice alone
+  const jobs = [...CHEF_JOBS].sort(() => Math.random() - 0.5).slice(0, 2 + Math.floor(Math.random() * 2));
+  return Math.random() < 0.6 && chefLapClear() ? [...jobs, ...CHEF_LAP] : jobs;
+}
+function updateChef(chef, dt, t) {
+  const c = chef.userData, p = chef.position;
+  if (!c.way.length) c.way = chefPlan();
+  const [x, z, face, wait] = c.way[0], d = Math.hypot(x - p.x, z - p.z), walking = d > 0.01;
+  let want = c.yaw;
+  if (walking) {
+    const step = Math.min(d, CHEF_SPEED * dt);
+    p.x += (x - p.x) / d * step;
+    p.z += (z - p.z) / d * step;
+    want = Math.atan2(x - p.x, z - p.z);
+  } else {
+    if (face !== undefined) want = face;
+    c.left ??= wait || 0;
+    if ((c.left -= dt) <= 0) { c.way.shift(); c.left = null; }
+  }
+  const turn = want - c.yaw;
+  c.yaw += Math.atan2(Math.sin(turn), Math.cos(turn)) * Math.min(1, dt * 7);
+  c.busy += ((walking ? 0 : 1) - c.busy) * Math.min(1, dt * 4);
+  c.stride += ((walking ? 0.65 : 0) - c.stride) * Math.min(1, dt * 10);
+  c.legs[0].rotation.x = Math.sin(t * 8.5) * c.stride;
+  c.legs[1].rotation.x = -c.legs[0].rotation.x;
+  c.floor += ((Math.abs(p.x) < 1.48 && Math.abs(p.z) < 0.98 ? 0.08 : 0) - c.floor) * Math.min(1, dt * 10);   // up onto the stone floor and down again
+  chef.rotation.y = c.yaw + Math.sin(t * 0.6) * 0.28 * c.busy;
+  chef.position.y = c.floor + Math.abs(Math.sin(t * (walking ? 8.5 : 2.4))) * (walking ? 0.03 : 0.014);
 }
 function stageK() { return farm.stageBuilt && ownedDecor.has('bigstage') ? BIG_STAGE : 1; }
 function buildStage() {
@@ -5611,10 +5676,7 @@ function updateFarm(dt) {
   }
   for (const p of Object.values(farm.pieces)) p.update?.(t);
   const chef = farm.sushi?.userData.chef;
-  if (chef) {   // Chef Salmón, busy at the board
-    chef.position.y = 0.08 + Math.abs(Math.sin(t * 2.4)) * 0.014;
-    chef.rotation.y = Math.sin(t * 0.6) * 0.28;
-  }
+  if (chef) updateChef(chef, dt, t);
   updateTorches(t);
   stageShows(dt);
   updateWalkers(dt, t);
@@ -5714,8 +5776,9 @@ function showAct(w, t) {
 // waddling from spot to spot, pausing to look around. The one you'll play as has a
 // sunflower bobbing over its head, and gives a happy hop when picked or back home.
 const YARD = { x0: FARM_BOUNDS.x0 + 0.3, x1: FARM_BOUNDS.x1 - 0.3, z0: FARM_BOUNDS.z0 + 0.3, z1: FARM_BOUNDS.z1 - 0.3 };
-function blockedAt(x, z) {   // inside any piece (the pond as an oval), with a little room to spare
+function blockedAt(x, z, skip) {   // inside any piece but skip (the pond as an oval), with a little room to spare
   for (const p of Object.values(farm.pieces)) {
+    if (p === skip) continue;
     const def = PIECES[p.id], a = p.r * Math.PI / 2, c = Math.cos(a), s = Math.sin(a);
     const dx = x - p.x, dz = z - p.z, lx = dx * c - dz * s, lz = dx * s + dz * c;   // into the piece's own space
     if (def.pond) {
