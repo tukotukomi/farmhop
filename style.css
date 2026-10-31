@@ -727,7 +727,7 @@ body:not(.farm) :is(.fishUi, .fishCatch), :is(.fishUi, .fishCatch).away { displa
 .lane .note { position: absolute; top: 50%; width: 22px; height: 22px; translate: -50% -50%; box-sizing: border-box; border-radius: 50%; background: #ffd23f; border: 2.5px solid #3a2442; }
 /* each kind of note has its own colour and look, so they read without the colour too */
 .lane .note.quarter { background: radial-gradient(circle, #3a2442 0 22%, #ffd23f 25%); }                       /* on the beat: a dot */
-.lane .note.eighth { background: repeating-linear-gradient(45deg, #ff9a3c 0 3px, #c96a14 3px 6px); }           /* on the .5: stripes */
+.lane .note.eighth { background: radial-gradient(circle at 29% 50%, #fff 0 14%, transparent 16%), radial-gradient(circle at 71% 50%, #fff 0 14%, transparent 16%), #1f6dff; }   /* on the .5: two dots */
 .lane .note.sixteenth { background: #ff7fb8; scale: .82; }
 .lane .note.hit { animation: notePop .25s ease-out forwards; }
 .lane .note.missed { background: #c9c1cf; opacity: .55; }
