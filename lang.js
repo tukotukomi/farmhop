@@ -47,7 +47,7 @@ export const STRINGS = {
       more: 'One more', less: 'One fewer',
     },
     fish: {
-      go: 'Go fishing', book: 'Fish Book', cast: 'Tap to cast! Drag to look around, pinch to zoom.', castPad: 'Press A to cast! The right stick looks around, the triggers zoom.', castKeys: 'Press Space to cast! WASD looks around, Q and E zoom.', castArrows: 'Press ↑ to cast!',
+      go: 'Go fishing', book: 'Fish Book', cast: 'Tap to cast!', castPad: 'Press A to cast!', castKeys: 'Press Space to cast!', castArrows: 'Press ↑ to cast!',
       reel: 'Tap on the beat!', reelPad: 'Press A on the beat!', reelKeys: 'Press Space on the beat!', reelArrows: 'Press ↑ on the beat!',
       perfect: 'Perfect!', good: 'Good!', miss: 'Miss',
       soon: 'Too soon!', away: 'It got away!', noFish: 'No fish yet! Upgrade the Fish Pond first.',
@@ -207,7 +207,7 @@ sushiBar: 'Sushi Bar', sushiPlan: 'Build a kitchen to cook your fish into sushi.
       more: 'Uno más', less: 'Uno menos',
     },
     fish: {
-      go: 'Ir a pescar', book: 'Libro de peces', cast: '¡Toca para lanzar! Arrastra para mirar alrededor y pellizca para acercar.', castPad: '¡Pulsa A para lanzar! La palanca derecha mira alrededor y los gatillos acercan.', castKeys: '¡Pulsa Espacio para lanzar! WASD mira alrededor; Q y E acercan.', castArrows: '¡Pulsa ↑ para lanzar!',
+      go: 'Ir a pescar', book: 'Libro de peces', cast: '¡Toca para lanzar!', castPad: '¡Pulsa A para lanzar!', castKeys: '¡Pulsa Espacio para lanzar!', castArrows: '¡Pulsa ↑ para lanzar!',
       reel: '¡Toca al ritmo!', reelPad: '¡Pulsa A al ritmo!', reelKeys: '¡Pulsa Espacio al ritmo!', reelArrows: '¡Pulsa ↑ al ritmo!',
       perfect: '¡Perfecto!', good: '¡Bien!', miss: 'Fallo',
       soon: '¡Demasiado pronto!', away: '¡Se escapó!', noFish: '¡Aún no hay peces! Mejora primero el estanque.',
@@ -367,7 +367,7 @@ sushiBar: 'Barra de sushi', sushiPlan: 'Construye una cocina para convertir tus 
       more: '多选一条', less: '少选一条',
     },
     fish: {
-      go: '去钓鱼', book: '鱼类图鉴', cast: '点一下抛竿！拖动转视角，双指缩放。', castPad: '按 A 抛竿！右摇杆转视角，扳机键缩放。', castKeys: '按空格抛竿！WASD 转视角，Q 和 E 缩放。', castArrows: '按 ↑ 抛竿！',
+      go: '去钓鱼', book: '鱼类图鉴', cast: '点一下抛竿！', castPad: '按 A 抛竿！', castKeys: '按空格抛竿！', castArrows: '按 ↑ 抛竿！',
       reel: '跟着节拍点！', reelPad: '跟着节拍按 A！', reelKeys: '跟着节拍按空格！', reelArrows: '跟着节拍按 ↑！',
       perfect: '完美！', good: '不错！', miss: '没按中',
       soon: '太早啦！', away: '鱼跑掉了！', noFish: '还没有鱼！先升级鱼塘吧。',

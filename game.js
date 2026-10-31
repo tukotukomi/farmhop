@@ -7552,7 +7552,7 @@ function screenAt(w, up) {   // a point over a hopper's head, in screen pixels
 function promptFor(f) {
   if (f.msgT > 0) return f.msg;
   const how = { tap: '', pad: 'Pad', keys: 'Keys', arrows: 'Arrows' }[f.via] ?? '';
-  if (f.st === 'ready') return t('fish.cast' + how);
+  if (f.st === 'ready') return f.t <= -30 ? t('fish.cast' + how) : '';   // a nudge, only once they've stood there a while without casting
   if (f.st === 'wait') return '…';
   if (f.st === 'bite') return '!';
   if (f.st === 'reel' && !f.g.hits && !f.g.miss) return t('fish.reel' + how);
