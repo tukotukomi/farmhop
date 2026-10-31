@@ -7703,6 +7703,7 @@ function stepFisher(f, dt) {
 // the top, runs of sixteenths. Harder fish also have a tighter window and allow
 // fewer misses. A tap with no note at the ring costs the next one.
 let BEAT = 60 / 84, BAR = 4 * BEAT, LOOP_S = 512 * BEAT / 4;   // the song's beat, four to the bar, and its 32-bar loop (they follow the song's tempo)
+const CALM_BEAT = 60 / 84;   // the farm tune's own beat
 function keepTempo() {
   if (!music || music.beat === BEAT) return;
   BEAT = music.beat;
@@ -7757,6 +7758,7 @@ function startReel(f) {
   const SIXTEENTH = BEAT / 4;   // the song's own tempo: Farm House is the medium ride, Psy Farm the hard one
   const lane = f.ui.querySelector('.lane');
   lane.classList.toggle('dnb', dnb);
+  lane.classList.toggle('zoomed', BEAT < CALM_BEAT);
   lane.querySelectorAll('.note').forEach(e => e.remove());
   for (const s of steps) {
     const el = document.createElement('i');
@@ -7768,7 +7770,7 @@ function startReel(f) {
   const fast = steps.some(s => s % 2) ? 2 : steps.some(s => s % 4) ? 3 : 4;   // closer notes: the lane shows fewer beats, so they spread out
   const k = (lvl - 1) / 8;
   f.g = {
-    notes, ahead: fast * BEAT, tempo: BEAT,
+    notes, ahead: fast * Math.max(BEAT, CALM_BEAT), tempo: BEAT,   // the fast songs zoom the lane out: more of the song in view, and the notes cross it no quicker than Classic's
     win: Math.min(0.2 - k * 0.11, SIXTEENTH * 0.48),            // 0.2 s either side down to under half a sixteenth
     need: Math.ceil(notes.length * (0.5 + k * 0.35)),           // half the notes, up to 85%
     hits: 0, miss: 0, sung: 0, offs: [], off: 0,
