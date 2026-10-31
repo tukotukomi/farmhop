@@ -2603,14 +2603,25 @@ function endSpooky() {
   const lead = game.crew.filter(c => c.alive && !c.parked).sort((a, b) => b.r - a.r)[0] || P;
   spooky.wave = { row: lead.r, t: 0 };   // back to normal, out from the leading hopper
   if (GUEST) return;   // the host plants the next one
-  spooky.next = game.score + 4 + Math.floor(Math.random() * 5);   // another one soon: a few rows on (in the next grass lane built, if those are built already)
+  planSpooky(4, 8);   // another one soon
+}
+function planSpooky(min, max) {   // min to max rows on (in the next grass lane built, if those are built already)
+  spooky.next = game.score + min + Math.floor(Math.random() * (max - min + 1));
   for (let r = spooky.next; r < genRow; r++) { const lane = lanes.get(r); if (lane?.type === 'grass' && plantSpooky(lane)) break; }
+}
+// Everyone's gone on past it, a few rows clear: it's gone, and another grows further up the road.
+function missedSpooky() {
+  const team = game.crew.filter(c => c.alive && !c.parked);
+  if (!team.length || Math.min(...team.map(c => c.r)) < spooky.at[0] + 3) return;
+  dropFlower();
+  planSpooky(8, 16);
 }
 function updateSpooky(dt) {
   updateWave(dt);
   const road = game.where === 'road';
   if (spooky.on && road && (game.state === 'play' || game.state === 'title')) { spooky.t -= dt; if (spooky.t <= 0 && !GUEST) endSpooky(); }
   spooky.k = clamp(spooky.k + (spooky.on && road ? dt : -dt) / 1.5, 0, 1);
+  if (!GUEST && road && game.state === 'play' && spooky.at) missedSpooky();
   if (spooky.flower?.parent) {   // the spooky sunflower turns and bobs, so you notice it
     spooky.flower.rotation.y += dt * 2.2;
     spooky.flower.position.y = Math.abs(Math.sin(game.time * 3)) * 0.12;

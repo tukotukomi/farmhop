@@ -13,6 +13,7 @@ export const UPDATES = [
       'Chef Salmón now gets around: he works the whole bar and takes strolls around the building.',
       'Warm LED panels now glow all around the Sushi Bar floor.',
       'Light up your nights! New in the Market: tiki torches, street lamps and lanterns (up to 10 of each) and campfires (up to 2).',
+      'Missed a spooky sunflower? Another one grows further up the road.',
       'More sunflowers on the road, and the Sunny Roll now doubles them for the whole team.',
     ],
     es: {
@@ -22,6 +23,7 @@ export const UPDATES = [
         'El chef Salmón ya no se está quieto: trabaja por toda la barra y da paseos alrededor del local.',
         'Paneles LED cálidos brillan ahora en todo el borde del suelo de la barra de sushi.',
         '¡Ilumina tus noches! Nuevo en el Mercado: antorchas tiki, farolas y faroles (hasta 10 de cada uno) y fogatas (hasta 2).',
+        '¿Se te escapó un girasol embrujado? Otro crecerá más adelante en el camino.',
         'Más girasoles en el camino, y el Rollo soleado ahora los duplica para todo el equipo.',
       ],
     },
@@ -32,6 +34,7 @@ export const UPDATES = [
         '萨尔蒙主厨动起来了：他在吧台里忙前忙后，还会绕着店铺散步。',
         '寿司吧地面四周亮起了温暖的 LED 灯板。',
         '点亮你的夜晚！集市新增提基火把、路灯和铁灯笼（各最多 10 个），以及篝火（最多 2 个）。',
+        '错过了闹鬼向日葵？前方的路上还会再长出一朵。',
         '路上的向日葵变多了，阳光卷现在能让全队路上的向日葵翻倍。',
       ],
     },
