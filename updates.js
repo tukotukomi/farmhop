@@ -17,6 +17,7 @@ export const UPDATES = [
       'Two new songs for Hop Supporters: Farm House, a minimal house take at 125 BPM, and Psy Farm, psytrance at 144 BPM.',
       'Signed in and visiting a friend? Tap Back to my farm to head home.',
       'New: Daily Quests! Team up with a Buddy for three fresh quests every day, each one worth a Buddy Token.',
+      'Spend 10 Buddy Tokens to turn your swing into a porch swing for two.',
       'More sunflowers on the road, and the Sunny Roll now doubles them for the whole team.',
     ],
     es: {
@@ -30,6 +31,7 @@ export const UPDATES = [
         'Dos canciones nuevas para Hop Supporters: Farm House, house minimalista a 125 BPM, y Psy Farm, psytrance a 144 BPM.',
         '¿Visitas a un amigo con tu sesión iniciada? Toca Volver a mi granja para ir a casa.',
         '¡Nuevo: Misiones diarias! Únete a un amigo para tres misiones cada día, y cada una vale una Ficha de Amigo.',
+        'Gasta 10 Fichas de Amigo para convertir tu columpio en un columpio de porche para dos.',
         'Más girasoles en el camino, y el Rollo soleado ahora los duplica para todo el equipo.',
       ],
     },
@@ -44,6 +46,7 @@ export const UPDATES = [
         '跳跳支持者新增两首歌：农场浩室，125 BPM 的极简浩室；迷幻农场，144 BPM 的迷幻舞曲。',
         '已登录并在朋友的农场做客？点“回到我的农场”就能回家。',
         '新功能：每日任务！和伙伴一起完成每天三个新任务，每完成一个可得一枚伙伴币。',
+        '花 10 枚伙伴币，把秋千升级成双人门廊秋千。',
         '路上的向日葵变多了，阳光卷现在能让全队路上的向日葵翻倍。',
       ],
     },

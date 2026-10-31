@@ -45,7 +45,7 @@ const heroName = id => t('heroes.' + id);
 // before anything reads a setting, wait for the host to send it (guest.js). The
 // farm's settings then come from the host and are only kept in memory, so this
 // device's own farm is never touched.
-const FARM_KEYS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-sushibar', 'bl-coins', 'bl-top', 'bl-dnb', 'bl-song', 'bl-land', 'bl-wide', 'bl-key', 'bl-scale', 'bl-pumpkins', 'bl-organ', 'bl-pond-skins', 'bl-pond-skin'];
+const FARM_KEYS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-sushibar', 'bl-porch', 'bl-coins', 'bl-top', 'bl-dnb', 'bl-song', 'bl-land', 'bl-wide', 'bl-key', 'bl-scale', 'bl-pumpkins', 'bl-organ', 'bl-pond-skins', 'bl-pond-skin'];
 const joinArgs = new URLSearchParams(location.hash.slice(1));
 const GUEST = /^[A-Za-z0-9_-]{22,64}$/.test(joinArgs.get('join') || '') ? joinArgs.get('join') : null;
 // A signed-in guest has a farm of their own to go back to.
@@ -3857,6 +3857,9 @@ farm.stageBuilt = store.get('bl-stage', false);
 // The Sushi Bar: a plot until it's built, then a modern little kitchen counter.
 const SUSHI_COST = 50;
 farm.sushiBuilt = store.get('bl-sushibar', false);
+// The swing's upgrade, for Buddy Tokens: a porch swing with room for two.
+const PORCH_COST = 10;
+farm.porch = store.get('bl-porch', false);
 scene.add(farm.group);
 // Everything in the Farm Buildings menu (the Fish Pond has its own button). Each is
 // built once; levels come later, so a finished one is level 1 for now.
@@ -4682,6 +4685,7 @@ function buildScarecrow(g) {   // straw hat, patched red shirt, a crow on one ar
 // It sways a little on its own and swings properly with someone on it.
 const SWING_TOP = 2.3, SWING_ROPE = 1.82, SEAT_TOP = -SWING_ROPE + 0.005;   // the seat's top, below the bar
 function buildSwing(g) {
+  if (farm.porch) return buildPorchSwing(g);
   const vb = new VB(0.6), WOOD = 0x9c6b3c, spread = 0.75, leg = Math.hypot(SWING_TOP, spread), lean = Math.atan2(spread, SWING_TOP);
   vb.cyl(0.06, 0.06, 2.1, 0, SWING_TOP, 0, WOOD, 0, 0, Math.PI / 2);
   for (const x of [-0.95, 0.95]) for (const sz of [-1, 1]) vb.cyl(0.05, 0.05, leg, x, SWING_TOP / 2, sz * spread / 2, WOOD, -sz * lean, 0, 0);
@@ -4692,13 +4696,40 @@ function buildSwing(g) {
   const seat = sv.mesh();
   seat.position.y = SWING_TOP;
   g.add(seat);
+  return swingMotion(g, seat);
+}
+function swingMotion(g, seat) {
   g.userData.seat = seat;
   let swing = 0;
   return t => {
-    const on = farm.swingSitter?.sit;
+    const sat = (farm.walkers || []).filter(o => o.sit), on = sat.find(o => o.sit.leaving)?.sit || sat[0]?.sit;
     swing += ((on?.leaving ? 0.62 : on ? 0.36 : 0.1) - swing) * (on?.leaving ? 0.05 : 0.02);   // eases up to a real swing with someone on it, and higher to jump off
     seat.rotation.x = Math.sin(t * 1.7) * swing;
   };
+}
+// The upgrade: the same frame under a little shingled roof, with a slatted bench for two
+// hung from it on chains, and a long pink cushion.
+function buildPorchSwing(g) {
+  const vb = new VB(0.6), WOOD = 0x9c6b3c, SHINGLE = 0xb5523a, spread = 0.75, leg = Math.hypot(SWING_TOP, spread), lean = Math.atan2(spread, SWING_TOP);
+  vb.cyl(0.06, 0.06, 2.1, 0, SWING_TOP, 0, WOOD, 0, 0, Math.PI / 2);
+  for (const x of [-0.95, 0.95]) for (const sz of [-1, 1]) vb.cyl(0.05, 0.05, leg, x, SWING_TOP / 2, sz * spread / 2, WOOD, -sz * lean, 0, 0);
+  for (const sz of [-1, 1]) vb.rbox(2.5, 0.06, 0.74, 0, SWING_TOP + 0.21, sz * 0.32, SHINGLE, 0.02, sz * 0.62, 0, 0);
+  vb.cyl(0.04, 0.04, 2.5, 0, SWING_TOP + 0.42, 0, 0x8a4230, 0, 0, Math.PI / 2);   // the ridge
+  g.add(vb.mesh());
+  const sv = new VB(0.6), PAINT = 0xf4ead8, IRON = 0x4a4048, top = SEAT_TOP - 0.035;
+  for (const x of [-0.74, 0.74]) {
+    sv.cyl(0.012, 0.012, SWING_ROPE, x, -SWING_ROPE / 2, 0, IRON);             // the chains
+    sv.rbox(0.05, 0.3, 0.05, x, top + 0.17, 0.16, PAINT, 0.01);                // arm posts
+    sv.rbox(0.05, 0.04, 0.42, x, top + 0.31, -0.02, PAINT, 0.012);             // arms
+    sv.rbox(0.05, 0.52, 0.05, x, top + 0.28, -0.2, PAINT, 0.01);               // the back's posts
+  }
+  sv.rbox(1.54, 0.07, 0.42, 0, top, 0, PAINT, 0.025);                          // the seat...
+  sv.rbox(1.36, 0.045, 0.34, 0, top + 0.02, 0, 0xff7fb8, 0.02);                // ...its cushion...
+  for (const y of [0.2, 0.33, 0.46]) sv.rbox(1.46, 0.08, 0.03, 0, top + y, -0.2, PAINT, 0.01);   // ...and the slats of its back
+  const seat = sv.mesh();
+  seat.position.y = SWING_TOP;
+  g.add(seat);
+  return swingMotion(g, seat);
 }
 
 // A price bubble floating over a plot: a sunflower and how many it takes to build.
@@ -6164,19 +6195,50 @@ function bendBody(w, on) {
 const _sv = new THREE.Vector3(), _sq = new THREE.Quaternion(), _turn = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
 const swingFront = () => pieceToFarm(farm.pieces.swing, 0, 1.25);
 const onSwing = (x, z) => { const p = farm.pieces.swing, [a, b, c, d] = worldRect(PIECES.swing.foot, p.x, p.z, p.r); return x > a && x < b && z > c && z < d; };
-const swingTaken = by => farm.walkers.some(o => o !== by && (o.sit || o.swingGo));   // one hopper on the swing at a time
+const SEATS = () => farm.porch ? [-0.34, 0.34] : [0];   // across the seat
+const aPlayer = o => o.key === myKey() || isPlayerKey(o.key) || o.isHost;
+const onTheSwing = by => farm.walkers.filter(o => o !== by && (o.sit || o.swingGo));
+const swingTaken = by => onTheSwing(by).length >= SEATS().length;   // a hopper on each seat at a time
+function freeSeat(w) {
+  const used = farm.walkers.filter(o => o !== w && o.sit && (!GUEST || aPlayer(o))).map(o => o.sit.seat);
+  return SEATS().map((_, i) => i).find(i => !used.includes(i));
+}
+// Everyone sees who's on the swing: a guest tells the host, who tells the others.
+function tellSit(w, on) {
+  const m = { t: 'sit', k: w.key, on, seat: w.sit?.seat || 0 };
+  if (!GUEST) toGuests(m);
+  else if (w.key === myKey()) guestNet.send(m);
+}
+function seatRemote(w, m) {   // someone else's device says they sat down, or got up
+  if (!w) return;
+  if (m.on) {
+    const o = farm.walkers.find(c => c !== w && c.sit?.seat === m.seat);
+    if (o) { if (GUEST) seatRemote(o, { on: false }); else standUp(o); }   // a farm hopper makes room
+    w.sit = { t: Infinity, k: 0, seat: m.seat | 0 };
+    bendBody(w, true);
+    w.leap = null; w.hop = 0;
+  } else if (w.sit) {
+    w.sit = null;
+    bendBody(w, false);
+    w.m.group.quaternion.identity();
+    w.m.group.rotation.y = w.face;
+  }
+}
 function goSwing(w, mine = false) {   // head for the front of the swing; false if it can't
   const sp = farm.pieces.swing;
   if (!w || !sp || decor.on || w.fishing || w.sit || w.show) return false;
-  if (swingTaken(w)) {   // your turn: whoever's on it hops off, and anyone on the way changes their mind
+  if (GUEST && (!farm.porch || onTheSwing(w).filter(aPlayer).length >= SEATS().length)) return false;   // a friend's swing takes a guest once it's a porch swing, with a seat free
+  if (!GUEST && swingTaken(w)) {   // your turn: whoever's on it hops off, and anyone on the way changes their mind
     if (!mine) return false;
-    for (const o of farm.walkers) if (o !== w) { if (o.sit) standUp(o); o.swingGo = false; }
+    const off = farm.porch ? onTheSwing(w).filter(o => !aPlayer(o)).slice(0, 1) : onTheSwing(w);   // (on the porch swing, only a farm hopper gives up their seat)
+    if (!off.length) return false;
+    for (const o of off) { if (o.sit) standUp(o); o.swingGo = false; }
   }
   const [x, z] = swingFront();
   if (blockedAt(x, z)) return false;
   farm.swingSitter = w;
   if (mine) {
-    for (const o of farm.walkers) {   // anyone loitering in front of the swing wanders off
+    if (!GUEST) for (const o of farm.walkers) {   // anyone loitering in front of the swing wanders off
       if (o === w || o.sit || o.fishing || o.show || playerMarks().some(([p]) => p === o) || Math.hypot(o.x - x, o.z - z) > 1.1) continue;
       [o.tx, o.tz] = nextSpot(o);
       toGuests({ t: 'walk', k: o.key, x: o.x, z: o.z, tx: o.tx, tz: o.tz });
@@ -6193,11 +6255,17 @@ function goSwing(w, mine = false) {   // head for the front of the swing; false 
 }
 function sitDown(w) {
   w.swingGo = false;
-  const other = farm.walkers.find(o => o !== w && o.sit);
-  if (other) { if (w.key !== myKey()) return; standUp(other); }   // taken: a farm hopper wanders off; yours takes a turn
+  let seat = freeSeat(w);
+  if (seat === undefined) {   // taken: a farm hopper wanders off; yours takes a turn
+    const other = farm.walkers.find(o => o !== w && o.sit && !aPlayer(o)) || (!farm.porch && farm.walkers.find(o => o !== w && o.sit));
+    if (w.key !== myKey() || !other) return;
+    seat = other.sit.seat;
+    standUp(other);
+  }
   if (!farm.pieces.swing || Math.hypot(w.x - swingFront()[0], w.z - swingFront()[1]) > 0.6) { if (farm.swingSitter === w) farm.swingSitter = null; return; }   // didn't make it
   farm.swingSitter = w;
-  w.sit = { t: w.key === myKey() ? Infinity : rand(12, 22), k: 0 };   // yours stays till you hop off
+  w.sit = { t: w.key === myKey() ? Infinity : rand(12, 22), k: 0, seat };   // yours stays till you hop off
+  tellSit(w, true);
   bendBody(w, true);
   w.leap = null; w.hop = 0;
   sfx.hop(w.id);
@@ -6214,12 +6282,14 @@ function flipOff(w) {
   const sp = farm.pieces.swing;
   let [x, z] = pieceToFarm(sp, 0, 2.6);
   if (blockedAt(x, z) || x < YARD.x0 || x > YARD.x1 || z < YARD.z0 || z > YARD.z1) [x, z] = swingFront();
+  tellSit(w, false);
   w.sit = null;
   if (farm.swingSitter === w) farm.swingSitter = null;
   w.flip = { t: 0, dur: 1.05, x0: w.x, y0: w.y || 0, z0: w.z, x1: x, z1: z };
   w.face = sp.r * Math.PI / 2 + Math.PI;
   sfx.hop(w.id);
   toGuests({ t: 'leap', k: w.key, x, z, up: 0.5, y: 0 });
+  if (GUEST) guestNet.send({ t: 'leap', x, z, up: 0.5 });
 }
 const _flipQ = new THREE.Quaternion(), _xAxis = new THREE.Vector3(1, 0, 0), _yAxis = new THREE.Vector3(0, 1, 0);
 function flipPose(w, dt) {
@@ -6244,6 +6314,7 @@ function flipPose(w, dt) {
 }
 function standUp(w) {
   if (!w?.sit) return;
+  tellSit(w, false);
   w.sit = null;
   bendBody(w, false);
   if (farm.swingSitter === w) farm.swingSitter = null;
@@ -6254,6 +6325,7 @@ function standUp(w) {
   const [x, z] = w.key === myKey() ? swingFront() : pieceToFarm(farm.pieces.swing, rnd() < 0.5 ? -1.6 : 1.6, 0.2);   // others hop off to the side, out of the way and out of the swing camera's view
   landLeap(w, x, z, 0.35, 0);   // a hop down off the seat
   toGuests({ t: 'leap', k: w.key, x, z, up: 0.35, y: 0 });
+  if (GUEST && w.key === myKey()) guestNet.send({ t: 'leap', x, z, up: 0.35 });
   w.wait = rand(1, 3);
 }
 // On the seat: placed on it as it swings, facing out the front.
@@ -6261,7 +6333,7 @@ function sitPose(w, dt) {
   const sp = farm.pieces.swing, seat = sp?.group.userData.seat;
   if (!seat || decor.on || game.state !== 'farm') { standUp(w); return; }
   seat.updateMatrixWorld();
-  seat.localToWorld(_sv.set(0, SEAT_TOP - hipOf(w) + 0.02, -0.04));   // hips on the board, a touch back
+  seat.localToWorld(_sv.set(SEATS()[w.sit.seat] || 0, SEAT_TOP - hipOf(w) + 0.02, -0.04));   // hips on the board, a touch back
   farm.group.worldToLocal(_sv);
   w.m.group.position.copy(_sv);
   seat.getWorldQuaternion(_sq);
@@ -6381,7 +6453,7 @@ function nearUse(w, friend = false) {   // friend: another controller on this sc
   };
   const foot = id => { const p = farm.pieces[id]; return p && worldRect(PIECES[id].foot, p.x, p.z, p.r); };
   near(foot('pond'), 'fishPond', () => (GUEST || friend ? goFish(w.key, 'pad') : openPond()));
-  if (!GUEST) near(foot('swing'), 'decor.swing', () => goSwing(w, !friend));
+  if (!GUEST || farm.porch) near(foot('swing'), 'decor.swing', () => goSwing(w, !friend));
   if (friend) return best;
   if (farm.stageBuilt || !GUEST) near(foot('stage'), 'jamStage', stageAct);
   if (GUEST) return best;
@@ -6939,7 +7011,7 @@ function tapFarm(x, y) {
   const me = walkerOf(myKey());
   const w = farm.walkers.find(w => !w.hidden && hit(w.m.group));
   if (w) { w.hop = 0.5; sfx.hop(w.id); return; }
-  if (!GUEST && farm.pieces.swing && (hit(farm.pieces.swing.group) || (groundAt(x, y, _a) && onSwing(_a.x - farm.group.position.x, _a.z - farm.group.position.z)))) { goSwing(me, true); return; }   // the frame, or anywhere on its patch of grass
+  if ((!GUEST || farm.porch) && farm.pieces.swing && (hit(farm.pieces.swing.group) || (groundAt(x, y, _a) && onSwing(_a.x - farm.group.position.x, _a.z - farm.group.position.z)))) { goSwing(me, true); return; }   // the frame, or anywhere on its patch of grass
   const pondHit = _ray.intersectObject(farm.pieces.pond.group, true)[0];
   if (pondHit && (GUEST || onDock(pondHit.point))) { goFish(myKey(), 'tap'); return; }
   if (GUEST && farm.stageBuilt && hit(farm.pieces.stage.group)) { openJam(); return; }   // a guest can jump on stage whenever they like
@@ -9637,6 +9709,11 @@ function onPlayer(slot, m, direct = false) {
     return;
   }
   if (/^f(v|c|sell)$/.test(m.t)) { if (pl?.guest && game.where === 'farm') guestFish(slot, m); return; }
+  if (m.t === 'sit') {
+    const w = pl?.guest && game.where === 'farm' && farm.porch && walkerOf('p' + slot);
+    if (w) { seatRemote(w, m); toGuests({ t: 'sit', k: w.key, on: !!m.on, seat: m.seat | 0 }, slot); }
+    return;
+  }
   if (m.t === 'leap') {
     const w = pl?.guest && game.where === 'farm' && walkerOf('p' + slot);
     const x = clamp(+m.x, YARD.x0, YARD.x1), z = clamp(+m.z, YARD.z0, YARD.z1), up = clamp(+m.up || 0, 0, 0.5);
@@ -10673,6 +10750,21 @@ function questAdd(id) {
   }
   markQuests();
 }
+function buyPorch() {
+  const n = store.get('bl-buddy', 0);
+  if (GUEST || farm.porch || !ownedDecor.has('swing')) return;
+  if (n < PORCH_COST) { sfx.bump(); refreshQuests(t('quests.porchShort', { n: PORCH_COST - n })); return; }
+  store.set('bl-buddy', n - PORCH_COST);
+  store.set('bl-porch', true);
+  farm.porch = true;
+  for (const w of farm.walkers) if (w.sit) standUp(w);
+  const sp = farm.pieces.swing;
+  clearPiece(sp.group);
+  sp.update = PIECES.swing.build(sp.group);
+  sfx.upgrade();
+  cheer(sp.x, sp.z);
+  refreshQuests(t('quests.porchDone'));
+}
 function questToast(id) {
   const el = document.createElement('div');
   el.className = 'questToast pill';
@@ -10688,8 +10780,16 @@ function markQuests() {
   $('questCount').textContent = left || '';
   if (questsOpen()) refreshQuests();
 }
-function refreshQuests() {
-  $('buddyN').textContent = store.get('bl-buddy', 0);
+function refreshQuests(msg) {
+  const tokens = store.get('bl-buddy', 0), swing = ownedDecor.has('swing'), buy = $('porchBuy');
+  $('buddyN').textContent = tokens;
+  $('porch').hidden = !!GUEST;
+  $('porchSay').textContent = t(farm.porch ? 'quests.porchHave' : swing ? 'quests.porchSay' : 'quests.porchNeed');
+  buy.hidden = farm.porch || !swing;
+  buy.innerHTML = BUDDY_SVG + `<span>${PORCH_COST}</span>`;
+  buy.classList.toggle('short', tokens < PORCH_COST);
+  buy.setAttribute('aria-label', t('quests.porchBuy', { n: PORCH_COST }));
+  $('porchNote').textContent = msg ?? '';
   $('questList').replaceChildren(...questsToday().list.map(({ id, n }) => {
     const goal = QUESTS[id], li = document.createElement('li');
     li.classList.toggle('done', n >= goal);
@@ -10713,6 +10813,7 @@ function closeQuests() {
 }
 $('buddyIcon').innerHTML = BUDDY_SVG;
 $('questBtn').addEventListener('click', () => { sfx.ensure(); openQuests(); });
+$('porchBuy').addEventListener('click', () => { sfx.ensure(); buyPorch(); });
 $('questsClose').addEventListener('click', closeQuests);
 $('quests').addEventListener('click', e => { if (e.target.id === 'quests') closeQuests(); });
 markQuests();
@@ -11112,7 +11213,7 @@ if (guestNet) {
   };
   const keepHero = () => { try { sessionStorage.setItem('bl-guest-hero', heroId); } catch {} };   // the same hopper after a reload
   keepHero();
-  const LOOKS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-sushibar', 'bl-wide'];
+  const LOOKS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-sushibar', 'bl-porch', 'bl-wide'];
   setInterval(syncTune, 2000);
   guestNet.on(m => {
     if (m.t === 'leap') { const w = walkerOf(m.k); if (w && m.k !== myKey()) landLeap(w, +m.x, +m.z, +m.up, isFinite(m.y) ? clamp(+m.y, 0, 0.5) : null); }
@@ -11149,7 +11250,10 @@ if (guestNet) {
         gameOver();
       }
     }
-    else if (m.t === 'walk') {
+    else if (m.t === 'sit') {
+      if (m.k !== myKey()) seatRemote(walkerOf(m.k), m);
+      else if (!m.on) standUp(walkerOf(m.k));   // (the host moved the swing)
+    } else if (m.t === 'walk') {
       const w = walkerOf(m.k);
       if (w && !w.leap) { if (Math.hypot(w.x - m.x, w.z - m.z) > 0.6) { w.x = m.x; w.z = m.z; } w.tx = m.tx; w.tz = m.tz; }
     } else if (m.t === 'farm') {
@@ -11179,4 +11283,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, syncTune, tuneSync, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, questAdd, questsToday, openQuests, rowDice, flipLane, startReel, reelBeats, showCatch, sushi, dash, mealOf, feedSushi, openSushi, closeSushi, cookSushi, eatSushi, buySushi, startSushi, SUSHI, dropFlower, get pumpkins() { return pumpkins; }, get counting() { return counting; } };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, syncTune, tuneSync, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, buyPorch, questAdd, questsToday, openQuests, rowDice, flipLane, startReel, reelBeats, showCatch, sushi, dash, mealOf, feedSushi, openSushi, closeSushi, cookSushi, eatSushi, buySushi, startSushi, SUSHI, dropFlower, get pumpkins() { return pumpkins; }, get counting() { return counting; } };

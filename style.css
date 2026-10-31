@@ -166,6 +166,15 @@ body.farm.decor #questBtn { display: none; }
 .questBar { grid-column: 1 / -1; display: block; height: 10px; overflow: hidden; background: var(--cream-d); border: 2px solid var(--ink); border-radius: 999px; }
 .questBar b { display: block; height: 100%; background: var(--sky); }
 .questList li.done .questBar b { background: var(--leaf); }
+.questBuy { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px 12px; width: 100%; box-sizing: border-box; margin-top: 12px; padding-top: 12px; border-top: 2px dashed rgba(58, 36, 66, .2); text-align: left; }
+.questBuy[hidden] { display: none; }
+.questBuy p { margin: 2px 0 0; font-size: 14px; line-height: 1.3; }
+.questBuy .pondNeed { grid-column: 1 / -1; margin: 0; text-align: center; }
+.questBuy .pondNeed:empty { display: none; }
+#porchBuy { display: flex; align-items: center; gap: 6px; }
+#porchBuy[hidden] { display: none; }
+#porchBuy.short { opacity: .6; }
+#porchBuy svg { width: 24px; height: 24px; }
 .questToast {
   position: fixed; z-index: 40; left: 50%; top: calc(env(safe-area-inset-top) + 14px); translate: -50% 0;
   display: flex; align-items: center; gap: 8px; width: max-content; max-width: calc(100vw - 32px); box-sizing: border-box; padding: 6px 16px 6px 8px;

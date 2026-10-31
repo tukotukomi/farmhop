@@ -28,6 +28,7 @@ export const STRINGS = {
     },
     quests: {
       title: 'Daily Quests', tokens: 'Buddy Tokens', say: 'Team up with a Buddy to finish quests. Each one earns a Buddy Token, and quests are the only way to get them!', next: 'New quests tomorrow.', earned: 'Quest done! +1 Buddy Token',
+      porch: 'Porch Swing', porchSay: 'Turn your swing into a porch swing for two.', porchNeed: 'Buy the Swing in the Market to upgrade it.', porchHave: 'Your porch swing has room for two. Hop on with a Buddy!', porchBuy: 'Upgrade to a porch swing for {n} Buddy Tokens', porchShort: 'Buddy Tokens still needed: {n}', porchDone: 'Your swing is a porch swing now!',
       hop: 'Hop {n} rows with a Buddy', flowers: 'Pick {n} sunflowers with a Buddy', fish: 'Catch {n} fish with a Buddy', sushi: 'Give a Buddy a piece of sushi', jam: 'Jam with a Buddy', visit: "Visit a Buddy's farm",
     },
     event: {
@@ -192,6 +193,7 @@ sushiBar: 'Sushi Bar', sushiPlan: 'Build a kitchen to cook your fish into sushi.
     },
     quests: {
       title: 'Misiones diarias', tokens: 'Fichas de Amigo', say: 'Únete a un amigo para completar misiones. Cada una te da una Ficha de Amigo, ¡y las misiones son la única forma de conseguirlas!', next: 'Mañana habrá misiones nuevas.', earned: '¡Misión cumplida! +1 Ficha de Amigo',
+      porch: 'Columpio de porche', porchSay: 'Convierte tu columpio en un columpio de porche para dos.', porchNeed: 'Compra el columpio en el Mercado para mejorarlo.', porchHave: 'Tu columpio de porche tiene sitio para dos. ¡Súbete con un amigo!', porchBuy: 'Mejorar a columpio de porche por {n} Fichas de Amigo', porchShort: 'Fichas de Amigo que faltan: {n}', porchDone: '¡Tu columpio ya es de porche!',
       hop: 'Salta {n} filas con un amigo', flowers: 'Recoge {n} girasoles con un amigo', fish: 'Pesca {n} peces con un amigo', sushi: 'Dale una pieza de sushi a un amigo', jam: 'Toca con un amigo', visit: 'Visita la granja de un amigo',
     },
     event: {
@@ -356,6 +358,7 @@ sushiBar: 'Barra de sushi', sushiPlan: 'Construye una cocina para convertir tus 
     },
     quests: {
       title: '每日任务', tokens: '伙伴币', say: '和伙伴一起完成任务。每完成一个就能赢得一枚伙伴币，任务是获得伙伴币的唯一方式！', next: '明天会有新任务。', earned: '任务完成！+1 伙伴币',
+      porch: '门廊秋千', porchSay: '把秋千升级成双人门廊秋千。', porchNeed: '先在集市买下秋千才能升级。', porchHave: '门廊秋千能坐两个人，和伙伴一起坐吧！', porchBuy: '花 {n} 枚伙伴币升级成门廊秋千', porchShort: '还差 {n} 枚伙伴币', porchDone: '秋千变成门廊秋千啦！',
       hop: '和伙伴一起跳过 {n} 行', flowers: '和伙伴一起捡 {n} 朵向日葵', fish: '和伙伴一起钓到 {n} 条鱼', sushi: '送伙伴一份寿司', jam: '和伙伴一起合奏', visit: '去伙伴的农场做客',
     },
     event: {
