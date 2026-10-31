@@ -2634,10 +2634,10 @@ function updateSpooky(dt) {
   if (show) { const s = Math.max(0, Math.ceil(spooky.t)); pill.textContent = t('spookyTime', { t: Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') }) + (eventOn() ? '  🎃 ' + pumpkins : ''); }
 }
 // ---------- the Pumpkin Harvest ----------
-// Until the end of November 7 (Pacific time), the spooky farm grows pumpkins: its
+// Until the end of November 8 (Pacific time), the spooky farm grows pumpkins: its
 // sunflowers come up as pumpkins, with more besides. 300 trade for the Pumpking; when
 // the harvest is over, any pumpkins left turn into sunflowers, one for one.
-const EVENT_END = Date.UTC(2026, 10, 8, 8);   // midnight at the end of Nov 7, PST (UTC-8)
+const EVENT_END = Date.UTC(2026, 10, 9, 8);   // midnight at the end of Nov 8, PST (UTC-8)
 const PUMPKING_PRICE = 300, ORGAN_PRICE = 500, GOO_PRICE = 200;
 const GOO_ICON = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><g stroke="#3a2442" stroke-width="2" stroke-linejoin="round"><ellipse cx="32" cy="40" rx="27" ry="15" fill="#5a4a3a"/><ellipse cx="32" cy="38" rx="23" ry="12" fill="#7dff5a"/></g><ellipse cx="25" cy="35" rx="9" ry="4" fill="#d8ffc8"/><g stroke="#3a2442" stroke-width="1.6" fill="#b8ff9a"><circle cx="40" cy="30" r="4"/><circle cx="46" cy="22" r="2.6"/><circle cx="36" cy="18" r="1.8"/></g><path d="M18 46q4 6 8 0" fill="none" stroke="#3fae2a" stroke-width="2.4" stroke-linecap="round"/></svg>');
 const eventOn = () => Date.now() < EVENT_END;
