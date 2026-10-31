@@ -7641,7 +7641,7 @@ function startReel(f) {
   const toBar = BAR - h.pos % BAR, start = h.at + (toBar < 2 * BEAT ? toBar + BAR : toBar);   // on the next downbeat at least a couple of beats away: the first note is always the "1"
   const dnb = music?.style === 'dnb';
   const steps = dnb ? breakRhythm(lvl, music.stepAt(h.pos + start - h.at)) : fishRhythm(lvl), notes = [];
-  const beat = BEAT * (BEAT < 0.5 ? 2 : 1), SIXTEENTH = beat / 4;   // the fast songs fish at half time: sixteenths at 144 would be more taps than fingers can do
+  const beat = BEAT * (music?.style === 'house' ? 2 : 1), SIXTEENTH = beat / 4;   // Farm House fishes at half time; Psy Farm at full speed
   const lane = f.ui.querySelector('.lane');
   lane.classList.toggle('dnb', dnb);
   lane.querySelectorAll('.note').forEach(e => e.remove());
