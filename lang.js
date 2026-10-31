@@ -88,7 +88,7 @@ export const STRINGS = {
     buildings: 'Farm Buildings', buildLevel: 'Level {n}', notBuilt: '???', arrange: 'Rearrange', decorShop: 'Decor Shop',
 sushiBar: 'Sushi Bar', sushiPlan: 'Build a kitchen to cook your fish into sushi. Each one powers up your next round.', sushi: { sign: 'SUSHI', chef: 'Chef Salmón says: "¡Hola! What shall we cook today?"', feed: 'Feed {who}', fedTo: '{who} will enjoy {name} next round.', fed: 'Your friend fed you {name}! It lasts your next round.', cook: 'Cook', eat: 'Eat', hungry: 'Eat one sushi before your next round.', eaten: '{name} is ready: it lasts your whole next round.', stopped: 'Time stopped: {n}', stopSoon: 'Time stop in {n}', lifeReady: 'Extra life ready', lifeUsed: 'Extra life used',
       names: { sunny: 'Sunny Roll', magnet: 'Magnet Roll', spare: 'Second-Chance Roll', zoom: 'Zoom Roll', midnight: 'Midnight Roll' },
-      does: { sunny: 'Double sunflowers.', magnet: 'Pick up every sunflower on each row you enter.', spare: 'An extra life. In co-op, it saves the team if everyone faints.', zoom: 'A dash button: leap 10 rows ahead. Holds 2, and recharges in 30 seconds.', midnight: 'Every minute, time stops for 10 seconds so you can hop safely.' } },
+      does: { sunny: 'Twice as many sunflowers on the road.', magnet: 'Pick up every sunflower on each row you enter.', spare: 'An extra life. In co-op, it saves the team if everyone faints.', zoom: 'A dash button: leap 10 rows ahead. Holds 2, and recharges in 30 seconds.', midnight: 'Every minute, time stops for 10 seconds so you can hop safely.' } },
         bunkhouse: 'Bunkhouse', bunkPlan: 'Build a cozy cabin so new hoppers can move in.', build: 'Build',
     bunkWho: 'Tap a hopper to invite them to the farm.', movedIn: '{name} moved in!',
     acct: {
@@ -248,7 +248,7 @@ sushiBar: 'Sushi Bar', sushiPlan: 'Build a kitchen to cook your fish into sushi.
     buildings: 'Edificios de la granja', buildLevel: 'Nivel {n}', notBuilt: '???', arrange: 'Reorganizar', decorShop: 'Tienda de adornos',
 sushiBar: 'Barra de sushi', sushiPlan: 'Construye una cocina para convertir tus peces en sushi. Cada uno mejora tu siguiente ronda.', sushi: { sign: 'SUSHI', chef: 'El chef Salmón dice: «¡Hola! ¿Qué cocinamos hoy?»', feed: 'Dar a {who}', fedTo: '{who} disfrutará de {name} la próxima ronda.', fed: '¡Tu amigo te dio {name}! Dura tu siguiente ronda.', cook: 'Cocinar', eat: 'Comer', hungry: 'Come un sushi antes de tu siguiente ronda.', eaten: '{name} está listo: dura toda tu siguiente ronda.', stopped: 'Tiempo detenido: {n}', stopSoon: 'Tiempo detenido en {n}', lifeReady: 'Vida extra lista', lifeUsed: 'Vida extra usada',
       names: { sunny: 'Rollo soleado', magnet: 'Rollo imán', spare: 'Rollo segunda oportunidad', zoom: 'Rollo turbo', midnight: 'Rollo de medianoche' },
-      does: { sunny: 'Girasoles dobles.', magnet: 'Recoge todos los girasoles de cada fila a la que entras.', spare: 'Una vida extra. En cooperativo, salva al equipo si todos se desmayan.', zoom: 'Un botón de impulso: salta 10 filas hacia delante. Guarda 2 y se recarga en 30 segundos.', midnight: 'Cada minuto, el tiempo se detiene 10 segundos para que saltes sin peligro.' } },
+      does: { sunny: 'El doble de girasoles en el camino.', magnet: 'Recoge todos los girasoles de cada fila a la que entras.', spare: 'Una vida extra. En cooperativo, salva al equipo si todos se desmayan.', zoom: 'Un botón de impulso: salta 10 filas hacia delante. Guarda 2 y se recarga en 30 segundos.', midnight: 'Cada minuto, el tiempo se detiene 10 segundos para que saltes sin peligro.' } },
         bunkhouse: 'La cabaña', bunkPlan: 'Construye una cabaña acogedora para que lleguen nuevos saltarines.', build: 'Construir',
     bunkWho: 'Toca un saltarín para invitarlo a la granja.', movedIn: '¡{name} se mudó a la granja!',
     acct: {
@@ -408,7 +408,7 @@ sushiBar: 'Barra de sushi', sushiPlan: 'Construye una cocina para convertir tus 
     buildings: '农场建筑', buildLevel: '等级 {n}', notBuilt: '???', arrange: '重新布置', decorShop: '装饰商店',
 sushiBar: '寿司吧', sushiPlan: '盖一间厨房，把鱼做成寿司。每种寿司都能强化你的下一轮。', sushi: { sign: '寿司', chef: '萨尔蒙主厨说：“¡Hola！今天做点什么？”', feed: '喂给{who}', fedTo: '{who}下一轮会吃{name}。', fed: '朋友喂了你{name}！效果持续你的下一轮。', cook: '制作', eat: '吃掉', hungry: '下一轮开始前可以吃一个寿司。', eaten: '{name}已就绪：效果持续你的整个下一轮。', stopped: '时间停止：{n}', stopSoon: '{n} 秒后时间停止', lifeReady: '额外生命已就绪', lifeUsed: '额外生命已用掉',
       names: { sunny: '阳光卷', magnet: '磁铁卷', spare: '再来一次卷', zoom: '疾冲卷', midnight: '午夜卷' },
-      does: { sunny: '向日葵翻倍。', magnet: '自动捡起你进入的每一行上的所有向日葵。', spare: '一条额外生命。合作时，全员倒下也能救回大家。', zoom: '获得冲刺按钮：向前跃 10 行。最多存 2 次，30 秒恢复。', midnight: '每分钟时间停止 10 秒，让你安全跳跃。' } },
+      does: { sunny: '路上的向日葵翻倍。', magnet: '自动捡起你进入的每一行上的所有向日葵。', spare: '一条额外生命。合作时，全员倒下也能救回大家。', zoom: '获得冲刺按钮：向前跃 10 行。最多存 2 次，30 秒恢复。', midnight: '每分钟时间停止 10 秒，让你安全跳跃。' } },
         bunkhouse: '小木屋', bunkPlan: '盖一间温馨的小木屋，让新伙伴搬进来。', build: '建造',
     bunkWho: '点一个伙伴，邀请它来农场。', movedIn: '{name}搬进来了！',
     acct: {

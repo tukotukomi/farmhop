@@ -2520,6 +2520,7 @@ function swapCoins(lane, toPumpkins) {
     if (coin.spooky || !!coin.pumpkin === toPumpkins) continue;
     lane.group.remove(coin.m);
     lane.coins.splice(lane.coins.indexOf(coin), 1);
+    if (toPumpkins && coin.extra) continue;   // only a row's own sunflowers become pumpkins
     if (toPumpkins) addPumpkin(lane, coin.c); else addSunflower(lane, coin.c);
   }
 }
@@ -2560,6 +2561,7 @@ function flipLane(lane, on, near) {
   spookGround(lane, on);
   for (const m of lane.movers) dress(m, on);
   if (!on || eventOn()) swapCoins(lane, on);
+  if (!on && sushi.sunny && eventOn()) { lane.sunny = false; sunnyLane(lane); }   // back from the spooky farm: the Sunny Roll's extras again
   if (near) for (let k = 0; k < 1; k++) burst(Math.random() * 2 * COLS - COLS, 0.25, -lane.r + Math.random() * 0.6 - 0.3, on ? [0x9b6bff, 0x6bff9b, 0xc8f6ff] : [0xffffff, 0xfff3a0, 0x9fe86b], 3, 1.2, 2.5, 0.07, 0.6, true);
 }
 function updateWave(dt) {
@@ -2783,6 +2785,28 @@ function addLane(r) {
   try { buildLane(r); } finally { rnd = was; }
   if (lanes.get(r).spooked) spookGround(lanes.get(r), true);
   catchUp(lanes.get(r), game.roadT);
+  moreFlowers(lanes.get(r));
+  if (sushi.sunny) sunnyLane(lanes.get(r));
+}
+// Extra sunflowers on top of each row's own, placed by dice every screen shares. They aren't
+// part of the harvest: where the spooky farm grows pumpkins they don't appear, so pumpkins stay as they were.
+const FLOWER_ODDS = { grass: 0.16, road: 0.1, wheat: 0.12 };   // how often each kind of row grows its own
+function extraFlower(lane, i) {
+  const spots = lane.type === 'grass' ? [...lane.reach] : Array.from({ length: COLS * 2 + 1 }, (_, c) => c - COLS);
+  const free = spots.filter(c => !lane.coins.some(o => o.c === c));
+  if (!free.length) return;
+  addSunflower(lane, free[Math.floor(rowDice(lane.r, i) * free.length)]);
+  lane.coins.at(-1).extra = true;
+}
+const harvesting = lane => lane.spooked && eventOn();
+function moreFlowers(lane) {   // a fifth more than each row grows by itself
+  const odds = FLOWER_ODDS[lane.type];
+  if (odds && !harvesting(lane) && (lane.type !== 'grass' || lane.r > 3) && rowDice(lane.r, 5) < odds * 0.2) extraFlower(lane, 6);
+}
+function sunnyLane(lane) {     // the Sunny Roll: as many again
+  if (lane.sunny || harvesting(lane)) return;
+  lane.sunny = true;
+  lane.coins.filter(c => !c.spooky && !c.pumpkin).forEach((_, i) => extraFlower(lane, 7 + i));
 }
 function catchUp(lane, T) {
   if (!(T > 0)) return;
@@ -3297,10 +3321,9 @@ function pickUp(h, lane, coin) {
     roadSend({ t: 'rc', r: h.r, c: coin.c, p: 1 });
     gainPumpkin(h);
   } else {
-    const n = mealOf(h) === 'sunny' ? 2 : 1;   // the Sunny Roll: double
-    roadSend({ t: 'rc', r: h.r, c: coin.c, n });
-    game.coins += n;
-    game.today += n;
+    roadSend({ t: 'rc', r: h.r, c: coin.c });
+    game.coins++;
+    game.today++;
     store.set('bl-coins', game.coins);
     sfx.coin();
     burst(coin.c, 0.6, h.z, [0xffd23f, 0xffe680, 0xffffff], 10, 1.5, 4, 0.08, 0.5);
@@ -4717,7 +4740,7 @@ const SUSHI = [
 // Lanternfish, Tractortail, Sunflower Shiner, Cloudfin, Thunderbelly, Rainbow Ribbon and Wispfin.
 const SUSHI_KEY = 'bl-sushi', SUSHI_NEXT = 'bl-sushi-next', DASH_ROWS = 10, DASH_MAX = 2, DASH_CD = 30, STOP_EVERY = 60, STOP_LEN = 10;
 let sushiStock = store.get(SUSHI_KEY, {});   // id -> how many are cooked
-const sushi = { on: null, life: false, rise: false, stops: false, charges: 0, cd: 0, stopIn: 0 };   // the one being enjoyed this round (life and stops: anyone's, for the team)
+const sushi = { on: null, life: false, rise: false, stops: false, sunny: false, charges: 0, cd: 0, stopIn: 0 };   // the one being enjoyed this round (life and stops: anyone's, for the team)
 // Each hopper on this screen has their own: ours, or a phone's or a second controller's.
 const mealOf = h => (h === P ? sushi.on : party.players.get(h.slot)?.meal) || null;
 const sushiPic = col => `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#2c3a2e" stroke="#3a2442" stroke-width="1.5"/><circle cx="12" cy="12" r="7" fill="#faf7ef"/><circle cx="12" cy="12" r="3.2" fill="${col}"/></svg>`;
@@ -4827,7 +4850,7 @@ function refreshSushi() {
 function startSushi(fed) {   // fed: a guest's, from the host
   const id = fed === undefined ? store.get(SUSHI_NEXT, null) : fed;
   if (fed === undefined) store.set(SUSHI_NEXT, null);
-  Object.assign(sushi, { on: id, life: id === 'spare', rise: false, stops: id === 'midnight', charges: DASH_MAX, cd: 0, stopIn: STOP_EVERY });
+  Object.assign(sushi, { on: id, life: id === 'spare', rise: false, stops: id === 'midnight', sunny: id === 'sunny', charges: DASH_MAX, cd: 0, stopIn: STOP_EVERY });
   game.stopT = 0;
   document.body.classList.toggle('dashing', id === 'zoom');
   updateSushiPill();
@@ -4840,7 +4863,7 @@ function endSushi() {
     if (had) tellDash(slot, p);
   }
   sushi.on = null;
-  sushi.life = sushi.rise = sushi.stops = false;
+  sushi.life = sushi.rise = sushi.stops = sushi.sunny = false;
   game.stopT = 0;
   document.body.classList.remove('dashing');
   updateSushiPill();
@@ -6425,10 +6448,12 @@ function goRoad() {   // sunrise, then onto the road at first light
     for (const [slot, p] of party.players) {   // what friends were fed: the team's share here; a guest's own part runs on their device
       sushi.life ||= p.eat === 'spare';
       sushi.stops ||= p.eat === 'midnight';
+      sushi.sunny ||= p.eat === 'sunny';
       if (p.guest) continue;
       Object.assign(p, { meal: p.eat, eat: null, charges: DASH_MAX, cd: 0, cdShown: 0 });
       if (p.meal === 'zoom') tellDash(slot, p);
     }
+    if (sushi.sunny) for (const lane of lanes.values()) sunnyLane(lane);   // the road's shared, so anyone's Sunny Roll doubles it for the team
     document.body.classList.remove('farm', 'show-logo');
     document.body.classList.add('ready');
     setHint();
@@ -6465,6 +6490,8 @@ function goRoadGuest(m) {
     game.where = 'road';
     game.dawn = 0.12;
     startSushi(m.sushi || null);
+    sushi.sunny = !!m.sunny;
+    if (sushi.sunny) for (const lane of lanes.values()) sunnyLane(lane);
     document.body.classList.remove('farm', 'show-logo');
     if (late) {
       // Catch the road up to now, build it out to the team, and drop in beside them in a moment.
@@ -9311,7 +9338,7 @@ function addToRoad(slot, pl) {   // joined while a round is on
 // The road as it stands, for guests' devices: the seed, the clock and everyone on it.
 function roadNews() {
   return {
-    t: 'road', seed: game.seed, T: game.roadT, state: game.state, score: game.score, day: game.day,
+    t: 'road', seed: game.seed, T: game.roadT, state: game.state, score: game.score, day: game.day, sunny: sushi.sunny,
     crew: game.crew.map(h => ({ k: h.key, hero: h.hero, slot: h.slot, col: h.col ?? 0, x: h.x, r: h.r, alive: !!h.alive, parked: !!h.parked })),
   };
 }
@@ -9356,7 +9383,7 @@ function onPlayer(slot, m, direct = false) {
   if (/^r[hdbpcf]$/.test(m.t)) {   // a guest's hopper on the road
     if (!pl?.guest || game.where !== 'road') return;
     const k = 'p' + slot;
-    if (m.t === 'rc') takeSunflower(m.r | 0, m.c | 0, true, !!m.p, m.n === 2 ? 2 : 1);
+    if (m.t === 'rc') takeSunflower(m.r | 0, m.c | 0, true, !!m.p);
     else if (m.t === 'rf') { if (!spooky.on) { dropFlower(); startSpooky(game.crew.find(h => h.key === k) || { r: m.r | 0, x: 0, z: -(m.r | 0) }); } return; }   // the spooky sunflower: the whole team's farm turns
     else onRoadNews(game.crew.find(h => h.key === k), m);
     toGuests({ ...m, k }, slot);
@@ -9462,7 +9489,7 @@ function onRoadNews(h, m) {   // a friend's hopper, as their device reports it
     h.model.group.visible = false;
   }
 }
-function takeSunflower(r, c, count, pumpkin = false, n = 1) {   // someone picked one: gone from every screen, counted once, by the host
+function takeSunflower(r, c, count, pumpkin = false) {   // someone picked one: gone from every screen, counted once, by the host
   const lane = laneAt(r), coin = lane?.coins.find(o => o.c === c);
   if (coin) {
     lane.group.remove(coin.m);
@@ -9478,8 +9505,8 @@ function takeSunflower(r, c, count, pumpkin = false, n = 1) {   // someone picke
     markEvent();
     return;
   }
-  game.coins += n;
-  game.today += n;
+  game.coins++;
+  game.today++;
   store.set('bl-coins', game.coins);
   hud();
 }
@@ -10819,4 +10846,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, syncTune, tuneSync, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, startReel, reelBeats, showCatch, sushi, dash, mealOf, feedSushi, openSushi, closeSushi, cookSushi, eatSushi, buySushi, startSushi, SUSHI, dropFlower, get pumpkins() { return pumpkins; }, get counting() { return counting; } };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, syncTune, tuneSync, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, rowDice, flipLane, startReel, reelBeats, showCatch, sushi, dash, mealOf, feedSushi, openSushi, closeSushi, cookSushi, eatSushi, buySushi, startSushi, SUSHI, dropFlower, get pumpkins() { return pumpkins; }, get counting() { return counting; } };
