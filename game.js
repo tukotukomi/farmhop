@@ -5018,19 +5018,20 @@ function buildSushi() {
     warm.ball(0.02, 0.028, 0.02, x, y, 0.33, 0xffe6a8);
     glowAt(g, x, y, 0.34, 0xffe6a8, 0.17);
   }
-  const PANEL = 0xffd98a;
+  const PANEL = 0xffd98a, panels = new VB(0.6);
   for (const [edge, along, n] of [[0.92, 1.42, 10], [-0.92, 1.42, 10], [1.42, 0.84, 6], [-1.42, 0.84, 6]]) {   // LED panels set in the floor, all the way round its edge
     const long = n === 10;
     for (let i = 0; i < n; i++) {
       const u = -along + (i + 0.5) * 2 * along / n, x = long ? u : edge, z = long ? edge : u, size = 2 * along / n - 0.022;
-      warm.rbox(long ? size : 0.08, 0.012, long ? 0.08 : size, x, 0.086, z, PANEL, 0.004);
+      panels.rbox(long ? size : 0.08, 0.012, long ? 0.08 : size, x, 0.086, z, 0xffffff, 0.004);
       glowAt(g, x, 0.13, z, PANEL, 0.62);
     }
   }
-  const lit = warm.mesh(MARKER_MAT);
-  lit.castShadow = false;
+  const lit = warm.mesh(MARKER_MAT), glowing = panels.mesh(PANEL_MAT);
+  lit.castShadow = glowing.castShadow = false;
   lit.layers.set(GLOW_LAYER);
-  g.add(lit);
+  glowing.layers.set(GLOW_LAYER);
+  g.add(lit, glowing);
   for (const x of [-0.8, 0, 0.8]) glowAt(g, x, 1.08, 0.3, 0xfff1c4, 0.5);
   const pool = new THREE.Object3D();
   pool.position.set(0, 0.8, 0.3);
@@ -5360,6 +5361,7 @@ const GLOW_TEX = (() => {
   return new THREE.CanvasTexture(c);
 })();
 const GLOW_MATS = new Map();
+const PANEL_MAT = new THREE.MeshBasicMaterial({ vertexColors: true }), PANEL_OFF = new THREE.Color(0xdcd6ca), PANEL_ON = new THREE.Color(0xffd98a);   // the bar's floor panels: plain frosted glass by day
 const _up = new THREE.Vector3(0, 1, 0);
 const CAN_GEO = new THREE.CylinderGeometry(0.07, 0.1, 0.16, 12), CAN_MAT = new THREE.MeshLambertMaterial({ color: 0x2b2233 });
 // A spotlight's beam: brightest at the light, fading toward the boards.
@@ -5389,6 +5391,7 @@ function glowAt(g, x, y, z, color, size) {
 function stageTick(t) {
   const k = nightK();
   for (const m of GLOW_MATS.values()) { m.opacity = k; m.visible = k > 0.02; }
+  PANEL_MAT.color.lerpColors(PANEL_OFF, PANEL_ON, k);
   BEAM_MAT.opacity = 0.16 * k;
   BEAM_MAT.visible = k > 0.02;
   if (!farm.disco) return;
