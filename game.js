@@ -9480,6 +9480,12 @@ function bankTeam() {
     onLocalSave?.();
   }
 }
+// Guest: the counters show this player's own sunflowers and pumpkins, not the host's.
+const ownPurse = k => { try { return JSON.parse(localStorage.getItem(k)) || 0; } catch { return 0; } };
+function showOwnPurse(coins = 0, pumpks = 0) {
+  game.coins = ownPurse('bl-coins') + coins;
+  pumpkins = ownPurse('bl-pumpkins') + pumpks;
+}
 // Guest: the host keeps the team's spooky farm: when it turns and ends, and where the flower is.
 function followSpooky(m) {
   if (m.sp > 0) {
@@ -10750,15 +10756,15 @@ if (guestNet) {
       roadClock = { T: m.T, at: performance.now() };
       game.day = m.day;
       game.score = Math.max(game.score, m.score | 0);
-      game.coins = m.coins | 0;
+      const waiting = [game.today - (m.today | 0), game.todayPk - (m.tp | 0)].map(n => Math.max(0, n));   // picked up here, not yet counted by the host
       game.today = m.today | 0;
-      pumpkins = m.pk | 0;
       game.todayPk = m.tp | 0;
       game.stopT = +m.fz || 0;
       sushi.stopIn = +m.fi || 0;
       sushi.life = !!m.lf;
       sushi.rise = !!m.ri;
       bankTeam();
+      showOwnPurse(...waiting);
       followSpooky(m);
       hud();
       if (m.state === 'play' && game.state === 'title') startGame();
@@ -10776,7 +10782,7 @@ if (guestNet) {
       if (LOOKS.some(k => JSON.stringify(m.farm.keys[k] ?? null) !== JSON.stringify(guestKeys[k] ?? null))) { location.reload(); return; }
       Object.assign(guestKeys, m.farm.keys);
       applySong();
-      game.coins = guestKeys['bl-coins'] ?? 0;
+      showOwnPurse();
       game.top = guestKeys['bl-top'] ?? 0;
       hud();
     } else if (m.t === 'joined') {
@@ -10794,6 +10800,7 @@ if (guestNet) {
     }
   });
   applyCrew(guestNet.farm.walkers || []);
+  showOwnPurse();
   placeFarmHero();
   setHint();
 }
