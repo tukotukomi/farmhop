@@ -7658,7 +7658,8 @@ $('pond').addEventListener('click', e => { if (e.target.id === 'pond') closePond
 const FISH_RENAMED = { pumpkinseed: 'buttonfish', crappie: 'picklefish', perch: 'candystripe', glowfin: 'fireflyfry', carp: 'mudmuffin', bass: 'haybelly', catfish: 'whiskers', eel: 'snoozefin', trout: 'banjofin', pike: 'tractortail', goldkoi: 'shiner', moonfish: 'cloudfin', sturgeon: 'thunderbelly', rainbowkoi: 'ribbon', ghostfish: 'wispfin' };
 const newFishIds = o => Object.fromEntries(Object.entries(o).map(([id, v]) => [FISH_RENAMED[id] || id, v]));
 const FISH_KEY = 'bl-fish';
-let fishBook = newFishIds(store.get(FISH_KEY, {}));            // id -> { n: how many, best: biggest in cm }
+const oldCatches = o => Object.fromEntries(Object.entries(o).map(([id, v]) => [id, v.songs ? v : { ...v, songs: ['classic'] }]));   // caught before songs were noted: they count as Classic
+let fishBook = oldCatches(newFishIds(store.get(FISH_KEY, {})));   // id -> { n: how many, best: biggest in cm, songs: which farm songs it's been caught on }
 const fishers = new Map();                         // walker key -> someone fishing on this screen
 const seen = new Map();                            // walker key -> someone fishing on another screen (just their rod)
 const catches = [];                                // catch cards floating over hoppers

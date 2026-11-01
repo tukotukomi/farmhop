@@ -10,14 +10,14 @@ export const UPDATES = [
     title: 'Fishing Mastery',
     notes: [
       'New in the Fish Book: Fishing Mastery! Catch every fish on a farm song to master it.',
-      'Each fish now shows a badge for every song you\'ve caught it on. Catches from today on count.',
+      "Each fish now shows a badge for every song you've caught it on. Fish you've already caught count as Classic.",
       'Mastery earns a Dance Square for your farm, then a DJ Booth, an LED Dance Floor and a Festival Roof to go with it.',
     ],
     es: {
       title: 'Maestría de pesca',
       notes: [
         'Nuevo en el Libro de peces: ¡Maestría de pesca! Pesca todos los peces con una canción de la granja para dominarla.',
-        'Cada pez muestra ahora una insignia por cada canción con la que lo pescaste. Cuentan las capturas desde hoy.',
+        'Cada pez muestra ahora una insignia por cada canción con la que lo pescaste. Los peces que ya pescaste cuentan como Clásica.',
         'La maestría te da una Plaza de baile para tu granja, y luego una Cabina de DJ, una Pista LED y un Techo de festival.',
       ],
     },
@@ -25,7 +25,7 @@ export const UPDATES = [
       title: '钓鱼大师',
       notes: [
         '鱼类图鉴新增“钓鱼大师”！用一首农场音乐钓到所有的鱼，就能精通这首歌。',
-        '每条鱼现在都会显示钓到它时的音乐徽章。从今天起钓到的鱼才算数。',
+        '每条鱼现在都会显示钓到它时的音乐徽章。之前钓到的鱼都算作经典。',
         '精通后可获得农场舞蹈广场，以及 DJ 台、LED 舞池和音乐节顶棚。',
       ],
     },
