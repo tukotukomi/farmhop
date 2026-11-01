@@ -45,7 +45,7 @@ const heroName = id => t('heroes.' + id);
 // before anything reads a setting, wait for the host to send it (guest.js). The
 // farm's settings then come from the host and are only kept in memory, so this
 // device's own farm is never touched.
-const FARM_KEYS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-sushibar', 'bl-porch', 'bl-coins', 'bl-top', 'bl-dnb', 'bl-song', 'bl-land', 'bl-wide', 'bl-key', 'bl-scale', 'bl-pumpkins', 'bl-organ', 'bl-pond-skins', 'bl-pond-skin'];
+const FARM_KEYS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-sushibar', 'bl-porch', 'bl-dance', 'bl-coins', 'bl-top', 'bl-dnb', 'bl-song', 'bl-land', 'bl-wide', 'bl-key', 'bl-scale', 'bl-pumpkins', 'bl-organ', 'bl-pond-skins', 'bl-pond-skin'];
 const joinArgs = new URLSearchParams(location.hash.slice(1));
 const GUEST = /^[A-Za-z0-9_-]{22,64}$/.test(joinArgs.get('join') || '') ? joinArgs.get('join') : null;
 // A signed-in guest has a farm of their own to go back to.
@@ -3919,10 +3919,12 @@ const PIECES = {
   streetlamp: { build: buildStreetLamp, foot: [-0.25, 0.25, -0.25, 0.25], decor: true, price: 10, max: 10, bg: '#dbe6e0', icon: 0.68 },
   lantern: { build: buildLantern, foot: [-0.55, 0.55, -0.25, 0.25], decor: true, price: 10, max: 10, bg: '#f3e2c8', icon: 0.85 },
   campfire: { build: buildCampfire, foot: [-0.55, 0.55, -0.55, 0.55], decor: true, price: 50, max: 2, bg: '#ffd2b0' },
+  // Earned, not bought (see Fishing Mastery). Hoppers can walk all over it: only the DJ's end is solid.
+  dancesquare: { build: buildDanceSquare, foot: [-2.55, 2.55, -2.8, 2.25], block: [-1, 1, -2.7, -2.05], decor: true, reward: true },
 };
 // Each extra one of a max piece is a piece of its own ('tiki-2', 'tiki-3'...), saved and moved like any other.
 for (const id of Object.keys(PIECES)) for (let i = 2; i <= (PIECES[id].max || 1); i++) PIECES[`${id}-${i}`] = { ...PIECES[id], copyOf: id };
-const DECOR = Object.keys(PIECES).filter(id => PIECES[id].decor && !PIECES[id].copyOf);
+const DECOR = Object.keys(PIECES).filter(id => PIECES[id].decor && !PIECES[id].copyOf && !PIECES[id].reward);
 const ownedDecor = new Set(store.get('bl-decor', []).filter(id => PIECES[id]?.decor));
 const decorCopies = id => [id, ...Array.from({ length: (PIECES[id].max || 1) - 1 }, (_, i) => `${id}-${i + 2}`)];
 const nextCopy = id => decorCopies(id).find(c => !ownedDecor.has(c));   // the next one to buy; none left: you have them all
@@ -5267,6 +5269,174 @@ function buildCampfire(g) {
   lamps.push({ o: f, r: 3.2, s: 1.15, torch: true, ph });
   lamps.push({ o: f, r: 0.55, s: 1.2, torch: true, flame: true, ph });
 }
+// ---------- the Dance Square ----------
+// Fishing Mastery's rewards. Catch every fish on Classic and the square is yours to place.
+// The other three songs each add something to it, and each can be switched on and off.
+const danceHas = id => !!store.get('bl-dance', {})[id];
+const DANCE_K = 0.82;   // it's built big, and set down a size that fits on the farm
+function buildDanceSquare(g) {
+  g.scale.setScalar(DANCE_K);
+  const v = new VB(0.6), STONE = 0xc9c1b4, STONE_D = 0xb3aa9b, POST = 0x6a4a34, floorW = 4.8, floorD = 3.6;
+  v.rbox(6, 0.08, 4.6, 0, 0.04, 0, STONE, 0.04);                               // the paving
+  for (let i = 0; i < 12; i++) for (let j = 0; j < 9; j++) if ((i + j) % 2) v.rbox(0.47, 0.012, 0.47, -2.75 + i * 0.5, 0.086, -2 + j * 0.5, STONE_D, 0.01);
+  const corners = [[-2.85, -2.15], [2.85, -2.15], [2.85, 2.15], [-2.85, 2.15]];
+  const roof = danceHas('roof');
+  for (const [x, z] of corners) {
+    v.cyl(0.07, 0.09, roof ? 3.1 : 1.9, x, roof ? 1.55 : 0.95, z, POST);       // posts, taller to carry the festival roof
+    v.ball(0.13, 0.1, 0.13, x, 0.1, z, STONE_D);
+  }
+  g.add(v.mesh());
+  const lights = new VB(0.6), COLS = [0xffd23f, 0xff7fb8, 0x7fd0ff, 0x7ad653];
+  corners.forEach(([x, z], c) => {                                             // strings of bulbs from post to post
+    const [x2, z2] = corners[(c + 1) % 4];
+    for (let i = 1; i < 9; i++) {
+      const u = i / 9, bx = lerp(x, x2, u), bz = lerp(z, z2, u), by = 1.84 - Math.sin(u * Math.PI) * 0.26, col = COLS[i % 4];
+      lights.ball(0.05, 0.065, 0.05, bx, by, bz, col);
+      if (i % 2) glowAt(g, bx, by, bz, col, 0.42);
+    }
+  });
+  const bulbs = lights.mesh(MARKER_MAT);
+  bulbs.castShadow = false;
+  bulbs.layers.set(GLOW_LAYER);
+  g.add(bulbs);
+  const pool = new THREE.Object3D();
+  pool.position.set(0, 0.5, 0);
+  g.add(pool);
+  lamps.push({ o: pool, r: 4, s: 0.7, y: 0.4 });
+  const moves = [];
+  if (danceHas('booth')) moves.push(buildDjBooth(g));
+  if (danceHas('led')) moves.push(buildLedFloor(g, floorW, floorD));
+  if (roof) moves.push(buildFestivalRoof(g));
+  return t => { for (const m of moves) m(t); };
+}
+function buildDjBooth(g) {
+  const v = new VB(0.6), BLACK = 0x26222c, STEEL = 0x8a8f98, leds = new VB(0.6), z = -2.85;
+  v.rbox(2.2, 0.08, 0.7, 0, 0.5, z, 0xd9b98a, 0.02);                           // the table...
+  v.rbox(2.1, 0.46, 0.6, 0, 0.26, z, BLACK, 0.02);                             // ...its front...
+  for (const x of [-0.62, 0.62]) {                                             // ...and two turntables
+    v.cyl(0.25, 0.25, 0.04, x, 0.56, z, 0x3a3440);
+    v.cyl(0.21, 0.21, 0.012, x, 0.585, z, 0x15131a);
+    v.rbox(0.03, 0.02, 0.26, x + 0.2, 0.6, z - 0.04, STEEL, 0.008, 0, 0.4, 0);
+  }
+  v.rbox(0.42, 0.05, 0.42, 0, 0.56, z, 0x3a3440, 0.01);                        // the mixer
+  for (const s of [-1, 1]) {                                                   // speakers either side
+    v.rbox(0.56, 1.3, 0.52, s * 1.5, 0.71, z, BLACK, 0.03);
+    v.cyl(0.21, 0.21, 0.04, s * 1.5, 0.48, z + 0.27, STEEL, Math.PI / 2, 0, 0);
+    v.cyl(0.12, 0.12, 0.04, s * 1.5, 0.98, z + 0.27, STEEL, Math.PI / 2, 0, 0);
+  }
+  g.add(v.mesh());
+  for (let i = -3; i <= 3; i++) leds.rbox(0.22, 0.09, 0.02, i * 0.27, 0.27, z + 0.31, [0xff4fd8, 0x4fd8ff, 0x7dff5a][(i + 3) % 3], 0.01);   // lights along the front
+  const front = leds.mesh(MARKER_MAT);
+  front.castShadow = false;
+  front.layers.set(GLOW_LAYER);
+  g.add(front);
+  return () => { front.visible = !music || music.levels()[0] > 0.25; };   // flashing with the bass
+}
+// Rows of tiles lit from the song itself: rings ripple out on the beat in the song's colours,
+// and the bass sets how bright they burn.
+const LED_SONGS = { classic: [0.12, 0.92], dnb: [0.46, 0.33], house: [0.9, 0.6], psy: [0.78, 0.3] };
+function buildLedFloor(g, w, d) {
+  const cols = 12, rows = 9, tw = w / cols, td = d / rows, geo = new THREE.BoxGeometry(tw * 0.9, 0.03, td * 0.9);
+  const mat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const tiles = new THREE.InstancedMesh(geo, mat, cols * rows), m = new THREE.Matrix4(), c = new THREE.Color();
+  for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {
+    tiles.setMatrixAt(i * rows + j, m.makeTranslation((i - (cols - 1) / 2) * tw, 0.105, (j - (rows - 1) / 2) * td));
+    tiles.setColorAt(i * rows + j, c.setRGB(0.06, 0.05, 0.1));
+  }
+  tiles.layers.set(GLOW_LAYER);
+  tiles.castShadow = false;
+  g.add(tiles);
+  return t => {
+    const lv = music ? music.levels() : [0.3, 0.2, 0.1], beats = music ? music.heard().pos / BEAT : t * 1.4;
+    const [a, b] = LED_SONGS[music?.style] || LED_SONGS.classic;
+    for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {
+      const x = (i - (cols - 1) / 2) / 2.2, z = (j - (rows - 1) / 2) / 1.6, r = Math.hypot(x, z);
+      const ring = (((r - beats) % 3) + 3) % 3 < 1, spark = (i * 7 + j * 13 + Math.floor(beats * 2) * 5) % 11 === 0;
+      c.setHSL(ring ? a + r * 0.03 : b, 1, 0.12 + (ring ? 0.2 + lv[0] * 0.55 : lv[1] * 0.28) + (spark ? lv[2] * 0.7 : 0));
+      tiles.setColorAt(i * rows + j, c);
+    }
+    tiles.instanceColor.needsUpdate = true;
+  };
+}
+// Stretched lycra sails from the posts to two tall masts, printed with glowing psytrance swirls.
+function buildFestivalRoof(g) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const k = c.getContext('2d'), mid = 128;
+  k.fillStyle = '#17062e';
+  k.fillRect(0, 0, 256, 256);
+  [['#ff2fd0', 0], ['#2fe8ff', 2.1], ['#b6ff2f', 4.2]].forEach(([col, off]) => {
+    k.strokeStyle = col;
+    k.lineWidth = 7;
+    k.beginPath();
+    for (let a = 0; a < 15; a += 0.08) {
+      const r = a * 12, x = mid + Math.cos(a + off) * r, y = mid + Math.sin(a + off) * r;
+      if (a) k.lineTo(x, y); else k.moveTo(x, y);
+    }
+    k.stroke();
+  });
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, transparent: true, opacity: 0.58, depthWrite: false });
+  const sail = (a, b, tip, drop) => {   // a point at the mast, swept down in a curve to two posts
+    const n = 10, pos = [], uv = [], idx = [];
+    for (let i = 0; i <= n; i++) for (let j = 0; j <= n; j++) {
+      const u = i / n, v = j / n, sag = Math.sin(u * Math.PI) * Math.sin(v * Math.PI) * drop;
+      const px = lerp(lerp(tip[0], a[0], u), lerp(tip[0], b[0], u), v), pz = lerp(lerp(tip[1], a[1], u), lerp(tip[1], b[1], u), v);
+      pos.push(px, lerp(tip[2], a[2], u) - sag, pz);
+      uv.push(u, v);
+    }
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+      const p = i * (n + 1) + j, q = p + n + 1;
+      idx.push(p, q, p + 1, p + 1, q, q + 1);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    geo.setIndex(idx);
+    const m = new THREE.Mesh(geo, mat);
+    m.layers.set(GLOW_LAYER);
+    m.castShadow = false;
+    return m;
+  };
+  const h = 3.05, top = 4.2, A = [-2.85, -2.15, h], B = [2.85, -2.15, h], C = [2.85, 2.15, h], D = [-2.85, 2.15, h], L = [-1.1, 0, top], R = [1.1, 0, top];
+  const group = new THREE.Group();
+  group.add(sail(A, D, L, 0.3), sail(B, C, R, 0.3), sail(A, B, [0, -0.85, 3.7], 0.22), sail(D, C, [0, 0.85, 3.7], 0.22));
+  g.add(group);
+  const masts = new VB(0.6);
+  for (const [x, z, y] of [L, R]) masts.cyl(0.05, 0.08, y, x, y / 2, z, 0x4a4250);
+  g.add(masts.mesh());
+  for (const [x, z, y] of [L, R]) glowAt(g, x, y - 0.5, z, 0xff4fd8, 2.2);
+  return t => { group.scale.y = 1 + Math.sin(t * 1.2) * 0.012; };
+}
+// Stand on the square and you dance: everyone who's stopped there hops on the beat, turning
+// from side to side. Now and then a farm hopper wanders over to join in (the host decides).
+const dance = { beat: -1, next: 6, flip: 1 };
+function updateDance(dt, t) {
+  const p = farm.pieces.dancesquare;
+  if (!p || decor.on) return;
+  const beat = Math.floor((music ? music.heard().pos : t) / BEAT);
+  if (beat !== dance.beat) {
+    dance.beat = beat;
+    dance.flip = -dance.flip;
+    const a = p.r * Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a);
+    for (const w of farm.walkers) {
+      const dx = w.x - p.x, dz = w.z - p.z, lx = dx * ca - dz * sa, lz = dx * sa + dz * ca;
+      if (Math.abs(lx) > 2.4 || Math.abs(lz) > 1.8 || w.leap || w.goal || w.sit || w.flip || w.fishing || w.show || w.swingGo || w.hidden || Math.hypot(w.tx - w.x, w.tz - w.z) > 0.1) continue;
+      w.hop = 0.4;
+      w.face = Math.PI + dance.flip * 0.5;
+    }
+  }
+  if (GUEST || (dance.next -= dt) > 0) return;
+  dance.next = rand(5, 12);
+  const free = farm.walkers.filter(w => !w.hidden && !w.leap && !w.goal && !w.sit && !w.flip && !w.fishing && !w.show && !w.swingGo && !playerMarks().some(([o]) => o === w));
+  const w = free[Math.floor(rnd() * free.length)];
+  if (!w) return;
+  const [x, z] = pieceToFarm(p, rand(-2, 2), rand(-1.5, 1.55));
+  if (!pathClear(w.x, w.z, x, z)) return;
+  w.tx = x; w.tz = z; w.dance = true;
+  toGuests({ t: 'walk', k: w.key, x: w.x, z: w.z, tx: x, tz: z });
+}
 // Chef Salmón, who runs the bar: a Spanish grizzly in his whites and tall hat, with a red
 // and gold neckerchief and a neat moustache.
 function buildChef(g) {
@@ -5851,6 +6021,7 @@ function updateFarm(dt) {
   updateTorches(t);
   stageShows(dt);
   updateWalkers(dt, t);
+  updateDance(dt, t);
 }
 
 // ---------- shows on the Jam Stage ----------
@@ -6519,7 +6690,7 @@ function updateWalkers(dt, t) {
       inner.position.y = Math.abs(Math.sin(w.ph)) * 0.07;
       inner.rotation.z = Math.sin(w.ph) * 0.1;
       sway = Math.sin(w.ph) * 0.18;
-      if (d - s <= 0.05) { w.wait = rand(1, 3.5); w.face = Math.PI + rand(-0.4, 0.9); }   // arrive, look around
+      if (d - s <= 0.05) { w.wait = w.dance ? rand(12, 24) : rand(1, 3.5); w.dance = false; w.face = Math.PI + rand(-0.4, 0.9); }   // arrive, look around
     } else {                                         // stand and look around for a bit
       inner.position.y = lerp(inner.position.y, 0, Math.min(1, dt * 10));
       inner.rotation.z = lerp(inner.rotation.z, 0, Math.min(1, dt * 10));
@@ -7123,7 +7294,8 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
     return;
   }
-  if (game.picking && bookOpen()) { if (e.code === 'Escape' || e.code === 'Enter') closeBook(); e.preventDefault(); return; }
+  if (game.picking && masteryOpen()) { if (e.code === 'Escape') { closeMastery(); openBook(); } e.preventDefault(); return; }
+  if (game.picking && bookOpen()) { if (e.code === 'KeyM') openMastery(); else if (e.code === 'Escape' || e.code === 'Enter') closeBook(); e.preventDefault(); return; }
   if (game.picking && photoOpen()) { if (e.code === 'Escape') closePhoto(); return; }
   if (game.picking && questsOpen()) { if (e.code === 'Escape') closeQuests(); e.preventDefault(); return; }
   if (game.picking && eventOpen()) { if (e.code === 'Escape') { if (eventAsk()) { closeAsk(); refreshEvent(); } else closeEvent(); } else if ((e.code === 'Enter' || e.code === 'Space') && eventAsk()) sayYes(); e.preventDefault(); return; }
@@ -7833,8 +8005,10 @@ function reelGame(f, tap) {
 }
 function logFish(id, cm) {   // into this device's Fish Book: is it a new kind, or the biggest yet?
   const was = fishBook[id];
-  fishBook[id] = { n: (was?.n || 0) + 1, best: Math.max(was?.best || 0, cm) };
+  const song = catchSong(), before = song && mastered(song);
+  fishBook[id] = { n: (was?.n || 0) + 1, best: Math.max(was?.best || 0, cm), songs: [...new Set([...(was?.songs || []), ...(song ? [song] : [])])] };
   store.set(FISH_KEY, fishBook);
+  if (song && !before && mastered(song)) masteryToast(song);
   return { isNew: !was, isBest: !!was && cm > was.best };
 }
 function landFish(f) {
@@ -8080,10 +8254,20 @@ function onDock(pt) {
 // rest a grey shape and "???" (with the pond level they need, if it's not there yet).
 const bookOpen = () => $('book').classList.contains('show');
 const bookGrid = $('bookGrid');
+const SONG_BADGES = {   // each its own colour and its own shape
+  classic: ['#ffd23f', 'M9.5 17.5V6.2L17 4.5v11M9.5 17.5a2.3 2.3 0 1 1-4.6 0 2.3 2.3 0 0 1 4.6 0zM17 15.5a2.3 2.3 0 1 1-4.6 0 2.3 2.3 0 0 1 4.6 0z'],
+  dnb: ['#3fe0b0', 'M13.5 2.5 6 13h5l-1.5 8.5L18 10h-5.2z'],
+  house: ['#ff7fb8', 'M12 3.5 3 11h2.6v9h12.8v-9H21zM10 14h4v6h-4z'],
+  psy: ['#a86bff', 'M12 12.5c1-1.6-1.8-2.6-2.8-.8-1.3 2.3 2 5.2 5 3.4 3.6-2.2 2.6-8-1.6-9.1-5.2-1.4-9.6 4-7.6 9 1.7 4.4 7.4 6 11 3.3'],
+};
+const badgeHtml = id => `<i class="songBadge" data-song="${id}" style="--c:${SONG_BADGES[id][0]}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${SONG_BADGES[id][1]}"/></svg></i>`;
+const catchSong = () => { if (music?.haunted) return null; const s = music ? music.style : songStyle(); return SONGS.includes(s) ? s : null; };   // (not the spooky organ: that one's seasonal)
+const caughtOn = song => FISH.filter(sp => fishBook[sp.id]?.songs?.includes(song)).length;
+const mastered = song => caughtOn(song) === FISH.length;
 FISH.forEach((sp, i) => {
   const card = document.createElement('div');
   card.className = 'heroCard';
-  card.innerHTML = `<img class="cutout" alt="" src="${shots.fish[i]}"><span class="heroName"></span><span class="lvl"></span><i class="tag"></i>`;
+  card.innerHTML = `<img class="cutout" alt="" src="${shots.fish[i]}"><span class="heroName"></span><span class="lvl"></span><div class="songBadges">${SONGS.map(badgeHtml).join('')}</div><i class="tag"></i>`;
   bookGrid.append(card);
 });
 function refreshBook() {
@@ -8093,6 +8277,12 @@ function refreshBook() {
     c.querySelector('.heroName').textContent = rec ? fishName(sp.id) : t('notBuilt');
     c.querySelector('.lvl').textContent = rec ? t('fish.bestCm', { n: rec.best }) : sp.lvl > farm.level ? t(sp.night ? 'fish.lockedNight' : 'fish.locked', { n: sp.lvl }) : sp.night ? t('fish.night') : '';
     c.querySelector('.tag').textContent = rec ? t('fish.count', { n: rec.n }) : '';
+    c.querySelectorAll('.songBadge').forEach(b => {
+      const on = !!rec?.songs?.includes(b.dataset.song);
+      b.classList.toggle('on', on);
+      b.title = t('sup.songs')[SONGS.indexOf(b.dataset.song)];
+    });
+    c.querySelector('.songBadges').setAttribute('aria-label', t('mastery.badges', { n: (rec?.songs || []).length, all: SONGS.length }));
   });
   $('bookCount').textContent = t('fish.caught', { n: FISH.filter(sp => fishBook[sp.id]).length, all: FISH.length });
 }
@@ -8107,6 +8297,89 @@ function closeBook() {
   $('book').classList.remove('show');
   game.picking = anyPanel();
 }
+// ---------- Fishing Mastery ----------
+// Catch every kind of fish on a farm song and you've mastered it. Each song earns a piece of
+// the Dance Square: the catches are the player's own, so they count on friends' farms too, but
+// what's built here (bl-decor, bl-dance) belongs to the farm.
+const MASTERY = { classic: 'square', dnb: 'booth', house: 'led', psy: 'roof' };
+const masteryOpen = () => $('mastery').classList.contains('show');
+function masteryToast(song) {
+  const el = document.createElement('div');
+  el.className = 'questToast pill';
+  el.innerHTML = badgeHtml(song).replace('songBadge"', 'songBadge on"') + '<span></span>';
+  el.querySelector('span').textContent = t('mastery.done', { song: t('sup.songs')[SONGS.indexOf(song)], name: t('mastery.reward.' + MASTERY[song]) });
+  document.body.append(el);
+  setTimeout(() => el.remove(), 4500);
+  sfx.upgrade();
+}
+function setDance(id, on) {
+  store.set('bl-dance', { ...store.get('bl-dance', {}), [id]: on });
+  const p = farm.pieces.dancesquare;
+  if (p) { clearPiece(p.group); p.update = PIECES.dancesquare.build(p.group); }
+  sfx.place();
+  refreshMastery();
+}
+function placeSquare() {
+  if (GUEST || ownedDecor.has('dancesquare') || !mastered('classic')) return;
+  const near = [snap(farmCam.x), snap(farmCam.z - 1.4), 0];
+  if (!placeOk('dancesquare', ...near) && !findSpot('dancesquare', near[0], near[1], 0)) { sfx.bump(); $('masteryNote').textContent = t('mastery.noRoom'); return; }   // it never sits on top of anything
+  ownedDecor.add('dancesquare');
+  store.set('bl-decor', [...ownedDecor]);
+  const p = addPiece('dancesquare', near);
+  saveLayout();
+  settleWalkers();
+  sfx.upgrade();
+  cheer(p.x, p.z);
+  $('mastery').classList.remove('show');
+  game.picking = anyPanel();
+  enterDecor();
+  selectPiece('dancesquare');
+  focusPiece(p);
+}
+function refreshMastery() {
+  const square = ownedDecor.has('dancesquare');
+  $('masteryList').replaceChildren(...SONGS.map((song, i) => {
+    const n = caughtOn(song), all = FISH.length, done = n === all, id = MASTERY[song], li = document.createElement('li');
+    li.className = 'masteryRow' + (done ? ' done' : '');
+    li.innerHTML = `<div class="masteryHead">${badgeHtml(song).replace('songBadge"', `songBadge${done || n ? ' on' : ''}"`)}<b></b><span class="masteryN"></span></div><i class="questBar"><b></b></i><div class="masteryReward"><div><b class="rewardName"></b><p></p></div></div>`;
+    li.querySelector('.masteryHead b').textContent = t('sup.songs')[i];
+    li.querySelector('.masteryN').textContent = n + '/' + all;
+    li.querySelector('.questBar b').style.width = n / all * 100 + '%';
+    li.querySelector('.rewardName').textContent = t('mastery.reward.' + id);
+    const say = li.querySelector('p'), row = li.querySelector('.masteryReward');
+    const button = (label, on, click) => {
+      const b = document.createElement('button');
+      b.className = 'chipBtn' + (on ? ' go' : '');
+      b.textContent = label;
+      b.addEventListener('click', () => { sfx.ensure(); click(); });
+      row.append(b);
+    };
+    say.textContent = t('mastery.about.' + id);
+    if (!done) {
+      if (song !== 'classic' && !supporter && !GUEST) say.textContent = t('mastery.supSong');
+    } else if (GUEST) say.textContent = t('mastery.atHome');
+    else if (id === 'square') {
+      if (square) button(t('mastery.move'), false, () => { closeMastery(); enterDecor(); selectPiece('dancesquare'); focusPiece(farm.pieces.dancesquare); });
+      else button(t('mastery.place'), true, placeSquare);
+    } else if (!square) say.textContent = t('mastery.needSquare');
+    else button(t(danceHas(id) ? 'mastery.on' : 'mastery.off'), danceHas(id), () => setDance(id, !danceHas(id)));
+    return li;
+  }));
+}
+function openMastery() {
+  if (game.state !== 'farm') return;
+  closeBook();
+  refreshMastery();
+  $('mastery').classList.add('show');
+  game.picking = true;
+}
+function closeMastery() {
+  $('mastery').classList.remove('show');
+  game.picking = anyPanel();
+}
+$('masteryBtn').addEventListener('click', () => { sfx.ensure(); openMastery(); });
+$('masteryClose').addEventListener('click', () => { closeMastery(); openBook(); });
+$('mastery').addEventListener('click', e => { if (e.target.id === 'mastery') closeMastery(); });
 $('fishGo').addEventListener('click', () => { sfx.ensure(); goFish(myKey(), 'tap'); });
 $('fishBookBtn').addEventListener('click', () => { sfx.ensure(); openBook(); });
 $('bookBtn').addEventListener('click', () => { sfx.ensure(); openBook(); });
@@ -10488,6 +10761,7 @@ function applyLang() {
   if (bunkOpen()) refreshBunk();
   if (buildsOpen()) refreshBuilds();
   if (bookOpen()) refreshBook();
+  if (masteryOpen()) refreshMastery();
   if (bagOpen() && !asking()) refreshBag();
   if (landOpen()) refreshLand();
   if (shopOpen()) refreshShop();
@@ -11066,7 +11340,13 @@ function pollPad() {
   }
   if (game.picking && bookOpen()) {
     if (dir === 'up' || dir === 'down') document.querySelector('#book .panelBody')?.scrollBy({ top: dir === 'down' ? 120 : -120 });
-    if (pressed(0) || pressed(1) || pressed(9)) closeBook();
+    if (pressed(2)) openMastery();
+    else if (pressed(0) || pressed(1) || pressed(9)) closeBook();
+    return;
+  }
+  if (game.picking && masteryOpen()) {
+    if (menu($('mastery'))) return;
+    if (pressed(1)) { closeMastery(); openBook(); }
     return;
   }
   if (game.picking && photoOpen()) { if (menu($('photo'))) return; if (pressed(0)) savePhoto(); else if (pressed(1)) closePhoto(); return; }
@@ -11245,7 +11525,7 @@ if (guestNet) {
   };
   const keepHero = () => { try { sessionStorage.setItem('bl-guest-hero', heroId); } catch {} };   // the same hopper after a reload
   keepHero();
-  const LOOKS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-sushibar', 'bl-porch', 'bl-wide'];
+  const LOOKS = ['bl-owned', 'bl-decor', 'bl-layout', 'bl-pond', 'bl-bunk', 'bl-stage', 'bl-sushibar', 'bl-porch', 'bl-dance', 'bl-wide'];
   setInterval(syncTune, 2000);
   guestNet.on(m => {
     if (m.t === 'leap') { const w = walkerOf(m.k); if (w && m.k !== myKey()) landLeap(w, +m.x, +m.z, +m.up, isFinite(m.y) ? clamp(+m.y, 0, 0.5) : null); }
@@ -11315,4 +11595,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, syncTune, tuneSync, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, trackPlayers, farmPlayers, buyPorch, questAdd, questsToday, openQuests, rowDice, flipLane, startReel, reelBeats, showCatch, sushi, dash, mealOf, feedSushi, openSushi, closeSushi, cookSushi, eatSushi, buySushi, startSushi, SUSHI, dropFlower, get pumpkins() { return pumpkins; }, get counting() { return counting; } };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, syncTune, tuneSync, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, trackPlayers, farmPlayers, buyPorch, mastered, caughtOn, openMastery, refreshMastery, setDance, placeSquare, fishBook: () => fishBook, setBook: b => { fishBook = b; store.set(FISH_KEY, b); }, questAdd, questsToday, openQuests, rowDice, flipLane, startReel, reelBeats, showCatch, sushi, dash, mealOf, feedSushi, openSushi, closeSushi, cookSushi, eatSushi, buySushi, startSushi, SUSHI, dropFlower, get pumpkins() { return pumpkins; }, get counting() { return counting; } };

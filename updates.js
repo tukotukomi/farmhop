@@ -6,6 +6,31 @@
 // This file is plain data: { date: 'YYYY-MM-DD', title, notes: [...], es: { title, notes }, zh: { title, notes } }.
 export const UPDATES = [
   {
+    date: '2026-11-01',
+    title: 'Fishing Mastery',
+    notes: [
+      'New in the Fish Book: Fishing Mastery! Catch every fish on a farm song to master it.',
+      'Each fish now shows a badge for every song you\'ve caught it on. Catches from today on count.',
+      'Mastery earns a Dance Square for your farm, then a DJ Booth, an LED Dance Floor and a Festival Roof to go with it.',
+    ],
+    es: {
+      title: 'Maestría de pesca',
+      notes: [
+        'Nuevo en el Libro de peces: ¡Maestría de pesca! Pesca todos los peces con una canción de la granja para dominarla.',
+        'Cada pez muestra ahora una insignia por cada canción con la que lo pescaste. Cuentan las capturas desde hoy.',
+        'La maestría te da una Plaza de baile para tu granja, y luego una Cabina de DJ, una Pista LED y un Techo de festival.',
+      ],
+    },
+    zh: {
+      title: '钓鱼大师',
+      notes: [
+        '鱼类图鉴新增“钓鱼大师”！用一首农场音乐钓到所有的鱼，就能精通这首歌。',
+        '每条鱼现在都会显示钓到它时的音乐徽章。从今天起钓到的鱼才算数。',
+        '精通后可获得农场舞蹈广场，以及 DJ 台、LED 舞池和音乐节顶棚。',
+      ],
+    },
+  },
+  {
     date: '2026-10-31',
     title: 'Lanterns in the redbud',
     notes: [

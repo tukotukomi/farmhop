@@ -26,6 +26,12 @@ export const STRINGS = {
       halloween: 'HALLOWEEN HOP', tap: 'Tap for the Pumpkin Harvest!', welcome: 'Welcome to the farm!',
       days: '{n} days left', day: '1 day left', hours: '{n} hours left', hour: '1 hour left', minutes: '{n} minutes left', minute: '1 minute left',
     },
+    mastery: {
+      title: 'Fishing Mastery', say: 'Catch every fish on a farm song to master it and earn a reward.', badges: 'Caught on {n} of {all} songs', done: '{song} mastered! You earned: {name}', place: 'Place it', move: 'Move it', on: 'On', off: 'Off',
+      supSong: 'A Hop Supporter song. Fish on a Supporter friend\'s farm to count it too.', atHome: 'Yours to use on your own farm.', needSquare: 'Earn the Dance Square first.', noRoom: 'The Dance Square needs a clear patch about 5 by 5. Move things around in Decorate, or buy More Land.',
+      reward: { square: 'Dance Square', booth: 'DJ Booth', led: 'LED Dance Floor', roof: 'Festival Roof' },
+      about: { square: 'A public square for your hoppers to dance together.', booth: 'A DJ booth beside the Dance Square.', led: 'A dance floor that lights up to the music.', roof: 'Psytrance lycra stretched across the square.' },
+    },
     quests: {
       title: 'Buddy Quests', tokens: 'Buddy Tokens', say: 'Team up with a Buddy to finish quests. Each one earns a Buddy Token, and quests are the only way to get them!', next: 'New quests tomorrow.', earned: 'Quest done! +1 Buddy Token',
       porch: 'Porch Swing', porchSay: 'Turn your swing into a porch swing for two.', porchNeed: 'Buy the Swing in the Market to upgrade it.', porchHave: 'Your porch swing has room for two. Hop on with a Buddy!', porchBuy: 'Upgrade to a porch swing for {n} Buddy Tokens', porchShort: 'Buddy Tokens still needed: {n}', porchDone: 'Your swing is a porch swing now!',
@@ -191,6 +197,12 @@ sushiBar: 'Sushi Bar', sushiPlan: 'Build a kitchen to cook your fish into sushi.
       halloween: 'SALTOS DE HALLOWEEN', tap: '¡Toca para la Cosecha de calabazas!', welcome: '¡Bienvenidos a la granja!',
       days: 'Quedan {n} días', day: 'Queda 1 día', hours: 'Quedan {n} horas', hour: 'Queda 1 hora', minutes: 'Quedan {n} minutos', minute: 'Queda 1 minuto',
     },
+    mastery: {
+      title: 'Maestría de pesca', say: 'Pesca todos los peces con una canción de la granja para dominarla y ganar un premio.', badges: 'Pescado con {n} de {all} canciones', done: '¡{song} dominada! Ganaste: {name}', place: 'Colocar', move: 'Mover', on: 'Sí', off: 'No',
+      supSong: 'Canción de Hop Supporter. Pesca en la granja de un amigo Supporter para que cuente.', atHome: 'Para usar en tu propia granja.', needSquare: 'Primero gana la Plaza de baile.', noRoom: 'La Plaza de baile necesita un espacio libre de unos 5 por 5. Mueve cosas en Decorar o compra Más terreno.',
+      reward: { square: 'Plaza de baile', booth: 'Cabina de DJ', led: 'Pista LED', roof: 'Techo de festival' },
+      about: { square: 'Una plaza pública para que tus saltarines bailen juntos.', booth: 'Una cabina de DJ junto a la plaza.', led: 'Una pista que se ilumina con la música.', roof: 'Lycra psytrance tendida sobre la plaza.' },
+    },
     quests: {
       title: 'Misiones de amigos', tokens: 'Fichas de Amigo', say: 'Únete a un amigo para completar misiones. Cada una te da una Ficha de Amigo, ¡y las misiones son la única forma de conseguirlas!', next: 'Mañana habrá misiones nuevas.', earned: '¡Misión cumplida! +1 Ficha de Amigo',
       porch: 'Columpio de porche', porchSay: 'Convierte tu columpio en un columpio de porche para dos.', porchNeed: 'Compra el columpio en el Mercado para mejorarlo.', porchHave: 'Tu columpio de porche tiene sitio para dos. ¡Súbete con un amigo!', porchBuy: 'Mejorar a columpio de porche por {n} Fichas de Amigo', porchShort: 'Fichas de Amigo que faltan: {n}', porchDone: '¡Tu columpio ya es de porche!',
@@ -355,6 +367,12 @@ sushiBar: 'Barra de sushi', sushiPlan: 'Construye una cocina para convertir tus 
     notice: {
       halloween: '万圣节蹦蹦跳', tap: '点我看南瓜丰收节！', welcome: '欢迎来到农场！',
       days: '还剩 {n} 天', day: '还剩 1 天', hours: '还剩 {n} 小时', hour: '还剩 1 小时', minutes: '还剩 {n} 分钟', minute: '还剩 1 分钟',
+    },
+    mastery: {
+      title: '钓鱼大师', say: '用一首农场音乐钓到所有的鱼，就能精通这首歌并赢得奖励。', badges: '已用 {all} 首歌中的 {n} 首钓到', done: '精通《{song}》！你获得了：{name}', place: '放置', move: '移动', on: '开', off: '关',
+      supSong: '跳跳支持者专属音乐。在支持者朋友的农场钓鱼也算数。', atHome: '可以在你自己的农场上使用。', needSquare: '请先赢得舞蹈广场。', noRoom: '舞蹈广场需要一块约 5×5 的空地。请在装饰模式里挪动物品，或购买更多土地。',
+      reward: { square: '舞蹈广场', booth: 'DJ 台', led: 'LED 舞池', roof: '音乐节顶棚' },
+      about: { square: '让跳跳们一起跳舞的公共广场。', booth: '舞蹈广场旁边的 DJ 台。', led: '随音乐闪亮的舞池。', roof: '横跨广场的迷幻莱卡顶棚。' },
     },
     quests: {
       title: '伙伴任务', tokens: '伙伴币', say: '和伙伴一起完成任务。每完成一个就能赢得一枚伙伴币，任务是获得伙伴币的唯一方式！', next: '明天会有新任务。', earned: '任务完成！+1 伙伴币',

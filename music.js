@@ -117,6 +117,11 @@ export function createMusic(ctx, out) {
     verbIn.gain.setTargetAtTime(0.5 + 0.35 * (1 - day) + 0.45 * spook, ctx.currentTime, 0.5);
   };
   bus.connect(wobble).connect(dusty).connect(level).connect(out);
+  const scope = ctx.createAnalyser();   // listens in, for whatever dances to the song
+  scope.fftSize = 256;
+  scope.smoothingTimeConstant = 0.55;
+  dusty.connect(scope);
+  const bins = new Uint8Array(scope.frequencyBinCount);
 
   const verb = ctx.createConvolver();
   verb.buffer = impulse(ctx, 1.6);   // short tail: cheap enough for phones
@@ -476,6 +481,12 @@ export function createMusic(ctx, out) {
     // One of SONGS (Hop Supporters): changes over at the next bar line.
     setStyle(s) { want = SONGS.includes(s) ? s : 'classic'; },
     get style() { return want; },
+    // How much bass, middle and top the song has in it this moment, each 0..1.
+    levels() {
+      scope.getByteFrequencyData(bins);
+      const band = (a, b) => { let n = 0; for (let i = a; i < b; i++) n += bins[i]; return n / (b - a) / 255; };
+      return [band(0, 4), band(4, 24), band(24, 90)];
+    },
     // The song's beat and its 32-bar loop right now, in seconds.
     get beat() { return STEP * 4; },
     get loop() { return LOOP; },

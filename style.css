@@ -632,6 +632,27 @@ body.pad .heroCard.focus, body.keys .heroCard.focus, .heroCard:focus-visible { o
 #bookGrid .heroCard .tag { padding: 0 10px; }
 #bookGrid .heroCard.unbuilt img { filter: brightness(0) opacity(.25); }   /* not caught yet: just its shadow */
 #bookCount { margin: -4px auto 6px; }
+#bookGrid .heroCard img { margin-bottom: -16px; }                 /* the name moves up over the picture, to make room for the badges */
+#bookGrid .heroCard .heroName { position: relative; max-width: 100%; box-sizing: border-box; overflow-wrap: anywhere; font-size: 14px; padding: 2px 8px 3px; }
+#bookGrid .heroCard .lvl { min-height: 1.1em; line-height: 1.15; }
+.songBadges { display: flex; justify-content: center; gap: 4px; margin-top: 5px; }
+.songBadge { display: grid; place-items: center; width: 20px; height: 20px; box-sizing: border-box; border-radius: 50%; background: #cfc8d6; border: 2px solid #a59cae; }
+.songBadge svg { width: 13px; height: 13px; fill: none; stroke: #a59cae; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.songBadge.on { background: var(--c); border-color: var(--ink); box-shadow: 0 0 6px var(--c); }
+.songBadge.on svg { stroke: var(--ink); }
+#masteryBtn { font-size: 18px; padding: 7px 22px 9px; }
+#mastery .pondPanel { max-width: 480px !important; }
+.masteryRow { display: block !important; text-align: left; }
+.masteryHead { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.masteryHead > b { flex: 1; min-width: 0; font-size: 17px; }
+.masteryN { font-weight: 700; white-space: nowrap; }
+.masteryReward { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.masteryReward > div { flex: 1; min-width: 0; }
+.rewardName { font-size: 15px; }
+.masteryReward p { margin: 1px 0 0; font-size: 13px; line-height: 1.25; opacity: .8; }
+.masteryReward .chipBtn { flex: none; font-size: 14px; }
+.masteryRow.done { background: #eaffd9 !important; }
+.questToast .songBadge { flex: none; }
 .buildActs { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 6px; }
 .actBtn {
   border-radius: 999px !important; width: auto; height: auto;

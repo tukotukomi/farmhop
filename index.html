@@ -216,7 +216,20 @@
     <p id="bookCount" class="bunkWho"></p>
     <div id="bookGrid"></div>
     </div>
+    <div class="panelFoot"><button id="masteryBtn" class="buyBtn bubble" data-i18n="mastery.title">Fishing Mastery</button></div>
     <button id="bookClose" class="closeBtn bubble" data-i18n-aria="aria.close" aria-label="Close">&#x2715;</button>
+  </div>
+</div>
+
+<div id="mastery" class="sheet" role="dialog" aria-modal="true" aria-labelledby="masteryTitle">
+  <div class="panel pondPanel">
+    <h2 id="masteryTitle" data-i18n="mastery.title">Fishing Mastery</h2>
+    <div class="panelBody">
+    <p class="bunkWho" data-i18n="mastery.say">Catch every fish on a farm song to master it and earn a reward.</p>
+    <ul id="masteryList" class="questList"></ul>
+    <p id="masteryNote" class="pondNeed"></p>
+    </div>
+    <button id="masteryClose" class="closeBtn bubble" data-i18n-aria="aria.close" aria-label="Close">&#x2715;</button>
   </div>
 </div>
 
