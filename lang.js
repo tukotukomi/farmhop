@@ -83,8 +83,8 @@ export const STRINGS = {
     pickHopper: 'Pick your hopper',
     fishPond: 'Fish Pond', pondMuddy: 'A muddy little pond', pondLevel: 'Level {n}', next: 'Next', upgrade: 'Upgrade',
     pondNeed1: 'Pick 1 more sunflower on the road', pondNeedN: 'Pick {n} more sunflowers on the road',
-    pondSteps: ['Fish move in', 'Lily pads', 'A little dock', 'Koi', 'Ducks', 'A bigger pond with a stone rim', 'A fountain', 'A frog', 'Lanterns'],
-    pondMore: 'Another fish', pondNewFish: 'A new fish: {name}',
+    pondLook: { lily: 'Lily pads', dock: 'A little dock', ducks: 'Ducks', rim: 'A bigger pond with a stone rim', fountain: 'A fountain', frog: 'A frog', lanterns: 'Lanterns' },
+    pondMax: 'Your pond is all grown up!', pondNewFish: 'A new fish: {name}',
     newBest: 'New best!',
     gainNone: 'No sunflowers today', gain1: '1 sunflower picked today', gainN: '{n} sunflowers picked today',
     death: {
@@ -254,8 +254,8 @@ sushiBar: 'Sushi Bar', sushiPlan: 'Build a kitchen to cook your fish into sushi.
     pickHopper: 'Elige tu saltarín',
     fishPond: 'Estanque de peces', pondMuddy: 'Un charquito de barro', pondLevel: 'Nivel {n}', next: 'Siguiente', upgrade: 'Mejorar',
     pondNeed1: 'Recoge 1 girasol más en el camino', pondNeedN: 'Recoge {n} girasoles más en el camino',
-    pondSteps: ['Llegan los peces', 'Nenúfares', 'Un pequeño muelle', 'Carpas koi', 'Patos', 'Un estanque más grande con borde de piedra', 'Una fuente', 'Una rana', 'Farolillos'],
-    pondMore: 'Otro pez', pondNewFish: 'Un pez nuevo: {name}',
+    pondLook: { lily: 'Nenúfares', dock: 'Un pequeño muelle', ducks: 'Patos', rim: 'Un estanque más grande con borde de piedra', fountain: 'Una fuente', frog: 'Una rana', lanterns: 'Farolillos' },
+    pondMax: '¡Tu estanque ya está completo!', pondNewFish: 'Un pez nuevo: {name}',
     newBest: '¡Nuevo récord!',
     gainNone: 'Hoy no recogiste girasoles', gain1: 'Hoy recogiste 1 girasol', gainN: 'Hoy recogiste {n} girasoles',
     death: {
@@ -425,8 +425,8 @@ sushiBar: 'Barra de sushi', sushiPlan: 'Construye una cocina para convertir tus 
     pickHopper: '选择角色',
     fishPond: '鱼塘', pondMuddy: '一个小泥塘', pondLevel: '等级 {n}', next: '下一级', upgrade: '升级',
     pondNeed1: '还需要在路上采 1 朵向日葵', pondNeedN: '还需要在路上采 {n} 朵向日葵',
-    pondSteps: ['鱼儿搬来了', '睡莲叶', '小码头', '锦鲤', '鸭子', '更大的池塘和石头边', '喷泉', '青蛙', '灯笼'],
-    pondMore: '再来一条鱼', pondNewFish: '新的鱼：{name}',
+    pondLook: { lily: '睡莲叶', dock: '小码头', ducks: '鸭子', rim: '更大的池塘和石头边', fountain: '喷泉', frog: '青蛙', lanterns: '灯笼' },
+    pondMax: '你的池塘已经完全长大啦！', pondNewFish: '新的鱼：{name}',
     newBest: '新纪录！',
     gainNone: '今天没有采到向日葵', gain1: '今天采了 1 朵向日葵', gainN: '今天采了 {n} 朵向日葵',
     death: {

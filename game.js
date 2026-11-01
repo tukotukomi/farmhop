@@ -3840,12 +3840,20 @@ function updateTorches(t) {
   }
 }
 // What each Fish Pond level adds. Level n costs n sunflowers (1, 2, 3, ...).
-const pondNext = lvl => {   // what the next level brings: its new look, or after those the new fish it lets in
-  const step = t('pondSteps')[lvl], sp = FISH.find(f => f.lvl === lvl + 1);
-  return step || (sp ? t('pondNewFish', { name: fishName(sp.id) }) : t('pondMore'));
+// One thing at each level: a new look for the pond here, or a new kind of fish (their lvl, in FISH).
+const POND_LOOKS = { lily: 3, dock: 7, ducks: 11, rim: 15, fountain: 19, frog: 23, lanterns: 26 }, POND_MAX = 29;
+const pondNext = lvl => {   // what the next level brings
+  const look = Object.keys(POND_LOOKS).find(k => POND_LOOKS[k] === lvl + 1), sp = FISH.find(f => f.lvl === lvl + 1);
+  return look ? t('pondLook.' + look) : sp ? t('pondNewFish', { name: fishName(sp.id) }) : t('pondMax');
 };
 const pondCost = lvl => lvl + 1;
 
+// Ponds from when each level unlocked several things: on to the level that keeps all of it.
+if (!GUEST && !store.get('bl-pond-v2', false)) {
+  const was = store.get('bl-pond', null);
+  if (was !== null) store.set('bl-pond', [0, 5, 8, 12, 14, 17, 20, 22, 24, 26, 27, 28, 29][Math.min(was, 12)]);
+  store.set('bl-pond-v2', true);
+}
 const farm = { group: new THREE.Group(), pieces: {}, fish: [], ducks: [], spray: 0, hero: null, level: store.get('bl-pond', 0) };
 farm.group.position.set(0, 0, FARM_Z);
 // The Bunkhouse: a staked-out plot until it's built, then a log cabin where new hoppers move in.
@@ -5846,27 +5854,27 @@ function duckMesh(s) {
 // hard it fights on the line, night = only bites after dark.
 const FISH = [
   { id: 'minnow', lvl: 1, rhy: 1, w: 10, cm: [4, 9], price: 1, wiggle: 0.6, col: [0xa9b8c4, 0xe8eef2], shape: { long: 0.85, tall: 0.75 } },
-  { id: 'guppy', lvl: 1, rhy: 1, w: 8, cm: [2, 5], price: 1, wiggle: 0.5, col: [0x7fd0ff, 0xff7fb8], shape: { long: 0.7, tall: 0.85, fan: true } },
-  { id: 'bluegill', lvl: 1, rhy: 2, w: 8, cm: [10, 22], price: 2, wiggle: 0.9, col: [0x4f7fc4, 0xffb347], shape: { tall: 1.25 } },
-  { id: 'boot', lvl: 1, rhy: 1, w: 3, cm: [24, 30], price: 0, wiggle: 0.3 },
-  { id: 'buttonfish', lvl: 2, rhy: 1, w: 6, cm: [8, 18], price: 2, wiggle: 0.8, col: [0xf7e4b8, 0xe0663c], shape: { tall: 1.35, long: 0.8 } },
-  { id: 'goldfish', lvl: 2, rhy: 3, w: 6, cm: [6, 15], price: 3, wiggle: 1.1, col: [0xff9a2a, 0xffd23f] },
-  { id: 'picklefish', lvl: 3, rhy: 2, w: 5, cm: [12, 28], price: 3, wiggle: 1, col: [0x6fa83c, 0xd7e88a], shape: { long: 1.15, tall: 0.75, stripes: 0x3f7a2a } },
-  { id: 'candystripe', lvl: 3, rhy: 4, w: 5, cm: [15, 30], price: 4, wiggle: 1.3, col: [0xff7fb8, 0xffffff], shape: { stripes: 0xffffff } },
-  { id: 'fireflyfry', lvl: 3, rhy: 3, w: 4, cm: [8, 16], price: 6, wiggle: 1.2, col: [0xffe066, 0xfff7c8], shape: { long: 0.85, glow: true }, night: true },
-  { id: 'mudmuffin', lvl: 4, rhy: 2, w: 4, cm: [30, 70], price: 5, wiggle: 1.2, col: [0x9a6a3c, 0xe8c89a], shape: { long: 0.95, tall: 1.2, whiskers: true } },
-  { id: 'koi', lvl: 4, rhy: 5, w: 4, cm: [30, 60], price: 6, wiggle: 1.5, col: [0xffffff, 0xff6a2a], shape: { koi: true, long: 1.1 } },
-  { id: 'haybelly', lvl: 5, rhy: 4, w: 3, cm: [25, 55], price: 7, wiggle: 1.6, col: [0xe0b84a, 0xfff0b8], shape: { long: 1.1, tall: 1.1, stripes: 0xb8862a } },
-  { id: 'whiskers', lvl: 5, rhy: 6, w: 3, cm: [40, 90], price: 8, wiggle: 1.7, col: [0x8a8f98, 0xf0ece0], shape: { long: 1.15, tall: 0.8, whiskers: true } },
-  { id: 'snoozefin', lvl: 6, rhy: 5, w: 2.5, cm: [40, 100], price: 12, wiggle: 2.1, col: [0x3a3f7a, 0xbdb8f0], shape: { long: 1.9, tall: 0.42 }, night: true },
-  { id: 'banjofin', lvl: 6, rhy: 7, w: 3, cm: [25, 55], price: 10, wiggle: 2, col: [0xc8935a, 0xfff1d8], shape: { long: 0.9, tall: 1.3, fan: true } },
-  { id: 'lanternfish', lvl: 7, rhy: 6, w: 2, cm: [10, 25], price: 16, wiggle: 2.2, col: [0x2f3f7a, 0x8fa8e6], shape: { tall: 1.1, lure: true }, night: true },
-  { id: 'tractortail', lvl: 7, rhy: 7, w: 2, cm: [50, 100], price: 14, wiggle: 2.3, col: [0xe0522c, 0xffd23f], shape: { long: 1.4, tall: 0.65 } },
-  { id: 'shiner', lvl: 8, rhy: 8, w: 1.2, cm: [40, 70], price: 20, wiggle: 2.6, col: [0xffd23f, 0x7a4a1c], shape: { koi: true, long: 1.1 } },
-  { id: 'cloudfin', lvl: 9, rhy: 9, w: 0.8, cm: [20, 40], price: 30, wiggle: 2.9, col: [0xf4f8ff, 0xa8dcff], shape: { long: 0.8, tall: 1.5 } },
-  { id: 'thunderbelly', lvl: 10, rhy: 7, w: 1, cm: [80, 180], price: 24, wiggle: 2.7, col: [0x4a5270, 0xffe066], shape: { long: 1.6, tall: 0.7, whiskers: true, stripes: 0xffe066 } },
-  { id: 'ribbon', lvl: 11, rhy: 8, w: 0.8, cm: [40, 75], price: 28, wiggle: 2.8, col: [0xff7fb8, 0x7fd0ff], shape: { long: 1.7, tall: 0.55, fan: true } },
-  { id: 'wispfin', lvl: 12, rhy: 9, w: 0.6, cm: [20, 45], price: 36, wiggle: 3, col: [0xb070ff, 0xc8ffe8], shape: { long: 1.05, tall: 1.1, glow: true }, night: true },
+  { id: 'guppy', lvl: 2, rhy: 1, w: 8, cm: [2, 5], price: 1, wiggle: 0.5, col: [0x7fd0ff, 0xff7fb8], shape: { long: 0.7, tall: 0.85, fan: true } },
+  { id: 'bluegill', lvl: 4, rhy: 2, w: 8, cm: [10, 22], price: 2, wiggle: 0.9, col: [0x4f7fc4, 0xffb347], shape: { tall: 1.25 } },
+  { id: 'boot', lvl: 5, rhy: 1, w: 3, cm: [24, 30], price: 0, wiggle: 0.3 },
+  { id: 'buttonfish', lvl: 6, rhy: 1, w: 6, cm: [8, 18], price: 2, wiggle: 0.8, col: [0xf7e4b8, 0xe0663c], shape: { tall: 1.35, long: 0.8 } },
+  { id: 'goldfish', lvl: 8, rhy: 3, w: 6, cm: [6, 15], price: 3, wiggle: 1.1, col: [0xff9a2a, 0xffd23f] },
+  { id: 'picklefish', lvl: 9, rhy: 2, w: 5, cm: [12, 28], price: 3, wiggle: 1, col: [0x6fa83c, 0xd7e88a], shape: { long: 1.15, tall: 0.75, stripes: 0x3f7a2a } },
+  { id: 'candystripe', lvl: 10, rhy: 4, w: 5, cm: [15, 30], price: 4, wiggle: 1.3, col: [0xff7fb8, 0xffffff], shape: { stripes: 0xffffff } },
+  { id: 'fireflyfry', lvl: 12, rhy: 3, w: 4, cm: [8, 16], price: 6, wiggle: 1.2, col: [0xffe066, 0xfff7c8], shape: { long: 0.85, glow: true }, night: true },
+  { id: 'mudmuffin', lvl: 13, rhy: 2, w: 4, cm: [30, 70], price: 5, wiggle: 1.2, col: [0x9a6a3c, 0xe8c89a], shape: { long: 0.95, tall: 1.2, whiskers: true } },
+  { id: 'koi', lvl: 14, rhy: 5, w: 4, cm: [30, 60], price: 6, wiggle: 1.5, col: [0xffffff, 0xff6a2a], shape: { koi: true, long: 1.1 } },
+  { id: 'haybelly', lvl: 16, rhy: 4, w: 3, cm: [25, 55], price: 7, wiggle: 1.6, col: [0xe0b84a, 0xfff0b8], shape: { long: 1.1, tall: 1.1, stripes: 0xb8862a } },
+  { id: 'whiskers', lvl: 17, rhy: 6, w: 3, cm: [40, 90], price: 8, wiggle: 1.7, col: [0x8a8f98, 0xf0ece0], shape: { long: 1.15, tall: 0.8, whiskers: true } },
+  { id: 'snoozefin', lvl: 18, rhy: 5, w: 2.5, cm: [40, 100], price: 12, wiggle: 2.1, col: [0x3a3f7a, 0xbdb8f0], shape: { long: 1.9, tall: 0.42 }, night: true },
+  { id: 'banjofin', lvl: 20, rhy: 7, w: 3, cm: [25, 55], price: 10, wiggle: 2, col: [0xc8935a, 0xfff1d8], shape: { long: 0.9, tall: 1.3, fan: true } },
+  { id: 'lanternfish', lvl: 21, rhy: 6, w: 2, cm: [10, 25], price: 16, wiggle: 2.2, col: [0x2f3f7a, 0x8fa8e6], shape: { tall: 1.1, lure: true }, night: true },
+  { id: 'tractortail', lvl: 22, rhy: 7, w: 2, cm: [50, 100], price: 14, wiggle: 2.3, col: [0xe0522c, 0xffd23f], shape: { long: 1.4, tall: 0.65 } },
+  { id: 'shiner', lvl: 24, rhy: 8, w: 1.2, cm: [40, 70], price: 20, wiggle: 2.6, col: [0xffd23f, 0x7a4a1c], shape: { koi: true, long: 1.1 } },
+  { id: 'cloudfin', lvl: 25, rhy: 9, w: 0.8, cm: [20, 40], price: 30, wiggle: 2.9, col: [0xf4f8ff, 0xa8dcff], shape: { long: 0.8, tall: 1.5 } },
+  { id: 'thunderbelly', lvl: 27, rhy: 7, w: 1, cm: [80, 180], price: 24, wiggle: 2.7, col: [0x4a5270, 0xffe066], shape: { long: 1.6, tall: 0.7, whiskers: true, stripes: 0xffe066 } },
+  { id: 'ribbon', lvl: 28, rhy: 8, w: 0.8, cm: [40, 75], price: 28, wiggle: 2.8, col: [0xff7fb8, 0x7fd0ff], shape: { long: 1.7, tall: 0.55, fan: true } },
+  { id: 'wispfin', lvl: 29, rhy: 9, w: 0.6, cm: [20, 45], price: 36, wiggle: 3, col: [0xb070ff, 0xc8ffe8], shape: { long: 1.05, tall: 1.1, glow: true }, night: true },
 ];
 // A fish side on, nose toward +x, about a unit long and centred half a unit up
 // (for the Fish Book's pictures and the catch cards).
@@ -5917,7 +5925,7 @@ function buildPond() {
   const g = farm.pond, L = farm.level;
   for (const c of [...g.children]) { g.remove(c); if (c.geometry !== PGEO) c.geometry?.dispose(); }   // PGEO is shared with particles (and a torch's flame is a group)
   farm.fish = []; farm.ducks = [];
-  const s = L >= 6 ? 1.3 : 1, rx = 1.7 * s, rz = 1.15 * s;
+  const s = L >= POND_LOOKS.rim ? 1.3 : 1, rx = 1.7 * s, rz = 1.15 * s;
   farm.pondR = [rx, rz];
   const v = new VB(0.6), goo = pondSkin() === 'goo';
   v.add(prim('disc', () => new THREE.CylinderGeometry(1, 1, 0.1, 28)), goo ? 0x5a4a3a : 0xd9c48a, 0, -0.02, 0, 0, 0, 0, rx + 0.18, 1, rz + 0.18);   // sandy edge (or a slimy one)
@@ -5937,29 +5945,29 @@ function buildPond() {
     v.cyl(0.015, 0.015, 0.6, x, 0.3, z, 0x4f8f30);
     v.cap(0.03, 0.08, x, 0.6, z, 0x7a4a1c);
   }
-  if (L >= 2) for (const [a, r] of [[0.6, 0.6], [2.0, 0.55], [3.8, 0.65], [5.2, 0.5]]) {   // lily pads
+  if (L >= POND_LOOKS.lily) for (const [a, r] of [[0.6, 0.6], [2.0, 0.55], [3.8, 0.65], [5.2, 0.5]]) {   // lily pads
     v.add(prim('pad', () => new THREE.CylinderGeometry(0.36, 0.36, 0.04, 16, 1, false, 0.5, Math.PI * 2 - 0.6)), 0x3fae49, Math.cos(a) * rx * r, 0.06, Math.sin(a) * rz * r, 0, a, 0, 0.6, 1, 0.6);
     v.ball(0.05, 0.04, 0.05, Math.cos(a) * rx * r + 0.05, 0.1, Math.sin(a) * rz * r, 0xff8fc8);
   }
   for (const a of TORCH_AT) torch(g, Math.cos(a) * (rx + 0.5), Math.sin(a) * (rz + 0.45));
-  if (L >= 3) {                                                             // dock
+  if (L >= POND_LOOKS.dock) {                                               // dock
     v.rbox(0.5, 0.06, 1.1, rx * 0.55, 0.12, rz * 0.75, 0xb88a5a, 0.02);
     for (const sx of [-1, 1]) v.cyl(0.04, 0.04, 0.3, rx * 0.55 + sx * 0.2, 0.0, rz * 0.35, 0x7a4f2c);
   }
-  if (L >= 6) for (let i = 0; i < 18; i++) {                                // stone rim
+  if (L >= POND_LOOKS.rim) for (let i = 0; i < 18; i++) {                   // stone rim
     const a = i / 18 * Math.PI * 2;
     v.ball(0.16, 0.1, 0.13, Math.cos(a) * (rx + 0.22), 0.04, Math.sin(a) * (rz + 0.22), i % 2 ? 0x9aa0a6 : 0xb4babf);
   }
-  if (L >= 7) {                                                             // fountain
+  if (L >= POND_LOOKS.fountain) {                                           // fountain
     v.cyl(0.2, 0.26, 0.3, 0, 0.12, 0, 0xb4babf);
     v.cyl(0.08, 0.1, 0.35, 0, 0.42, 0, 0xc9cfd4);
   }
-  if (L >= 8) {                                                             // a frog on a pad
+  if (L >= POND_LOOKS.frog) {                                               // a frog on a pad
     const fx = Math.cos(3.8) * rx * 0.65, fz = Math.sin(3.8) * rz * 0.65;
     v.ball(0.1, 0.07, 0.09, fx, 0.15, fz, 0x5cbf48);
     for (const z of [-1, 1]) { v.ball(0.035, 0.035, 0.035, fx + 0.05, 0.22, fz + z * 0.05, 0xffffff); v.ball(0.017, 0.017, 0.017, fx + 0.07, 0.225, fz + z * 0.05, 0x111111); }
   }
-  if (L >= 9) for (const a of [0.9, 2.4, 3.9, 5.4]) {                         // lanterns
+  if (L >= POND_LOOKS.lanterns) for (const a of [0.9, 2.4, 3.9, 5.4]) {      // lanterns
     const x = Math.cos(a) * (rx + 0.55), z = Math.sin(a) * (rz + 0.55);
     v.cyl(0.03, 0.03, 0.8, x, 0.4, z, 0x5a3a2a);
     const lamp = new THREE.Mesh(PGEO, FLY_MAT);
@@ -5969,13 +5977,13 @@ function buildPond() {
     g.add(lamp);
   }
   g.add(v.mesh());
-  // fish: two at level 1, koi at 4, then one more per level from 10 on (up to 14)
+  // fish: two to start with, koi once they've moved in, and one more for each of the last three levels
   const fishCols = [];
   if (L >= 1) fishCols.push([0xff8a2a], [0xff8a2a]);
-  if (L >= 4) fishCols.push([0xffffff, 0xff6a2a], [0xff6a2a, 0xffffff], [0xffd23f]);
-  for (let i = 10; i <= Math.min(L, 18); i++) fishCols.push(pick([[0xff8a2a], [0xffffff, 0xff6a2a], [0xffd23f], [0xff6fae]]));
+  if (L >= 14) fishCols.push([0xffffff, 0xff6a2a], [0xff6a2a, 0xffffff], [0xffd23f]);
+  for (let i = 27; i <= L; i++) fishCols.push(pick([[0xff8a2a], [0xffffff, 0xff6a2a], [0xffd23f], [0xff6fae]]));
   fishCols.forEach((c, i) => farm.fish.push({ mesh: fishMesh(c), ph: i * 1.9, r: rand(0.35, 0.8), speed: rand(0.5, 0.9) * (i % 2 ? 1 : -1), jump: rand(3, 9) }));
-  if (L >= 5) [1, 0.6, 0.6].forEach((sz, i) => farm.ducks.push({ mesh: duckMesh(sz), ph: -i * 0.35 }));
+  if (L >= POND_LOOKS.ducks) [1, 0.6, 0.6].forEach((sz, i) => farm.ducks.push({ mesh: duckMesh(sz), ph: -i * 0.35 }));
 }
 
 const _fw = new THREE.Vector3();
@@ -6010,7 +6018,7 @@ function updateFarm(dt) {
     d.mesh.position.set(Math.cos(a) * rx * 0.62, 0.05 + Math.sin(t * 3 + i) * 0.01, Math.sin(a) * rz * 0.62);
     d.mesh.rotation.y = -a - Math.PI / 2;
   });
-  if (farm.level >= 7 && (farm.spray -= dt) < 0) {  // fountain spray
+  if (farm.level >= POND_LOOKS.fountain && (farm.spray -= dt) < 0) {  // fountain spray
     farm.spray = 0.05;
     farm.pond.getWorldPosition(_fw);
     burst(_fw.x, 0.65, _fw.z, [0xbfe9ff, 0xffffff], 1, 0.35, 3.2, 0.07, 0.6, true);
@@ -6742,7 +6750,7 @@ function placeFarmHero() {
 
 function upgradePond() {
   const cost = pondCost(farm.level);
-  if (game.coins < cost) return false;
+  if (farm.level >= POND_MAX || game.coins < cost) return false;
   game.coins -= cost;
   store.set('bl-coins', game.coins);
   farm.level++;
@@ -7618,6 +7626,8 @@ function refreshPond() {
   $('pondNext').textContent = pondNext(farm.level);
   $('pondCost').textContent = cost;
   $('pondBuy').disabled = short > 0;
+  $('pondBuy').hidden = farm.level >= POND_MAX;
+  document.querySelector('.pondNextRow .label').hidden = farm.level >= POND_MAX;
   $('bagN').textContent = bagCount() || '';
 }
 function openPond() {
@@ -7678,13 +7688,13 @@ const fishName = id => t('fish.names.' + id);
 function fishSpot(w) {
   const [rx, rz] = farm.pondR, p = pondPiece();
   const taken = [...fishers.values(), ...seen.values()].filter(f => f.w !== w).map(f => f.spot);
-  if (farm.level >= 3 && !taken.some(s => s.dock)) {
+  if (farm.level >= POND_LOOKS.dock && !taken.some(s => s.dock)) {
     return { dock: true, at: pieceToFarm(p, rx * 0.55, rz * 0.75 - 0.4), land: pieceToFarm(p, rx * 0.55, rz + 0.8), aim: [rx * 0.55, -rz * 0.25] };
   }
   let best = null, bd = Infinity;
   for (let i = 0; i < 24; i++) {
     const th = i / 24 * Math.PI * 2, lx = Math.cos(th) * (rx + 0.6), lz = Math.sin(th) * (rz + 0.6);
-    if (farm.level >= 3 && Math.abs(lx - rx * 0.55) < 0.7 && lz > 0) continue;   // not across the dock
+    if (farm.level >= POND_LOOKS.dock && Math.abs(lx - rx * 0.55) < 0.7 && lz > 0) continue;   // not across the dock
     if (TORCH_AT.some(a => Math.abs(Math.atan2(Math.sin(th - a), Math.cos(th - a))) < 0.5)) continue;   // nor right by a torch
     const [x, z] = pieceToFarm(p, lx, lz);
     if (x < YARD.x0 || x > YARD.x1 || z < YARD.z0 || z > YARD.z1 || blockedAt(x, z)) continue;
@@ -8245,7 +8255,7 @@ fishCamHook = dt => {
 };
 // Did a tap on the pond land on the dock?
 function onDock(pt) {
-  if (farm.level < 3) return false;
+  if (farm.level < POND_LOOKS.dock) return false;
   const [rx, rz] = farm.pondR, [lx, lz] = farmToPond(pt.x - farm.group.position.x, pt.z - farm.group.position.z);
   return Math.abs(lx - rx * 0.55) < 0.4 && Math.abs(lz - rz * 0.75) < 0.65;
 }
