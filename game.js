@@ -8008,7 +8008,7 @@ function startReel(f) {
     el.className = 'note ' + (s % 4 === 0 ? 'quarter' : s % 2 ? 'sixteenth' : 'eighth');   // on the beat, on the .5, or on the .25 and .75: each its own look
     lane.append(el);
     const at = start + s * SIXTEENTH + (s % 2 ? h.swing * SIXTEENTH : 0);   // the tune swings its off-sixteenths
-    notes.push({ at, pos: h.pos + at - h.at, el, done: 0, m: catchNote(style, from + s) });   // pos: its place in the song; m: the part a catch sings there; done: 1 caught, -1 missed
+    notes.push({ at, pos: h.pos + at - h.at, el, done: 0, m: catchNote(style, from + s, keyNow()[1]) });   // pos: its place in the song; m: the part a catch sings there; done: 1 caught, -1 missed
   }
   const fast = steps.some(s => s % 2) ? 2 : steps.some(s => s % 4) ? 3 : 4;   // closer notes: the lane shows fewer beats, so they spread out
   const k = (lvl - 1) / 8;
