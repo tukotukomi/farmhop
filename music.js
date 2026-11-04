@@ -160,16 +160,20 @@ export function songHit(style, step) {
   return d;
 }
 
-// The note the band plays on that sixteenth, for singing along with it (MIDI, in D major): the
-// tune's own note where the melody has one, else the chord tone the banjo (or Psy Farm's acid
-// line) picks there.
-export function songNote(style, step) {
+// The part a catch sings on that sixteenth (MIDI, in D major): a second voice over the song,
+// not the song itself. Where the melody has a note, the chord's next note above it, a harmony
+// at least a minor third up; on the beats in between, a high line that climbs through the chord
+// in one bar and falls back down it in the next, in the same range so the two join up. Always a
+// note of the chord that's playing.
+export function catchNote(style, step) {
   const s = ((step % 16) + 16) % 16, bar = Math.floor(step / 16) % 32, i = bar % 8, sec = Math.floor(bar / 8);
   const [prog, farmTune] = FORM[sec], tune = style === 'psy' ? PSY_TUNES[sec] : farmTune;
+  const tones = (lo, hi) => [...new Set(prog[i].flatMap(m => [m - 12, m, m + 12, m + 24, m + 36]))].filter(m => m >= lo && m <= hi).sort((a, b) => a - b);
   const sung = tune && tune[i].find(n => n[0] === s);
-  if (sung) return sung[1];
-  const tones = [...new Set(prog[i].flatMap(m => [m - 12, m, m + 12, m + 24]))].filter(m => m >= 62 && m <= 79).sort((a, b) => a - b);
-  return tones[ROLL[s] % tones.length];
+  const up = sung && tones(sung[1] + 3, sung[1] + 14)[0];
+  if (up) return up;
+  const line = tones(67, 81), k = Math.min(line.length - 1, Math.floor(s / 16 * line.length));
+  return line[bar % 2 ? line.length - 1 - k : k];
 }
 
 const hz = m => 440 * Math.pow(2, (m - 69) / 12);

@@ -4,7 +4,7 @@
 // the cells outside the playable strip are shaded darker, like Crossy Road.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { createMusic, songHit, songNote, SCALES, SONGS, inScale } from './music.js';
+import { createMusic, songHit, catchNote, SCALES, SONGS, inScale } from './music.js';
 import { STRINGS, LANGS } from './lang.js';
 import { joinFarm } from './guest.js';
 import { createAccount } from './account/tuko-account.js';
@@ -8008,7 +8008,7 @@ function startReel(f) {
     el.className = 'note ' + (s % 4 === 0 ? 'quarter' : s % 2 ? 'sixteenth' : 'eighth');   // on the beat, on the .5, or on the .25 and .75: each its own look
     lane.append(el);
     const at = start + s * SIXTEENTH + (s % 2 ? h.swing * SIXTEENTH : 0);   // the tune swings its off-sixteenths
-    notes.push({ at, pos: h.pos + at - h.at, el, done: 0, m: songNote(style, from + s) });   // pos: its place in the song; m: the song's note there; done: 1 caught, -1 missed
+    notes.push({ at, pos: h.pos + at - h.at, el, done: 0, m: catchNote(style, from + s) });   // pos: its place in the song; m: the part a catch sings there; done: 1 caught, -1 missed
   }
   const fast = steps.some(s => s % 2) ? 2 : steps.some(s => s % 4) ? 3 : 4;   // closer notes: the lane shows fewer beats, so they spread out
   const k = (lvl - 1) / 8;
@@ -8036,7 +8036,7 @@ function judge(f, nt, ok, perfect) {
   const g = f.g;
   nt.done = ok ? 1 : -1;
   nt.el.classList.add(ok ? 'hit' : 'missed');
-  if (ok) { g.hits++; sfx.note(f.w.id, noteHz(nt.m) * 2 ** jam.oct); }   // the song's own note right there: the melody, or the chord it's on
+  if (ok) { g.hits++; sfx.note(f.w.id, noteHz(nt.m) * 2 ** jam.oct); }   // a harmony over the song right there (catchNote)
   else g.miss++;
   say(f, ok ? (perfect ? 'perfect' : 'good') : 'miss');
   f.msgT = 0.5;
