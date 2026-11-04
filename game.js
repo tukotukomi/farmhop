@@ -4,7 +4,7 @@
 // the cells outside the playable strip are shaded darker, like Crossy Road.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { createMusic, songHit, songNote, SCALES, SONGS, inScale } from './music.js';
+import { createMusic, songHit, chordArp, chordAt, SCALES, SONGS, inScale } from './music.js';
 import { STRINGS, LANGS } from './lang.js';
 import { joinFarm } from './guest.js';
 import { createAccount } from './account/tuko-account.js';
@@ -1759,14 +1759,9 @@ const KEY_PRICE = 50;
 const songKey = () => { const n = store.get('bl-key', 0); return SONG_KEYS.some(k => k[1] === n) ? n : 0; };
 const songScale = () => { const sc = store.get('bl-scale', 'major'); return SCALES[sc] && !SCALES[sc].hidden ? sc : 'major'; };
 const keyNow = () => (music ? [music.key, music.scale] : [songKey(), songScale()]);
-// A note of the D major tune (MIDI) in the key and scale the song's playing in, sung between
-// middle C and G5 like the hoppers' other notes, in Hz.
-function noteHz(m, [k, sc] = keyNow()) {
-  let n = inScale(m, sc, k);
-  while (n > 79) n -= 12;
-  while (n < 60) n += 12;
-  return 440 * 2 ** ((n - 69) / 12);
-}
+// A note of the D major tune (MIDI) in the key and scale the song's playing in, in Hz.
+const noteHz = (m, [k, sc] = keyNow()) => 440 * 2 ** ((inScale(m, sc, k) - 69) / 12);
+const ARP_WALK = [0, 1, 2, 3, 2, 1];   // up root, 3rd, 5th, octave, and back down
 // Step i of the key's pentatonic (0 = the key note near D4, 5 = an octave up, ...), in Hz.
 function pentHz(i, [k, sc] = keyNow()) {
   const p = SCALES[sc].pent, o = Math.floor(i / p.length);
@@ -8008,7 +8003,7 @@ function startReel(f) {
     el.className = 'note ' + (s % 4 === 0 ? 'quarter' : s % 2 ? 'sixteenth' : 'eighth');   // on the beat, on the .5, or on the .25 and .75: each its own look
     lane.append(el);
     const at = start + s * SIXTEENTH + (s % 2 ? h.swing * SIXTEENTH : 0);   // the tune swings its off-sixteenths
-    notes.push({ at, pos: h.pos + at - h.at, el, done: 0, m: songNote(style, from + s) });   // pos: its place in the song; m: the song's note there; done: 1 caught, -1 missed
+    notes.push({ at, pos: h.pos + at - h.at, el, done: 0, arp: chordArp(from + s), chord: chordAt(from + s) });   // pos: its place in the song; arp: the chord's arpeggio there; done: 1 caught, -1 missed
   }
   const fast = steps.some(s => s % 2) ? 2 : steps.some(s => s % 4) ? 3 : 4;   // closer notes: the lane shows fewer beats, so they spread out
   const k = (lvl - 1) / 8;
@@ -8036,7 +8031,9 @@ function judge(f, nt, ok, perfect) {
   const g = f.g;
   nt.done = ok ? 1 : -1;
   nt.el.classList.add(ok ? 'hit' : 'missed');
-  if (ok) { g.hits++; sfx.note(f.w.id, noteHz(nt.m) * 2 ** jam.oct); }   // the song's own note right there: the melody, or the chord it's on
+  if (g.chord !== nt.chord) { g.chord = nt.chord; g.walk = 0; }   // a new chord: back to its root
+  const m = nt.arp[ARP_WALK[g.walk++ % ARP_WALK.length]];   // a miss skips its step, so the pattern carries on
+  if (ok) { g.hits++; sfx.note(f.w.id, noteHz(m) * 2 ** jam.oct); }   // the next note of the chord's arpeggio
   else g.miss++;
   say(f, ok ? (perfect ? 'perfect' : 'good') : 'miss');
   f.msgT = 0.5;

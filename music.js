@@ -160,19 +160,22 @@ export function songHit(style, step) {
   return d;
 }
 
-// The note to sing along with the melody on that sixteenth (MIDI, in D major): the tune's note
-// starting there, or the one still sounding from just before. Only where the tune rests (the farm
-// songs' opening section) does it fall back to the chord tone the banjo picks there.
-export function songNote(style, step) {
-  const s = ((step % 16) + 16) % 16, bar = Math.floor(step / 16) % 32, i = bar % 8, sec = Math.floor(bar / 8);
-  const [prog, farmTune] = FORM[sec], tune = style === 'psy' ? PSY_TUNES[sec] : farmTune;
-  if (tune) {
-    const held = [...tune[i]].reverse().find(n => n[0] <= s) || (i ? tune[i - 1].at(-1) : null);
-    if (held) return held[1];
-  }
-  const tones = [...new Set(prog[i].flatMap(m => [m - 12, m, m + 12, m + 24]))].filter(m => m >= 62 && m <= 79).sort((a, b) => a - b);
-  return tones[ROLL[s] % tones.length];
+// The chord under each bar, as its root (a pitch class of D major) and whether it's a sus chord
+// (the 3rd swapped for a 4th), section by section like FORM.
+const CHORD_ROOTS = { A: [2, 11, 7, 9, 2, 11, 4, 9], B: [7, 6, 4, 9, 2, 7, 9, 9] }, SUS = { A: [3], B: [6] };
+const D_MAJOR = [2, 4, 6, 7, 9, 11, 1];   // the tune's scale, D E F# G A B C#
+// The arpeggio a catch plays over that bar (MIDI, in D major, root to octave): the triad the key
+// builds on the chord's root (in a major key I ii iii IV V vi vii°; inScale turns these into the
+// minor key's own i ii° III iv v VI VII), or on a sus chord its root, 4th and 5th, as the band
+// plays them. Each root sits between G3 and F#4, so the shape never flips octave.
+export function chordArp(step) {
+  const bar = Math.floor(step / 16) % 32, part = FORM[Math.floor(bar / 8)][0] === A_PROG ? 'A' : 'B', i = bar % 8;
+  const pc = CHORD_ROOTS[part][i], d = D_MAJOR.indexOf(pc), root = 55 + (((pc - 55) % 12) + 12) % 12;
+  const above = (from, want) => { let m = from + 1; while (((m % 12) + 12) % 12 !== want) m++; return m; };
+  const third = SUS[part].includes(i) ? above(root, D_MAJOR[(d + 3) % 7]) : above(root, D_MAJOR[(d + 2) % 7]);
+  return [root, third, above(third, D_MAJOR[(d + 4) % 7]), root + 12];
 }
+export const chordAt = step => Math.floor(step / 16) % 32;   // which bar's chord (they change every bar)
 
 const hz = m => 440 * Math.pow(2, (m - 69) / 12);
 
