@@ -160,28 +160,18 @@ export function songHit(style, step) {
   return d;
 }
 
-// The part a catch sings on that sixteenth (MIDI, in D major): a second voice over the song,
-// not the song itself. Where the melody has a note, a harmony above it from the chord, true to
-// the key: in a major key a major third, fourth, fifth or major sixth up, never a minor third; in
-// a minor key a minor third, fourth, fifth or minor sixth (judged in scale, the one playing). On
-// the beats in between, a line that climbs through the chord in one bar and falls back down it in
-// the next, in the same range so the two join up. A note of the chord that's playing wherever one
-// fits; otherwise the key's own note at the right distance.
-const HARMONY = { major: [4, 5, 7, 9], minor: [3, 5, 7, 8] }, MAJOR_PCS = [2, 4, 6, 7, 9, 11, 1];   // (the tune's own notes: D major)
-export function catchNote(style, step, scale = 'major') {
+// The note to sing along with the melody on that sixteenth (MIDI, in D major): the tune's note
+// starting there, or the one still sounding from just before. Only where the tune rests (the farm
+// songs' opening section) does it fall back to the chord tone the banjo picks there.
+export function songNote(style, step) {
   const s = ((step % 16) + 16) % 16, bar = Math.floor(step / 16) % 32, i = bar % 8, sec = Math.floor(bar / 8);
   const [prog, farmTune] = FORM[sec], tune = style === 'psy' ? PSY_TUNES[sec] : farmTune;
-  const tones = (lo, hi) => [...new Set(prog[i].flatMap(m => [m - 12, m, m + 12, m + 24, m + 36]))].filter(m => m >= lo && m <= hi).sort((a, b) => a - b);
-  const sung = tune && tune[i].find(n => n[0] === s);
-  if (sung) {
-    const ok = HARMONY[scale === 'major' ? 'major' : 'minor'], mel = inScale(sung[1], scale, 0);
-    const fits = m => ok.includes(((inScale(m, scale, 0) - mel) % 12 + 12) % 12);
-    const chordFit = tones(sung[1] + 3, sung[1] + 14).find(fits);   // a note of the chord, if one's the right distance up
-    if (chordFit) return chordFit;
-    for (let m = sung[1] + 3; m <= sung[1] + 9; m++) if (MAJOR_PCS.includes(((m % 12) + 12) % 12) && fits(m)) return m;   // else the key's own note at that distance
+  if (tune) {
+    const held = [...tune[i]].reverse().find(n => n[0] <= s) || (i ? tune[i - 1].at(-1) : null);
+    if (held) return held[1];
   }
-  const line = tones(67, 81), k = Math.min(line.length - 1, Math.floor(s / 16 * line.length));
-  return line[bar % 2 ? line.length - 1 - k : k];
+  const tones = [...new Set(prog[i].flatMap(m => [m - 12, m, m + 12, m + 24]))].filter(m => m >= 62 && m <= 79).sort((a, b) => a - b);
+  return tones[ROLL[s] % tones.length];
 }
 
 const hz = m => 440 * Math.pow(2, (m - 69) / 12);
