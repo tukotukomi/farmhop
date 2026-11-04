@@ -5420,8 +5420,56 @@ function buildFestivalRoof(g) {
 // Stand on the square and you dance: everyone who's stopped there hops on the beat, turning
 // from side to side. Now and then a farm hopper wanders over to join in (the host decides).
 const dance = { beat: -1, next: 6, flip: 1 };
+// Tap the floor and your hopper hops over to dance right there; tap the DJ Booth and they hop up
+// behind the decks. Either way the close-up camera comes round to watch, until you hop off.
+function goDance(w, at, x, z) {
+  const dq = farm.pieces.dancesquare;
+  if (!w || !dq || decor.on || w.fishing || w.sit || w.flip) return;
+  if (w.groove) endGroove(w);
+  if (at === 'booth') [x, z] = pieceToFarm(dq, 0, -1.55);   // the front of the booth, then up and round behind it
+  hopToward(w.key, x, z);
+  w.grooveGo = { at, x, z };
+}
+function startGroove(w, at) {
+  const dq = farm.pieces.dancesquare;
+  w.groove = { at };
+  w.wait = Infinity;
+  if (at === 'booth') {
+    const [x, z] = pieceToFarm(dq, 0, -2.85);
+    landLeap(w, x, z, 0.4, 0);
+    if (GUEST) guestNet.send({ t: 'leap', x, z, up: 0.4 }); else toGuests({ t: 'leap', k: w.key, x, z, up: 0.4, y: 0 });
+  }
+  w.face = dq.r * Math.PI / 2 + Math.PI;   // facing the crowd
+  document.body.classList.add('dancing');
+  $('swingOff').setAttribute('aria-label', t('danceOffAria'));
+  sfx.hop(w.id);
+}
+function endGroove(w) {
+  if (!w?.groove) return;
+  const dq = farm.pieces.dancesquare, booth = w.groove.at === 'booth';
+  w.groove = null;
+  w.wait = rand(1, 3);
+  document.body.classList.remove('dancing');
+  $('swingOff').setAttribute('aria-label', t('swingOffAria'));
+  if (booth && dq) {   // back round to the front of the booth
+    const [x, z] = pieceToFarm(dq, 0, -1.55);
+    landLeap(w, x, z, 0.4, 0);
+    if (GUEST) guestNet.send({ t: 'leap', x, z, up: 0.4 }); else toGuests({ t: 'leap', k: w.key, x, z, up: 0.4, y: 0 });
+  }
+}
+function leaveCloseUp() {   // the hop-off button, Space or Escape, A or B
+  const me = walkerOf(myKey());
+  if (me?.groove) endGroove(me); else dismount(me);
+}
 function updateDance(dt, t) {
   const p = farm.pieces.dancesquare;
+  const me = walkerOf(myKey());
+  if (me?.groove && (!p || decor.on || game.state !== 'farm')) endGroove(me);
+  if (me?.grooveGo && !me.leap && !me.goal) {   // arrived (or gave up on the way)
+    const G = me.grooveGo;
+    me.grooveGo = null;
+    if (p && Math.hypot(me.x - G.x, me.z - G.z) < 0.7) startGroove(me, G.at);
+  }
   if (!p || decor.on) return;
   const beat = Math.floor((music ? music.heard().pos : t) / BEAT);
   if (beat !== dance.beat) {
@@ -5432,7 +5480,11 @@ function updateDance(dt, t) {
       const dx = w.x - p.x, dz = w.z - p.z, lx = dx * ca - dz * sa, lz = dx * sa + dz * ca;
       if (Math.abs(lx) > 2.4 || Math.abs(lz) > 1.8 || w.leap || w.goal || w.sit || w.flip || w.fishing || w.show || w.swingGo || w.hidden || Math.hypot(w.tx - w.x, w.tz - w.z) > 0.1) continue;
       w.hop = 0.4;
-      w.face = Math.PI + dance.flip * 0.5;
+      w.face = p.r * Math.PI / 2 + Math.PI + dance.flip * 0.5;
+    }
+    if (me?.groove?.at === 'booth' && !me.leap) {   // at the decks: a nod on every beat, a sway from side to side
+      me.hop = 0.22;
+      me.face = p.r * Math.PI / 2 + Math.PI + dance.flip * 0.22;
     }
   }
   if (GUEST || (dance.next -= dt) > 0) return;
@@ -6256,6 +6308,7 @@ function farmHop(id, dx, dr) {
   const w = walkerOf(id);
   if (!w || fishers.has(id) || w.flip) return;
   if (w.sit) { if (w.key === myKey()) dismount(w); else standUp(w); return; }   // on the swing: a hop gets off
+  if (w.groove) { endGroove(w); return; }                                          // dancing: so does this
   w.swingGo = false;
   if (w.leap) { w.queued = [dx, dr]; return; }   // pressed again mid-hop: go straight after this one
   w.goal = null;
@@ -6449,7 +6502,7 @@ function sitDown(w) {
   bendBody(w, true);
   w.leap = null; w.hop = 0;
   sfx.hop(w.id);
-  if (w.key === myKey()) document.body.classList.add('swinging');
+  if (w.key === myKey()) { document.body.classList.add('swinging'); $('swingOff').setAttribute('aria-label', t('swingOffAria')); }
 }
 // Your hopper's way off: the swing goes higher and higher, and at the top of a swing
 // forward you let go, backflip through the air and land out in front.
@@ -6542,19 +6595,28 @@ function setSwingView(pitch, zoom) {
   swingCam.pitch = clamp(pitch, ...SWING_PITCH);
   swingCam.zoom = clamp(zoom, ...SWING_ZOOM);
 }
+// The same camera (and the same ways to look around) for the Dance Square: out front of your
+// hopper dancing on the floor, or of the DJ Booth when you're at the decks.
+function closeShot(me) {
+  const sp = farm.pieces.swing, dq = farm.pieces.dancesquare;
+  if ((me?.sit || me?.flip) && sp) return { kind: 'swing', p: sp, x: sp.x, z: sp.z, y: 1.15, base: 0.75, d: 3.6, pitch: 0.12 };
+  if (!me?.groove || !dq) return null;
+  if (me.groove.at === 'booth') { const [x, z] = pieceToFarm(dq, 0, -2.35); return { kind: 'booth', p: dq, x, z, y: 0.95, base: 0.7, d: 3.3, pitch: 0.16 }; }
+  return { kind: 'floor', p: dq, x: me.x, z: me.z, y: 0.7, base: 0.55, d: 4.4, pitch: 0.3 };
+}
 function swingCamHook(dt) {
-  const me = walkerOf(myKey()), sp = farm.pieces.swing;
-  if (!(me?.sit || me?.flip) || !sp) { swingCam.on = false; return false; }
+  const me = walkerOf(myKey()), shot = closeShot(me);
+  if (!shot) { swingCam.on = false; return false; }
   useCamera(perspCam);
-  const base = farm.group.position, front = sp.r * Math.PI / 2;   // the swing's front, as an angle round the y axis
-  const lookX = base.x + sp.x, lookY = 1.15, lookZ = base.z + sp.z;
-  if (!swingCam.on) Object.assign(swingCam, { on: true, swoop: 1, yaw: 0, shown: 0, pitch: 0.12, zoom: 1 });
+  const base = farm.group.position, front = shot.p.r * Math.PI / 2;   // the front of the swing (or the square), as an angle round the y axis
+  const lookX = base.x + shot.x, lookY = shot.y, lookZ = base.z + shot.z;
+  if (!swingCam.on || swingCam.kind !== shot.kind) Object.assign(swingCam, { on: true, kind: shot.kind, swoop: 1, yaw: 0, shown: 0, pitch: shot.pitch, zoom: 1 });
   swingCam.swoop *= Math.exp(-dt * 2.5);
   swingCam.yaw += swingCam.spin * dt * 1.8;
   if (swingCam.tilt || swingCam.zoomSpin) setSwingView(swingCam.pitch + swingCam.tilt * dt * 0.9, swingCam.zoom * Math.exp(swingCam.zoomSpin * dt * 1.2));
   swingCam.shown += (swingCam.yaw - swingCam.shown) * Math.min(1, dt * 8);
-  const a = front + swingCam.shown, p = swingCam.pitch + swingCam.swoop * 0.3, d = 3.6 * swingCam.zoom + swingCam.swoop * 2;
-  camera.position.set(lookX + Math.sin(a) * Math.cos(p) * d, 0.75 + Math.sin(p) * d, lookZ + Math.cos(a) * Math.cos(p) * d);
+  const a = front + swingCam.shown, p = swingCam.pitch + swingCam.swoop * 0.3, d = shot.d * swingCam.zoom + swingCam.swoop * 2;
+  camera.position.set(lookX + Math.sin(a) * Math.cos(p) * d, shot.base + Math.sin(p) * d, lookZ + Math.cos(a) * Math.cos(p) * d);
   camera.lookAt(swingCam.look.set(lookX, lookY, lookZ));
   skyClouds(dt, lookX, lookZ);
   sun.position.copy(swingCam.look).add(SUN_OFF);
@@ -6704,6 +6766,7 @@ function updateWalkers(dt, t) {
       inner.rotation.z = lerp(inner.rotation.z, 0, Math.min(1, dt * 10));
       if (w.show) showAct(w, t);
       else if (w.swingGo && !w.goal) sitDown(w);
+      else if (w.groove) {}   // dancing till you hop off
       else if ((w.wait -= dt) <= 0) {
         if (w.fishing) w.wait = 1;
         else if (GUEST) w.wait = 1;   // on a friend's farm, the host decides where everyone wanders
@@ -6844,7 +6907,7 @@ function tipText(key) {
 const tipWalker = () => farm.walkers?.find(w => w.id === 'betty' && !w.hidden) || walkerOf(myKey());
 function updateTip(dt) {
   const el = $('tip');
-  const quiet = game.state !== 'farm' || decor.on || game.picking || fishers.has(myKey()) || /show-logo|swinging/.test(document.body.className);   // (and not over the swing's view)
+  const quiet = game.state !== 'farm' || decor.on || game.picking || fishers.has(myKey()) || /show-logo|swinging|dancing/.test(document.body.className);   // (and not over the swing's view)
   if (quiet) {
     if (tip.show > 0) { tip.show = 0; el.classList.remove('show'); }
     tip.wait = Math.max(tip.wait, 3);   // a moment's breath before she speaks again
@@ -7227,6 +7290,14 @@ function tapFarm(x, y) {
   const w = farm.walkers.find(w => !w.hidden && hit(w.m.group));
   if (w) { w.hop = 0.5; sfx.hop(w.id); return; }
   if ((!GUEST || farm.porch) && farm.pieces.swing && (hit(farm.pieces.swing.group) || (groundAt(x, y, _a) && onSwing(_a.x - farm.group.position.x, _a.z - farm.group.position.z)))) { goSwing(me, true); return; }   // the frame, or anywhere on its patch of grass
+  const dq = farm.pieces.dancesquare, danceHit = dq && _ray.intersectObject(dq.group, true)[0];
+  if (danceHit) {   // the Dance Square: the DJ Booth's end of it, or anywhere on the floor
+    const fx = danceHit.point.x - farm.group.position.x, fz = danceHit.point.z - farm.group.position.z, a = dq.r * Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a);
+    const lx = (fx - dq.x) * ca - (fz - dq.z) * sa, lz = (fx - dq.x) * sa + (fz - dq.z) * ca;   // into the square's own space
+    if (danceHas('booth') && lz < -1.95 && Math.abs(lx) < 1.9) goDance(me, 'booth');
+    else { const [x, z] = pieceToFarm(dq, clamp(lx, -2, 2), clamp(lz, -1.5, 1.6)); goDance(me, 'floor', x, z); }
+    return;
+  }
   const pondHit = _ray.intersectObject(farm.pieces.pond.group, true)[0];
   if (pondHit && (GUEST || onDock(pondHit.point))) { goFish(myKey(), 'tap'); return; }
   if (GUEST && farm.stageBuilt && hit(farm.pieces.stage.group)) { openJam(); return; }   // a guest can jump on stage whenever they like
@@ -7393,7 +7464,7 @@ window.addEventListener('keydown', e => {
     if (turn) swingCam.spin = turn;
     else if (tilt) swingCam.tilt = tilt;
     else if (zoom) swingCam.zoomSpin = zoom;
-    else if (['Space', 'Enter', 'Escape'].includes(e.code)) dismount(walkerOf(myKey()));
+    else if (['Space', 'Enter', 'Escape'].includes(e.code)) leaveCloseUp();
     e.preventDefault();
     return;
   }
@@ -8738,6 +8809,7 @@ function enterDecor() {
   if (GUEST) return;
   if (game.state !== 'farm' || decor.on) return;
   if (farm.swingSitter?.sit) standUp(farm.swingSitter);   // everyone off the swing while things move
+  endGroove(walkerOf(myKey()));
   closeHeroes(); closePond(); closeBunk(); closeBuilds(); closeSettings();
   stopAllFishing();
   decor.on = true;
@@ -9067,7 +9139,7 @@ $('shop').addEventListener('click', e => { if (e.target.id === 'shop') closeShop
 // Then it can be saved, or shared through the device's share sheet (where it has one).
 const SITE = 'https://farmhop.fun';
 const photoOpen = () => $('photo').classList.contains('show');
-const closeUp = () => game.state === 'farm' && /\b(fishing|swinging)\b/.test(document.body.className) && !document.body.classList.contains('reeling');
+const closeUp = () => game.state === 'farm' && /\b(fishing|swinging|dancing)\b/.test(document.body.className) && !document.body.classList.contains('reeling');
 let photoBlob = null, photoUrl = '';
 const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const LOGO_FONT = "Fredoka, 'Noto Sans SC', sans-serif";
@@ -9366,7 +9438,7 @@ function buildJamStage() {
 $('stageBuy').addEventListener('click', buildJamStage);
 $('stageClose').addEventListener('click', closeStage);
 $('stage').addEventListener('click', e => { if (e.target.id === 'stage') closeStage(); });
-$('swingOff').addEventListener('click', () => { sfx.ensure(); dismount(walkerOf(myKey())); });
+$('swingOff').addEventListener('click', () => { sfx.ensure(); leaveCloseUp(); });
 $('landBuy').addEventListener('click', buyLand);
 $('landClose').addEventListener('click', closeLand);
 $('land').addEventListener('click', e => { if (e.target.id === 'land') closeLand(); });
@@ -11370,7 +11442,7 @@ function pollPad() {
     swingCam.spin = Math.abs(rx) > 0.3 ? -rx : down[4] ? 1 : down[5] ? -1 : 0;
     swingCam.tilt = Math.abs(ry) > 0.3 ? ry : 0;
     swingCam.zoomSpin = (gp.buttons[7]?.value || 0) - (gp.buttons[6]?.value || 0);
-    if (pressed(0) || pressed(1)) dismount(walkerOf(myKey()));
+    if (pressed(0) || pressed(1)) leaveCloseUp();
     return;
   }
   const meF = game.state === 'farm' && !game.picking && fishers.get(myKey());
@@ -11588,4 +11660,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, songRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, syncTune, tuneSync, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, trackPlayers, farmPlayers, buyPorch, mastered, caughtOn, openMastery, refreshMastery, setDance, placeSquare, fishBook: () => fishBook, setBook: b => { fishBook = b; store.set(FISH_KEY, b); }, questAdd, questsToday, openQuests, rowDice, flipLane, startReel, reelGame, reelBeats, showCatch, sushi, dash, mealOf, feedSushi, openSushi, closeSushi, cookSushi, eatSushi, buySushi, startSushi, SUSHI, dropFlower, get pumpkins() { return pumpkins; }, get counting() { return counting; } };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, songRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, syncTune, tuneSync, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, trackPlayers, farmPlayers, buyPorch, goDance, endGroove, leaveCloseUp, mastered, caughtOn, openMastery, refreshMastery, setDance, placeSquare, fishBook: () => fishBook, setBook: b => { fishBook = b; store.set(FISH_KEY, b); }, questAdd, questsToday, openQuests, rowDice, flipLane, startReel, reelGame, reelBeats, showCatch, sushi, dash, mealOf, feedSushi, openSushi, closeSushi, cookSushi, eatSushi, buySushi, startSushi, SUSHI, dropFlower, get pumpkins() { return pumpkins; }, get counting() { return counting; } };
