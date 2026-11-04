@@ -74,6 +74,30 @@ export function breakHit(step) {
   return c === 'S' ? 1 : c === 'K' ? (s % 4 === 0 ? 2 : 5) : c === 'g' ? 7 : 8;
 }
 
+// Psy Farm's own melody, over the same chords: a hypnotic riff that skips in threes
+// (3 + 3 + 2) through each chord in the A sections, and long floating notes in the B.
+// Written an octave up, like the fiddle tune; the lead plays it an octave down.
+const PSY_A = [
+  [[0, 62, 2], [3, 69, 2], [6, 66, 2], [8, 74, 3], [11, 69, 2], [14, 73, 2]],
+  [[0, 71, 2], [3, 66, 2], [6, 69, 2], [8, 73, 6], [14, 71, 2]],
+  [[0, 67, 2], [3, 71, 2], [6, 74, 2], [8, 78, 3], [11, 74, 2], [14, 71, 2]],
+  [[0, 69, 2], [3, 74, 2], [6, 76, 2], [8, 79, 6], [14, 76, 2]],
+  [[0, 74, 2], [3, 69, 2], [6, 73, 2], [8, 78, 3], [11, 73, 2], [14, 69, 2]],
+  [[0, 71, 2], [3, 74, 2], [6, 78, 2], [8, 76, 3], [11, 73, 2], [14, 71, 2]],
+  [[0, 64, 2], [3, 67, 2], [6, 71, 2], [8, 74, 3], [11, 71, 2], [14, 67, 2]],
+  [[0, 69, 2], [3, 73, 2], [6, 76, 2], [8, 79, 4], [12, 76, 2], [14, 73, 2]],
+];
+const PSY_B = [
+  [[0, 71, 6], [6, 74, 2], [8, 78, 8]],
+  [[0, 76, 6], [6, 73, 2], [8, 69, 8]],
+  [[0, 71, 3], [3, 74, 3], [6, 78, 2], [8, 76, 4], [12, 74, 4]],
+  [[0, 73, 6], [6, 76, 2], [8, 79, 4], [12, 78, 4]],
+  [[0, 78, 6], [6, 74, 2], [8, 69, 8]],
+  [[0, 71, 3], [3, 74, 3], [6, 78, 2], [8, 79, 4], [12, 78, 4]],
+  [[0, 76, 6], [6, 74, 2], [8, 69, 4], [12, 71, 4]],
+  [[0, 73, 4], [4, 76, 4], [8, 79, 4], [12, 81, 4]],
+];
+const PSY_TUNES = [null, PSY_A, PSY_B, PSY_A];   // per 8-bar section, like FORM
 // The house and psy parts' patterns, a character per sixteenth: shared with songHit below.
 const HOUSE_RIM = '...x..x...x..x..', HOUSE_BASS = { 2: 0, 6: 0, 10: 0, 13: 7, 14: 12 };
 const PSY_GATE = 'x.xx.xx.xx.x.xx.';
@@ -84,7 +108,7 @@ const PSY_GATE = 'x.xx.xx.xx.x.xx.';
 export function songHit(style, step) {
   if (style === 'dnb') return breakHit(step);
   const s = ((step % 16) + 16) % 16, bar = Math.floor(step / 16) % 32, i = bar % 8, sec = Math.floor(bar / 8);
-  const [prog, tune] = FORM[sec];
+  const [prog, farmTune] = FORM[sec], tune = style === 'psy' ? PSY_TUNES[sec] : farmTune;   // Psy Farm has a melody of its own
   let d = 0;
   const hit = v => { if (!d || v < d) d = v; };
   if (tune && tune[i].some(n => n[0] === s)) hit(s % 2 ? 7 : s % 4 ? 4 : 3);   // the tune: fiddle, pluck or lead
@@ -323,8 +347,8 @@ export function createMusic(ctx, out) {
     }
   }
   // Psy Farm: a kick on every beat with the rolling bass filling the three sixteenths
-  // between, a squelchy acid line picking the banjo's roll, the tune down low on a warm, detuned
-  // lead, and a rush of noise into each new section. The bridge opens on two bars with no kick.
+  // between, a squelchy acid line picking the banjo's roll, its own riff (PSY_TUNES) down low on
+  // a warm, detuned lead, and a rush of noise into each new section. The bridge opens on two bars with no kick.
   function acid(m, t, dur, vol, cut) {
     const o = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain();
     o.type = 'sawtooth';
@@ -375,10 +399,11 @@ export function createMusic(ctx, out) {
     }
     if (i === 7 && s === 0) riser(t, STEP * 16);
     if (i === 0 && s === 0 && bar) noise(t, 1.2, 0.07, 'highpass', 6000);
-    if (tune) {
-      for (const [at, m, len] of tune[i]) {
+    const riff = PSY_TUNES[sec];
+    if (riff) {
+      for (const [at, m, len] of riff[i]) {
         if (at !== s) continue;
-        for (const dt of [-8, 8]) voice('sawtooth', note(m), t, STEP * len * 0.92, 0.026, { attack: 0.012, cutoff: 1900, detune: dt, vibrato: len >= 4 ? 12 : 0, to: [bus, echo, verbIn] });
+        for (const dt of [-8, 8]) voice('sawtooth', note(m) - 12, t, STEP * len * 0.92, 0.026, { attack: 0.012, cutoff: 1900, detune: dt, vibrato: len >= 4 ? 12 : 0, to: [bus, echo, verbIn] });
       }
     }
   }
