@@ -138,6 +138,18 @@ export function songHit(style, step) {
   return d;
 }
 
+// The note the band plays on that sixteenth, for singing along with it (MIDI, in D major): the
+// tune's own note where the melody has one, else the chord tone the banjo (or Psy Farm's acid
+// line) picks there.
+export function songNote(style, step) {
+  const s = ((step % 16) + 16) % 16, bar = Math.floor(step / 16) % 32, i = bar % 8, sec = Math.floor(bar / 8);
+  const [prog, farmTune] = FORM[sec], tune = style === 'psy' ? PSY_TUNES[sec] : farmTune;
+  const sung = tune && tune[i].find(n => n[0] === s);
+  if (sung) return sung[1];
+  const tones = [...new Set(prog[i].flatMap(m => [m - 12, m, m + 12, m + 24]))].filter(m => m >= 62 && m <= 79).sort((a, b) => a - b);
+  return tones[ROLL[s] % tones.length];
+}
+
 const hz = m => 440 * Math.pow(2, (m - 69) / 12);
 
 // Scales the tune can be played in. The tune is written in D major; deg moves each of

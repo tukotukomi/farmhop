@@ -10,6 +10,7 @@ export const UPDATES = [
     title: 'Fishing to the music',
     notes: [
       'Fishing notes now follow what each song is really playing: kicks and claps for easy fish, the bass, melody and fills for harder ones.',
+      'Each note you catch now sings the song\'s own note at that moment: the melody, or the chord under it.',
       'A tap that comes just late for a note no longer costs you the next one too.',
       'Psy Farm has a melody of its own now: a low, hypnotic riff under the floaty synths.',
       'Tap the Dance Square to dance there, or the DJ Booth to hop behind the decks, each with its own close-up camera.',
@@ -18,6 +19,7 @@ export const UPDATES = [
       title: 'Pescar al ritmo de la música',
       notes: [
         'Las notas de pesca siguen ahora lo que suena en cada canción: bombos y palmas para los peces fáciles, y el bajo, la melodía y los redobles para los difíciles.',
+        'Cada nota que atrapas canta ahora la nota de la canción en ese momento: la melodía, o el acorde de debajo.',
         'Un toque que llega un poco tarde a una nota ya no te hace perder también la siguiente.',
         'Psy Farm tiene ahora su propia melodía: un riff grave e hipnótico bajo los sintetizadores.',
         'Toca la plaza de baile para bailar allí, o la cabina de DJ para ponerte a los platos, cada una con su propia cámara de cerca.',
@@ -27,6 +29,7 @@ export const UPDATES = [
       title: '跟着音乐钓鱼',
       notes: [
         '钓鱼音符现在跟着每首歌真正的演奏：简单的鱼跟着底鼓和拍手，难的鱼加上贝斯、旋律和加花。',
+        '每接住一个音符，都会唱出歌曲那一刻的音：旋律音，或下面的和弦音。',
         '稍微点晚了一个音符，不会再连带错过下一个。',
         '迷幻农场有了自己的旋律：一段低沉、催眠的重复乐句，衬在飘渺的合成器下面。',
         '点舞蹈广场就能在那里跳舞，点 DJ 台就能跳到唱盘后面，各有专属的近景镜头。',
