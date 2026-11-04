@@ -4,7 +4,7 @@
 // the cells outside the playable strip are shaded darker, like Crossy Road.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { createMusic, breakHit, SCALES, SONGS, inScale } from './music.js';
+import { createMusic, songHit, SCALES, SONGS, inScale } from './music.js';
 import { STRINGS, LANGS } from './lang.js';
 import { joinFarm } from './guest.js';
 import { createAccount } from './account/tuko-account.js';
@@ -7879,12 +7879,11 @@ function stepFisher(f, dt) {
     case 'show': if (f.t <= 0 || (tap && f.t < 2)) setSt(f, 'ready'); break;
   }
 }
-// Reeling in, to the music: notes slide along a lane toward the ring on the
-// song's own beat, and a tap as one reaches the ring catches it, sung in the
-// hopper's voice up the scale. A fish's level sets the rhythm it fights with:
-// level 1 is plain quarter notes; then eighths, off-beats, dotted rhythms, and at
-// the top, runs of sixteenths. Harder fish also have a tighter window and allow
-// fewer misses. A tap with no note at the ring costs the next one.
+// Reeling in, to the music: notes slide along a lane toward the ring, and a tap as one
+// reaches the ring catches it, sung in the hopper's voice up the scale. The notes are the
+// song itself (songHit, in music.js): the easiest fish follow its plainest beat, and harder
+// fish add the busier parts the band is playing. Harder fish also have a tighter window
+// and allow fewer misses. A stray tap costs the next note, unless it was just late for one.
 let BEAT = 60 / 84, BAR = 4 * BEAT, LOOP_S = 512 * BEAT / 4;   // the song's beat, four to the bar, and its 32-bar loop (they follow the song's tempo)
 const CALM_BEAT = 60 / 84;   // the farm tune's own beat
 function keepTempo() {
@@ -7895,41 +7894,23 @@ function keepTempo() {
 }
 const reelBeats = lvl => lvl < 2 ? 4 : lvl < 6 ? 8 : lvl < 8 ? 12 : 16;   // whole bars, so a reel lines up with the song's own measures: one for the easiest fish, four for the hardest
 const songNow = () => performance.now() / 1000;
-// One beat's worth of rhythm each: which sixteenths of the beat have a note (0 is
-// on the beat, 2 the "and", 1 and 3 the sixteenths between), and the fish level
-// that first uses it.
-const RHYTHMS = [   // lvl here is the fish's rhy: the first two only ever land right on the beat
-  { at: [0], lvl: 1 },             // quarter, on the beat
-  { at: [], lvl: 2 },              // a rest
-  { at: [0, 2], lvl: 3 },          // two eighths
-  { at: [2], lvl: 4 },             // off the beat
-  { at: [0, 3], lvl: 5 },          // dotted eighth, sixteenth
-  { at: [0, 1], lvl: 6 },          // sixteenth, dotted eighth
-  { at: [0, 2, 3], lvl: 7 },       // eighth, two sixteenths
-  { at: [0, 1, 2], lvl: 7 },       // two sixteenths, eighth
-  { at: [1, 2, 3], lvl: 8 },       // a sixteenth rest, then three
-  { at: [0, 1, 2, 3], lvl: 9 },    // four sixteenths
-];
-function fishRhythm(lvl) {   // [sixteenths from the start, ...]: a phrase a few beats long
-  const can = RHYTHMS.filter(r => r.lvl <= lvl);
-  const pick = () => {   // the newest rhythms this fish knows come up most
-    let r = Math.random() * can.reduce((n, c) => n + 1 + c.lvl, 0);
-    for (const c of can) if ((r -= 1 + c.lvl) <= 0) return c;
-    return can[0];
-  };
-  const beats = reelBeats(lvl), out = [];
-  for (let b = 0; b < beats; b++) {
-    const c = b === 0 || b === beats - 1 ? RHYTHMS[0] : pick();   // starts and ends on a plain beat, to find your feet
-    for (const s of c.at) out.push(b * 4 + s);
+// [sixteenths from the start, ...]: what the band plays over the reel, as busy as the fish is
+// tricky. A quiet stretch (Psy Farm's bridge, say) reaches for the next layer up, so there's
+// always enough to follow. No more than four sixteenths come in a row (three at the fast tempos).
+function songRhythm(style, lvl, from) {
+  const beats = reelBeats(lvl), maxRun = BEAT < 0.5 ? 3 : 4;
+  let out = [];
+  for (let top = lvl; top <= 9 && out.length < beats / 2; top++) {
+    out = [];
+    let run = 0;
+    for (let s = 0; s < beats * 4; s++) {
+      const d = songHit(style, from + s);
+      if (!d || d > top) continue;
+      run = out.at(-1) === s - 1 ? run + 1 : 1;
+      if (run > maxRun) { run = 0; continue; }   // a breath
+      out.push(s);
+    }
   }
-  return out;
-}
-// With the drum and bass tune on, the notes are the break itself: the snare's
-// backbeat first, then kicks, the kick that skips in a sixteenth early, ghost
-// notes and, at the top, the snare rolls of the fill.
-function breakRhythm(lvl, from) {
-  const beats = reelBeats(lvl), out = [];
-  for (let s = 0; s < beats * 4; s++) { const d = breakHit(from + s); if (d && d <= lvl) out.push(s); }
   return out;
 }
 function startReel(f) {
@@ -7937,7 +7918,7 @@ function startReel(f) {
   const h = music ? music.heard() : { pos: 0, at: songNow(), swing: 0 };   // the beat as it comes out of the speakers
   const toBar = BAR - h.pos % BAR, start = h.at + (toBar < 2 * BEAT ? toBar + BAR : toBar);   // on the next downbeat at least a couple of beats away: the first note is always the "1"
   const dnb = music?.style === 'dnb';
-  const steps = dnb ? breakRhythm(lvl, music.stepAt(h.pos + start - h.at)) : fishRhythm(lvl), notes = [];
+  const steps = songRhythm(music?.style || 'classic', lvl, music ? music.stepAt(h.pos + start - h.at) : 0), notes = [];
   const SIXTEENTH = BEAT / 4;   // the song's own tempo: Farm House is the medium ride, Psy Farm the hard one
   const lane = f.ui.querySelector('.lane');
   lane.classList.toggle('dnb', dnb);
@@ -7954,7 +7935,7 @@ function startReel(f) {
   const k = (lvl - 1) / 8;
   f.g = {
     notes, ahead: fast * Math.max(BEAT, CALM_BEAT), tempo: BEAT,   // the fast songs zoom the lane out: more of the song in view, and the notes cross it no quicker than Classic's
-    win: Math.min(0.2 - k * 0.11, SIXTEENTH * 0.48),            // 0.2 s either side down to under half a sixteenth
+    win: Math.max(0.065, Math.min(0.2 - k * 0.11, SIXTEENTH * 0.48)),   // 0.2 s either side down to under half a sixteenth, but never so tight it's down to luck
     need: Math.ceil(notes.length * (0.5 + k * 0.35)),           // half the notes, up to 85%
     hits: 0, miss: 0, sung: 0, offs: [], off: 0,
   };
@@ -8006,8 +7987,9 @@ function reelGame(f, tap) {
     const near = g.notes.filter(n => !n.done).sort((a, b) => Math.abs(a.at - at) - Math.abs(b.at - at))[0];
     if (near && Math.abs(near.at - at) < 0.25) g.offs.push(beatLag - (near.at - at));   // how late the tap really was (before the offset)
     if (near && Math.abs(near.at - at) > g.win && Math.abs(near.at - at) < 0.5) g.off++;   // there, but off the beat
-    const nt = g.notes.find(n => !n.done && Math.abs(n.at - at) <= g.win);
+    const nt = near && Math.abs(near.at - at) <= g.win ? near : null;   // the nearest note, where they come close together
     if (nt) judge(f, nt, true, Math.abs(nt.at - at) <= g.win * 0.45);
+    else if (g.notes.some(n => n.done && Math.abs(n.at - at) < g.win + 0.12)) sfx.bump();   // just late (or early) for one that's already counted: that's all it costs
     else { const next = g.notes.find(n => !n.done && n.at - at < 0.5); if (next) judge(f, next, false); else sfx.bump(); }
   }
   for (const nt of g.notes) if (!nt.done && now - nt.at > g.win) judge(f, nt, false);
@@ -11606,4 +11588,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, fishRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, syncTune, tuneSync, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, trackPlayers, farmPlayers, buyPorch, mastered, caughtOn, openMastery, refreshMastery, setDance, placeSquare, fishBook: () => fishBook, setBook: b => { fishBook = b; store.set(FISH_KEY, b); }, questAdd, questsToday, openQuests, rowDice, flipLane, startReel, reelBeats, showCatch, sushi, dash, mealOf, feedSushi, openSushi, closeSushi, cookSushi, eatSushi, buySushi, startSushi, SUSHI, dropFlower, get pumpkins() { return pumpkins; }, get counting() { return counting; } };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, songRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, syncTune, tuneSync, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, trackPlayers, farmPlayers, buyPorch, mastered, caughtOn, openMastery, refreshMastery, setDance, placeSquare, fishBook: () => fishBook, setBook: b => { fishBook = b; store.set(FISH_KEY, b); }, questAdd, questsToday, openQuests, rowDice, flipLane, startReel, reelGame, reelBeats, showCatch, sushi, dash, mealOf, feedSushi, openSushi, closeSushi, cookSushi, eatSushi, buySushi, startSushi, SUSHI, dropFlower, get pumpkins() { return pumpkins; }, get counting() { return counting; } };

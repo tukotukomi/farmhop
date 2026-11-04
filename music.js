@@ -74,6 +74,46 @@ export function breakHit(step) {
   return c === 'S' ? 1 : c === 'K' ? (s % 4 === 0 ? 2 : 5) : c === 'g' ? 7 : 8;
 }
 
+// The house and psy parts' patterns, a character per sixteenth: shared with songHit below.
+const HOUSE_RIM = '...x..x...x..x..', HOUSE_BASS = { 2: 0, 6: 0, 10: 0, 13: 7, 14: 12 };
+const PSY_GATE = 'x.xx.xx.xx.x.xx.';
+// What the band plays on each sixteenth of the song (counted from the top of the loop), as how
+// hard it is to tap along with: 1 the plainest beat up to 9 the busiest runs, 0 for nothing there.
+// The fishing notes are made from this, so they are always the song itself; it follows the
+// arrangement in play() below, and changes there belong here too.
+export function songHit(style, step) {
+  if (style === 'dnb') return breakHit(step);
+  const s = ((step % 16) + 16) % 16, bar = Math.floor(step / 16) % 32, i = bar % 8, sec = Math.floor(bar / 8);
+  const [prog, tune] = FORM[sec];
+  let d = 0;
+  const hit = v => { if (!d || v < d) d = v; };
+  if (tune && tune[i].some(n => n[0] === s)) hit(s % 2 ? 7 : s % 4 ? 4 : 3);   // the tune: fiddle, pluck or lead
+  if (style === 'house') {
+    if (s % 4 === 0 && !(i === 7 && s === 12)) hit(1);                          // four to the floor (bar 8 takes a breath)
+    if (s === 4 || s === 12) hit(2);                                            // the clap
+    if (s % 4 === 2) hit(3);                                                    // the off-beat hat and sub
+    if (s === 3 || s === 11) hit(5);                                            // the chord stabs
+    if (HOUSE_RIM[s] === 'x' || HOUSE_BASS[s] !== undefined) hit(6);            // the rim ticks and the sub's pickups
+  } else if (style === 'psy') {
+    const open = bar === 16 || bar === 17;                                      // the bridge: no kick, no bass
+    if (open) { if (s === 0) hit(1); if (s % 4 === 2) hit(2); }                 // the held chord, the off-beat hat
+    else {
+      if (s % 4 === 0) hit(1);                                                  // the kick on every beat
+      if (s % 4 === 2) hit(3);                                                  // the rolling bass's off-beat
+      if (s % 2) hit(8);                                                        // and its sixteenths
+    }
+    if (PSY_GATE[s] === 'x' && s % 2) hit(6);                                   // the acid line's off-sixteenths
+    if (sec && (s === 4 || s === 12)) hit(2);                                   // the clap
+  } else {                                                                      // Classic
+    if (s === 0 || s === 8) hit(1);                                             // the kick and the bass's boom
+    if (s === 4 || s === 12) hit(2);                                            // the mandolin's chop
+    if (s === 14 && (prog[i][0] - prog[(i + 1) % 8][0]) % 12) hit(5);          // the bass walking into a new chord
+    if (s % 4 === 2) hit(6);                                                    // the banjo roll's eighths...
+    if (s % 4 === 3) hit(9);                                                    // ...and the pick on the "a" of each beat
+  }
+  return d;
+}
+
 const hz = m => 440 * Math.pow(2, (m - 69) / 12);
 
 // Scales the tune can be played in. The tune is written in D major; deg moves each of
@@ -257,7 +297,6 @@ export function createMusic(ctx, out) {
   // Farm House: minimal, a lot of space. Four to the floor, a clap on 2 and 4, an off-beat
   // hat and a rim tick, an off-beat sub, and dub chord stabs that open up as each section
   // goes on. The banjo comes down to a quiet roll, and the tune is a short pluck.
-  const HOUSE_RIM = '...x..x...x..x..', HOUSE_BASS = { 2: 0, 6: 0, 10: 0, 13: 7, 14: 12 };
   function playHouse(t, bar, s, chord, tune, i) {
     const sec = Math.floor(bar / 8), root = rootOf(chord), open = 600 + 110 * i + 220 * sec;
     if (s % 4 === 0 && !(i === 7 && s === 12)) { kick(t, 0.4, 0.2); duck(t); }   // (a breath before each new section)
@@ -286,7 +325,6 @@ export function createMusic(ctx, out) {
   // Psy Farm: a kick on every beat with the rolling bass filling the three sixteenths
   // between, a squelchy acid line picking the banjo's roll, the tune soaring on a detuned
   // lead, and a rush of noise into each new section. The bridge opens on two bars with no kick.
-  const PSY_GATE = 'x.xx.xx.xx.x.xx.';
   function acid(m, t, dur, vol, cut) {
     const o = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain();
     o.type = 'sawtooth';

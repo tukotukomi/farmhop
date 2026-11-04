@@ -6,6 +6,28 @@
 // This file is plain data: { date: 'YYYY-MM-DD', title, notes: [...], es: { title, notes }, zh: { title, notes } }.
 export const UPDATES = [
   {
+    date: '2026-11-04',
+    title: 'Fishing to the music',
+    notes: [
+      'Fishing notes now follow what each song is really playing: kicks and claps for easy fish, the bass, melody and fills for harder ones.',
+      'A tap that comes just late for a note no longer costs you the next one too.',
+    ],
+    es: {
+      title: 'Pescar al ritmo de la música',
+      notes: [
+        'Las notas de pesca siguen ahora lo que suena en cada canción: bombos y palmas para los peces fáciles, y el bajo, la melodía y los redobles para los difíciles.',
+        'Un toque que llega un poco tarde a una nota ya no te hace perder también la siguiente.',
+      ],
+    },
+    zh: {
+      title: '跟着音乐钓鱼',
+      notes: [
+        '钓鱼音符现在跟着每首歌真正的演奏：简单的鱼跟着底鼓和拍手，难的鱼加上贝斯、旋律和加花。',
+        '稍微点晚了一个音符，不会再连带错过下一个。',
+      ],
+    },
+  },
+  {
     date: '2026-11-01',
     title: 'Fishing Mastery',
     notes: [
