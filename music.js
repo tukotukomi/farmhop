@@ -323,7 +323,7 @@ export function createMusic(ctx, out) {
     }
   }
   // Psy Farm: a kick on every beat with the rolling bass filling the three sixteenths
-  // between, a squelchy acid line picking the banjo's roll, the tune soaring on a detuned
+  // between, a squelchy acid line picking the banjo's roll, the tune down low on a warm, detuned
   // lead, and a rush of noise into each new section. The bridge opens on two bars with no kick.
   function acid(m, t, dur, vol, cut) {
     const o = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain();
@@ -378,7 +378,7 @@ export function createMusic(ctx, out) {
     if (tune) {
       for (const [at, m, len] of tune[i]) {
         if (at !== s) continue;
-        for (const dt of [-8, 8]) voice('sawtooth', note(m) + 12, t, STEP * len * 0.92, 0.021, { attack: 0.012, cutoff: 3000, detune: dt, vibrato: len >= 4 ? 12 : 0, to: [bus, echo, verbIn] });
+        for (const dt of [-8, 8]) voice('sawtooth', note(m), t, STEP * len * 0.92, 0.026, { attack: 0.012, cutoff: 1900, detune: dt, vibrato: len >= 4 ? 12 : 0, to: [bus, echo, verbIn] });
       }
     }
   }
