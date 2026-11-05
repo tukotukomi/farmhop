@@ -10224,6 +10224,7 @@ function takeSunflower(r, c, count, pumpkin = false) {   // someone picked one: 
     lane.coins.splice(lane.coins.indexOf(coin), 1);
     burst(c, 0.6, -r, pumpkin ? [0xff8a1a, 0xffb02a, 0x4f8a2f] : [0xffd23f, 0xffe680, 0xffffff], 10, 1.5, 4, 0.08, 0.5);
     if (pumpkin) sfx.pumpkin(); else sfx.coin();
+    if (!pumpkin) questAdd('flowers');   // a Buddy's pick counts toward the quest too, host or guest
   }
   if (!count) return;
   if (pumpkin) {
@@ -11132,7 +11133,7 @@ $('settings').addEventListener('click', e => { if (e.target.id === 'settings') c
 // far as their farm has what they need, and the third is always a visit: going to a Buddy's farm, or one coming over to play in person. Each
 // pays one Buddy Token, and quests are the only way to earn them. Quests and tokens are the
 // player's own, so they count on a friend's farm too, and neither is one of the FARM_KEYS.
-const QUESTS = { hop: 60, flowers: 15, fish: 3, sushi: 1, jam: 40, visit: 1 };   // how many it takes
+const QUESTS = { hop: 60, flowers: 30, fish: 3, sushi: 1, jam: 40, visit: 1 };   // how many it takes
 const QUEST_PAY = {};   // Buddy Tokens a quest pays, where it's more than one
 const questPay = id => QUEST_PAY[id] ?? 1;
 const buddyHere = () => !!GUEST || [...party.players.values()].some(p => p.hero);

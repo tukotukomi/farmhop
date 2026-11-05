@@ -17,6 +17,7 @@ export const UPDATES = [
       'Buddy Quests show what each one pays, with a new Buddy Rewards window and an Invite a Buddy link.',
       'The Porch Swing is in the Market too, and two little bulbs keep faces bright for photos.',
       'Your room code now sits above the QR code, with a Copy button.',
+      "The sunflower Buddy Quest now counts every pick on the team, yours or your Buddy's, and asks for 30.",
     ],
     es: {
       title: 'Pescar al ritmo de la música',
@@ -29,6 +30,7 @@ export const UPDATES = [
         'Las Misiones de amigos muestran cuánto da cada una, con una nueva ventana de Premios de amigos y un enlace para invitar a un amigo.',
         'El columpio de porche también está en el Mercado, y dos bombillas mantienen las caras iluminadas para las fotos.',
         'Tu código de sala aparece ahora encima del código QR, con un botón para copiarlo.',
+        'La misión de girasoles cuenta ahora todos los que recoge el equipo, tuyos o de tu amigo, y pide 30.',
       ],
     },
     zh: {
@@ -42,6 +44,7 @@ export const UPDATES = [
         '伙伴任务会显示每个任务的奖励，还新增了伙伴奖励窗口和“邀请伙伴”链接。',
         '集市里也能找到门廊秋千，两盏小灯泡让拍照时脸蛋更明亮。',
         '房间代码现在显示在二维码上方，还有复制按钮。',
+        '向日葵伙伴任务现在会计算全队捡到的每一朵，你的或伙伴的都算，目标改为 30 朵。',
       ],
     },
   },
