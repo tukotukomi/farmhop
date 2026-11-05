@@ -96,20 +96,34 @@ body.noFull #keyBtn { right: calc(env(safe-area-inset-right) + 136px); }
 body.farm #keyBtn { display: grid; }
 body.farm.decor #keyBtn, body.guest #keyBtn { display: none; }
 #keyBtnName { font-size: 18px; font-weight: 700; }
+/* the keys you have on a one-octave piano: lit up if you have them, greyed out if not */
 .keyMenu {
-  position: fixed; z-index: 9; min-width: 150px; max-height: calc(100dvh - 140px); overflow-y: auto; box-sizing: border-box;
-  display: grid; gap: 2px; padding: 6px;
+  position: fixed; z-index: 9; box-sizing: border-box; width: min(300px, calc(100vw - 16px));
+  display: grid; justify-items: center; gap: 8px; padding: 10px;
   background: var(--cream); border: 3px solid var(--ink); border-radius: 18px; box-shadow: 0 5px 0 var(--ink-soft);
   animation: pop .25s cubic-bezier(.3, 1.6, .5, 1);
 }
 .keyMenu[hidden] { display: none; }
-.keyMenu button {
-  font: inherit; font-size: 16px; font-weight: 600; color: var(--ink); text-align: start; white-space: nowrap;
-  background: none; border: 0; border-radius: 12px; padding: 8px 12px; cursor: pointer;
+.keyMenu button { font: inherit; color: var(--ink); cursor: pointer; }
+.keyMenu button:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+.keyScales { display: flex; gap: 4px; padding: 3px; border-radius: 999px; background: var(--cream-d); border: 2.5px solid var(--ink); }
+.keyScales button { border: 0; border-radius: 999px; padding: 4px 14px 5px; background: none; font-size: 15px; font-weight: 600; white-space: nowrap; }
+.keyScales button.on { background: var(--sun); font-weight: 700; box-shadow: 0 2px 0 var(--ink-soft); }
+.piano { --bw: 12.5%; position: relative; display: flex; width: 100%; height: 132px; }
+.pk { position: relative; display: flex; align-items: flex-end; justify-content: center; padding: 0 0 7px; border: 2.5px solid var(--ink); box-sizing: border-box; line-height: 1; }
+.pk span { font-size: 13px; font-weight: 700; white-space: nowrap; }
+.pk.white { flex: 1 1 0; min-width: 0; margin-left: -2.5px; border-radius: 0 0 9px 9px; background: #d9d2dc; color: rgba(58, 36, 66, .4); }
+.pk.white:first-child { margin-left: 0; }
+.pk.black {
+  position: absolute; top: 0; z-index: 1; width: var(--bw); height: 60%; padding-bottom: 6px; border-radius: 0 0 7px 7px;
+  background: #8c8191; color: rgba(255, 255, 255, .5);
 }
-.keyMenu button:hover, .keyMenu button:focus-visible { background: var(--cream-d); outline: none; }
-.keyMenu button.on { background: var(--sun); font-weight: 700; }
-.keyMenu button.more { font-size: 13px; color: var(--berry-d); text-decoration: underline; }
+.pk.black span { font-size: 11px; }
+.pk.white.have { background: #fff; color: var(--ink); }
+.pk.black.have { background: var(--ink); color: #fff; }
+.pk.have:hover { filter: brightness(.94); }
+.pk.on.white, .pk.on.black { background: var(--sun); color: var(--ink); box-shadow: inset 0 -6px 0 rgba(224, 168, 42, .55); }
+.keyMenu button.more { border: 0; background: none; padding: 2px 6px; font-size: 13px; font-weight: 600; color: var(--berry-d); text-decoration: underline; }
 /* full screen: beside the settings, wherever the browser can do it */
 #fullBtn {
   position: fixed; top: calc(env(safe-area-inset-top) + 64px); right: calc(env(safe-area-inset-right) + 136px);

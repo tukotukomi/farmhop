@@ -10,17 +10,20 @@ export const UPDATES = [
     title: 'Room to spread out',
     notes: [
       'With your screen sideways, Buddy Quests, Play Together and other windows now spread out left and right, so there is far less scrolling.',
+      'The key button now opens a little piano: switch between Major and Minor, and the keys you own light up.',
     ],
     es: {
       title: 'Más espacio',
       notes: [
         'Con la pantalla en horizontal, las Misiones de amigos, Jugar juntos y otras ventanas se reparten ahora a izquierda y derecha, así que hay que desplazarse mucho menos.',
+        'El botón de tonalidad abre ahora un pequeño piano: cambia entre Mayor y Menor, y las tonalidades que tienes se iluminan.',
       ],
     },
     zh: {
       title: '更宽敞的窗口',
       notes: [
         '横屏时，伙伴任务、一起玩等窗口现在左右分栏展开，几乎不用再滚动。',
+        '调号按钮现在会打开一个小钢琴：可在大调和小调之间切换，已拥有的调会亮起来。',
       ],
     },
   },

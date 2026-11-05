@@ -9021,40 +9021,65 @@ function useKey(n, sc) {
 // Key names: a scale can spell some differently (C# minor, not Db minor).
 const keyGlyph = (i, sc) => STRINGS.en.keyNamesBy?.[sc] ? t('keyNamesBy.' + sc + '.' + i) : t('keyNames.' + i);
 const keyLabel = (i, sc) => t('scaleKey.' + sc, { k: keyGlyph(i, sc) });
-// The key button by the settings: the song's key now; a tap drops down the keys you have
-// (major first, then minor, each C to B) and a way to the Market for more.
+// The key button by the settings: the song's key now; a tap drops down a one-octave piano with
+// a Major / Minor switch. The keys you have light up; the rest are greyed out and lead to the
+// Market, as does the link under the piano.
 const keyMenu = $('keyMenu');
+const BLACK_KEYS = [1, 3, 6, 8, 10];   // the black keys (semitones above C): D♭ E♭ F♯ A♭ B♭
+let keyMenuScale = 'major';
 function showKeyBtn() {
   const sc = songScale(), i = SONG_KEYS.findIndex(k => k[1] === songKey());
   $('keyBtnName').textContent = keyGlyph(i, sc) + (sc === 'minor' ? 'm' : '');   // chord-chart style: D, Am
   $('keyBtn').setAttribute('aria-label', t('aria.keyBtn', { k: keyLabel(i, sc) }));
 }
-function openKeyMenu() {
-  const owned = ownedKeys(), items = [];
-  for (const sc of SHOP_SCALES) SONG_KEYS.forEach((k, i) => { if (owned.has(keyId(i, sc))) items.push([i, sc]); });
-  const now = songKey(), nowSc = songScale();
-  keyMenu.replaceChildren(...items.map(([i, sc]) => {
+function keyMenuShop() { closeKeyMenu(); openShop(); setShopTab('music'); setKeyScale(keyMenuScale); }
+function paintKeyMenu() {
+  const owned = ownedKeys(), now = songKey(), nowSc = songScale(), sc = keyMenuScale;
+  const tabs = document.createElement('div');
+  tabs.className = 'keyScales';
+  tabs.setAttribute('role', 'radiogroup');
+  for (const name of SHOP_SCALES) {
     const b = document.createElement('button');
-    b.setAttribute('role', 'menuitemradio');
-    const on = SONG_KEYS[i][1] === now && sc === nowSc;
-    b.setAttribute('aria-checked', String(on));
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-checked', String(name === sc));
+    b.classList.toggle('on', name === sc);
+    b.textContent = t('scales.' + name);
+    b.addEventListener('click', () => { keyMenuScale = name; paintKeyMenu(); keyMenu.querySelector('.keyScales .on').focus({ preventScroll: true }); });
+    tabs.append(b);
+  }
+  const piano = document.createElement('div');
+  piano.className = 'piano';
+  let white = 0;
+  SONG_KEYS.forEach((k, i) => {
+    const b = document.createElement('button'), black = BLACK_KEYS.includes(i), have = owned.has(keyId(i, sc));
+    const on = k[1] === now && sc === nowSc;
+    b.className = black ? 'pk black' : 'pk white';
+    if (black) b.style.left = `calc(${white} * 100% / 7 - var(--bw) / 2)`;   // straddling the line between two white keys
+    else white++;
+    b.classList.toggle('have', have);
     b.classList.toggle('on', on);
-    b.textContent = keyLabel(i, sc);
-    b.addEventListener('click', () => { closeKeyMenu(); useKey(SONG_KEYS[i][1], sc); });
-    return b;
-  }));
+    b.setAttribute('aria-pressed', String(on));
+    b.setAttribute('aria-label', keyLabel(i, sc) + (have ? '' : ' (' + t('keyMenuMore') + ')'));
+    b.innerHTML = '<span></span>';
+    b.firstChild.textContent = keyGlyph(i, sc);
+    b.addEventListener('click', () => { if (!have) { keyMenuShop(); return; } closeKeyMenu(); useKey(k[1], sc); });
+    piano.append(b);
+  });
   const more = document.createElement('button');
   more.className = 'more';
-  more.setAttribute('role', 'menuitem');
   more.textContent = t('keyMenuMore');
-  more.addEventListener('click', () => { closeKeyMenu(); openShop(); setShopTab('music'); });
-  keyMenu.append(more);
-  const r = $('keyBtn').getBoundingClientRect();
-  keyMenu.style.top = r.bottom + 10 + 'px';
-  keyMenu.style.right = Math.max(8, innerWidth - r.right) + 'px';
+  more.addEventListener('click', keyMenuShop);
+  keyMenu.replaceChildren(tabs, piano, more);
+}
+function openKeyMenu() {
+  keyMenuScale = SHOP_SCALES.includes(songScale()) ? songScale() : 'major';
+  paintKeyMenu();
   keyMenu.hidden = false;
+  const r = $('keyBtn').getBoundingClientRect(), w = keyMenu.offsetWidth;
+  keyMenu.style.top = r.bottom + 10 + 'px';
+  keyMenu.style.left = Math.max(8, Math.min(r.right - w, innerWidth - w - 8)) + 'px';   // under the button, on screen
   $('keyBtn').setAttribute('aria-expanded', 'true');
-  (keyMenu.querySelector('.on') || keyMenu.firstChild).focus({ preventScroll: true });
+  (keyMenu.querySelector('.pk.on') || keyMenu.querySelector('.keyScales .on')).focus({ preventScroll: true });
 }
 function closeKeyMenu() {
   keyMenu.hidden = true;
@@ -9063,9 +9088,10 @@ function closeKeyMenu() {
 $('keyBtn').addEventListener('click', () => { sfx.ensure(); if (keyMenu.hidden) openKeyMenu(); else closeKeyMenu(); });
 document.addEventListener('pointerdown', e => { if (!keyMenu.hidden && !e.target.closest('#keyMenu, #keyBtn')) closeKeyMenu(); }, true);
 keyMenu.addEventListener('keydown', e => {
-  const items = [...keyMenu.children], at = items.indexOf(document.activeElement);
+  const items = [...keyMenu.querySelectorAll('button')], at = items.indexOf(document.activeElement);
+  const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.code];   // the switch, the keys up the octave, then the link
   if (e.code === 'Escape') { closeKeyMenu(); $('keyBtn').focus(); }
-  else if (e.code === 'ArrowDown' || e.code === 'ArrowUp') items[(at + (e.code === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus();
+  else if (step) items[(at + step + items.length) % items.length].focus();
   else return;
   e.preventDefault();
   e.stopPropagation();
