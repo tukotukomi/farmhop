@@ -6,6 +6,25 @@
 // This file is plain data: { date: 'YYYY-MM-DD', title, notes: [...], es: { title, notes }, zh: { title, notes } }.
 export const UPDATES = [
   {
+    date: '2026-11-05',
+    title: 'Room to spread out',
+    notes: [
+      'With your screen sideways, Buddy Quests, Play Together and other windows now spread out left and right, so there is far less scrolling.',
+    ],
+    es: {
+      title: 'Más espacio',
+      notes: [
+        'Con la pantalla en horizontal, las Misiones de amigos, Jugar juntos y otras ventanas se reparten ahora a izquierda y derecha, así que hay que desplazarse mucho menos.',
+      ],
+    },
+    zh: {
+      title: '更宽敞的窗口',
+      notes: [
+        '横屏时，伙伴任务、一起玩等窗口现在左右分栏展开，几乎不用再滚动。',
+      ],
+    },
+  },
+  {
     date: '2026-11-04',
     title: 'Fishing to the music',
     notes: [

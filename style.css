@@ -943,6 +943,11 @@ body.canGoHome.farm:not(.fishing, .swinging, .dancing, .jamming) #homeBtn { disp
 #homeNote b { letter-spacing: .08em; }
 #homeNoteX { flex: none; width: 34px; height: 34px; font-size: 14px; font-weight: 700; --c1: var(--berry); --c2: var(--berry-d); color: #fff; }
 .partyActions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+/* Portrait: one column, joining first, then this farm's code and QR, then who's on this screen.
+   Landscape: the code and QR on the left, joining and this screen's players on the right. */
+.partyShare, .partySide { display: contents; }
+.partyJoin { order: -1; }
+.partySide > .partyHere:not(.partyJoin) { order: 1; }
 .chipBtn {
   border: 2.5px solid var(--ink); border-radius: 999px; background: #fff; color: var(--ink); cursor: pointer;
   padding: 5px 16px 7px; font-size: 15px; font-weight: 700; box-shadow: 0 3px 0 var(--ink-soft);
@@ -1270,6 +1275,70 @@ body.pad .navFocus { outline: 4px solid var(--sky); outline-offset: 3px; }
 }
 .vol::-moz-range-thumb { width: 26px; height: 26px; border-radius: 50%; background: var(--sun); border: 3px solid var(--ink); }
 .vol:focus-visible { outline: 3px solid var(--sky); outline-offset: 3px; }
+
+.questSide { display: contents; }   /* portrait: part of the one column */
+/* ---------- landscape: windows with a lot in them go side by side, left and right ---------- */
+@media (orientation: landscape) and (min-width: 620px) {
+  #quests .pondPanel { max-width: 720px !important; }
+  #quests .panelBody { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); column-gap: 20px; align-items: center; }
+  #quests .questList { margin: 0; }
+  .questSide { display: grid; justify-items: center; gap: 10px; }
+  .questSide .bunkWho { margin-bottom: 0; }
+  .partyPanel .panel { max-width: 720px; }
+  .partyBody { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 20px; align-items: center; }
+  .partyShare, .partySide { display: grid; justify-items: center; align-content: center; gap: 10px; min-width: 0; }
+  .partySide { align-self: stretch; }
+  .partyQr { width: min(220px, 34vw, calc(100dvh - 230px)); min-width: 110px; }
+  .partySide .partyHere { width: 100%; }
+  /* the Pumpkin Harvest and Buddy Rewards: what it's about on the left, what's on offer on the right */
+  #event .pondPanel { max-width: 760px !important; }
+  #rewards .pondPanel { max-width: 560px !important; }
+  :is(#event, #rewards) .panelBody { grid-template-columns: minmax(0, 1fr) auto; column-gap: 20px; align-content: center; }
+  :is(#event, #rewards) .panelBody > * { grid-column: 1; }
+  #event .eventOffers, #rewards #rewardGrid { grid-column: 2; grid-row: 1 / span 4; align-self: center; }
+  #rewardGrid { width: auto; padding-top: 0; }
+  #event .bunkWho, #rewards .bunkWho { margin-bottom: 0; max-width: none; }
+  /* Fishing Mastery: the songs side by side, as many to a row as fit */
+  #mastery .pondPanel { max-width: 800px !important; }
+  #masteryList { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); align-items: stretch; margin-bottom: 0; }
+  #mastery .bunkWho { max-width: none; }
+  /* Hop Supporter: what you get on the left, how to support on the right */
+  .supPanel { max-width: 760px !important; }
+  .supPanel .panelBody { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto 1fr; column-gap: 20px; align-items: start; }
+  .supPanel .supIntro, .supPanel .supPerks { grid-column: 1; }
+  .supPanel .supPerks { grid-row: 2; }
+  .supPanel #supAsk:not([hidden]) { display: contents; }   /* its parts go in the two columns: "Already a supporter?" under the perks */
+  .supPanel :is(#supGate, #supPay, #supThanks) { grid-column: 2; grid-row: 1 / span 3; }
+  .supPanel #supAsk > .supRestore { grid-column: 1; grid-row: 3; }
+}
+/* wide enough for three: the code and QR down the left; joining and this screen's players side by
+   side, with how it works and who's here under them */
+@media (orientation: landscape) and (min-width: 820px) {
+  .partyPanel .panel { max-width: 900px; }
+  .partyShare, .partySide { display: contents; }
+  .partyBody { grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: 'code join here' 'qr join here' 'qr scan scan' 'qr stat stat' 'qr list list'; align-items: start; }
+  .partyCode { grid-area: code; } .partyQr { grid-area: qr; } .partyShare > .partyScan:not(#partyStatus) { grid-area: scan; }
+  #partyStatus { grid-area: stat; } #partyList { grid-area: list; } .partyJoin { grid-area: join; } .partySide > .partyHere:not(.partyJoin) { grid-area: here; }
+  .partyQr { width: min(220px, calc(100dvh - 250px)); }
+  .partyJoin, .partySide > .partyHere:not(.partyJoin) { align-self: stretch; padding: 0; border: 0; }
+  .partySide > .partyHere:not(.partyJoin) { width: auto; border-left: 2px dashed rgba(58, 36, 66, .2); padding-left: 14px; }
+}
+@media (orientation: landscape) and (max-height: 440px) {
+  .partyPanel .panel { padding: 24px 14px 12px; gap: 6px; }
+  .partyPanel h2 { font-size: 21px; }
+  .partyBody { gap: 6px; }
+  .partyBody .partyScan { font-size: 13px; line-height: 1.2; }
+  .partyBody h3 { font-size: 15px; }
+  #partyKeys { font-size: 13px; padding: 3px 12px 5px; }
+  .partyList { min-height: 0; }
+  #quests .questList { gap: 6px; }
+  #quests .questList li { padding: 6px 12px 7px; }
+  :is(#quests, #event, #mastery, #support) .panel { padding-top: 24px; }
+  :is(#quests, #event, #mastery, #support) h2 { margin-bottom: 6px; }
+  :is(#quests, #event, #mastery, #support) .panelBody { padding-top: 4px; padding-bottom: 6px; }
+  #event #eventSay { font-size: 13px; line-height: 1.25; }
+  #event .panelBody { row-gap: 7px; }
+}
 
 /* ---------- phones on their side: short and wide ---------- */
 @media (orientation: landscape) and (max-height: 520px) {
