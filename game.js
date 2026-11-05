@@ -4727,9 +4727,29 @@ function buildPorchSwing(g) {
   const vb = new VB(0.6), WOOD = 0x9c6b3c, SHINGLE = 0xb5523a, spread = 0.75, leg = Math.hypot(SWING_TOP, spread), lean = Math.atan2(spread, SWING_TOP);
   vb.cyl(0.06, 0.06, 2.1, 0, SWING_TOP, 0, WOOD, 0, 0, Math.PI / 2);
   for (const x of [-0.95, 0.95]) for (const sz of [-1, 1]) vb.cyl(0.05, 0.05, leg, x, SWING_TOP / 2, sz * spread / 2, WOOD, -sz * lean, 0, 0);
-  for (const sz of [-1, 1]) vb.rbox(2.5, 0.06, 0.74, 0, SWING_TOP + 0.21, sz * 0.32, SHINGLE, 0.02, sz * 0.62, 0, 0);
-  vb.cyl(0.04, 0.04, 2.5, 0, SWING_TOP + 0.42, 0, 0x8a4230, 0, 0, Math.PI / 2);   // the ridge
   g.add(vb.mesh());
+  const roof = new VB(0.6);
+  for (const sz of [-1, 1]) roof.rbox(2.5, 0.06, 0.74, 0, SWING_TOP + 0.21, sz * 0.32, SHINGLE, 0.02, sz * 0.62, 0, 0);
+  roof.cyl(0.04, 0.04, 2.5, 0, SWING_TOP + 0.42, 0, 0x8a4230, 0, 0, Math.PI / 2);   // the ridge
+  const rm = roof.mesh();
+  rm.castShadow = false;   // no shade over the hoppers: their faces stay bright for photos
+  g.add(rm);
+  const cord = new VB(0.6), glass = new VB(0.6);
+  for (const x of [-0.42, 0.42]) {   // two bulbs hung from the front eave, lit after dark, right over the seat
+    cord.cyl(0.008, 0.008, 0.16, x, SWING_TOP + 0.04, 0.36, 0x3a3236);
+    cord.cyl(0.03, 0.03, 0.04, x, SWING_TOP - 0.05, 0.36, 0x3a3236);
+    glass.ball(0.055, 0.07, 0.055, x, SWING_TOP - 0.12, 0.36, 0xffffff);
+    glowAt(g, x, SWING_TOP - 0.12, 0.36, 0xffd98a, 0.7);
+    const bulb = new THREE.Object3D();
+    bulb.position.set(x, SWING_TOP - 0.12, 0.36);
+    g.add(bulb);
+    lamps.push({ o: bulb, r: 0.85, s: 1, y: 0.95 });   // a pool of light on the faces on the seat
+    lamps.push({ o: bulb, r: 0.22, s: 1, flame: true });
+  }
+  const cm = cord.mesh();
+  cm.castShadow = false;
+  g.add(cm);
+  nightGlass(g, glass);
   const sv = new VB(0.6), PAINT = 0xf4ead8, IRON = 0x4a4048, top = SEAT_TOP - 0.035;
   for (const x of [-0.74, 0.74]) {
     sv.cyl(0.012, 0.012, SWING_ROPE, x, -SWING_ROPE / 2, 0, IRON);             // the chains
@@ -4741,6 +4761,7 @@ function buildPorchSwing(g) {
   sv.rbox(1.36, 0.045, 0.34, 0, top + 0.02, 0, 0xff7fb8, 0.02);                // ...its cushion...
   for (const y of [0.2, 0.33, 0.46]) sv.rbox(1.46, 0.08, 0.03, 0, top + y, -0.2, PAINT, 0.01);   // ...and the slats of its back
   const seat = sv.mesh();
+  seat.castShadow = false;   // its back would shade the faces of whoever sits on it
   seat.position.y = SWING_TOP;
   g.add(seat);
   return swingMotion(g, seat);
@@ -7379,6 +7400,8 @@ window.addEventListener('keydown', e => {
   if (game.picking && masteryOpen()) { if (e.code === 'Escape') { closeMastery(); openBook(); } e.preventDefault(); return; }
   if (game.picking && bookOpen()) { if (e.code === 'KeyM') openMastery(); else if (e.code === 'Escape' || e.code === 'Enter') closeBook(); e.preventDefault(); return; }
   if (game.picking && photoOpen()) { if (e.code === 'Escape') closePhoto(); return; }
+  if (game.picking && buddyAskOpen()) { if (e.code === 'Escape') closeBuddyAsk(); else if (e.code === 'Enter') $('buddyAskGo').click(); e.preventDefault(); return; }
+  if (game.picking && rewardsOpen()) { if (e.code === 'Escape') closeRewards(); e.preventDefault(); return; }
   if (game.picking && questsOpen()) { if (e.code === 'Escape') closeQuests(); e.preventDefault(); return; }
   if (game.picking && eventOpen()) { if (e.code === 'Escape') { if (eventAsk()) { closeAsk(); refreshEvent(); } else closeEvent(); } else if ((e.code === 'Enter' || e.code === 'Space') && eventAsk()) sayYes(); e.preventDefault(); return; }
   if (game.picking && bagOpen()) { bagKey(e.code); e.preventDefault(); return; }
@@ -7605,9 +7628,10 @@ function renderPortraits() {
     return { group };
   } }, 256, 1.0, 1.75, null, -0.45));
   const fish = FISH.map(sp => shot({ build: () => fishModel(sp) }, 192, 0.5, 0.7, null, 0.35));
+  const porch = shot({ build: () => { const group = new THREE.Group(); buildPorchSwing(group); group.scale.setScalar(PIECES.swing.icon); return { group }; } }, 256, 1.05, 1.25, null, -0.45);   // (taller, with its roof)
   r.dispose();
   r.forceContextLoss();
-  return { heads, cards, decor, builds, fish };
+  return { heads, cards, decor, builds, fish, porch };
 }
 
 const shots = renderPortraits();
@@ -8916,6 +8940,8 @@ DECOR.forEach((id, i) => {
   card.addEventListener('click', () => { shopFocus = i; buyDecor(id); });
   shopGrid.append(card);
 });
+const porchCard = rewardCard(() => { shopFocus = DECOR.length; shopPorch(); });   // a Buddy Reward, here too so it's found
+shopGrid.append(porchCard);
 // The Music tab: the song's key. Pick a scale (Major, Minor, ...) at the top, then a
 // key: D major is the tune's own; every other key is KEY_PRICE. Tap one you have to
 // switch to it: the soundtrack and every hopper sound change key together on the next
@@ -8942,7 +8968,7 @@ SONG_KEYS.forEach((_, i) => {
 const keyId = (i, sc) => SONG_KEYS[i][0] + (sc === 'major' ? '' : ':' + sc);
 const ownedKeys = () => new Set(['D', ...store.get('bl-keys', [])]);
 const shopCards = () => [...(shopTab === 'music' ? keyGrid : shopGrid).children];
-const shopBuy = () => (shopTab === 'music' ? buyKey(shopFocus) : buyDecor(DECOR[shopFocus]));
+const shopBuy = () => (shopTab === 'music' ? buyKey(shopFocus) : shopFocus === DECOR.length ? shopPorch() : buyDecor(DECOR[shopFocus]));
 function setShopTab(tab) {
   shopTab = tab;
   for (const [id, on] of [['tabDecor', tab === 'decor'], ['tabMusic', tab === 'music']]) {
@@ -9070,6 +9096,7 @@ function refreshShop(msg) {
     c.setAttribute('aria-label', t(on ? 'aria.keyOn' : have ? 'aria.keyHave' : 'aria.keyBuy', { name, n: KEY_PRICE }));
   });
   [...shopGrid.children].forEach((c, i) => {
+    if (c === porchCard) { paintPorch(c); c.classList.toggle('focus', nav && shopTab === 'decor' && i === shopFocus); return; }
     const id = DECOR[i], have = !nextCopy(id), price = PIECES[id].price, name = t('decor.' + id), max = PIECES[id].max, got = decorCopies(id).filter(c => ownedDecor.has(c)).length;
     c.classList.toggle('short', !have && (game.coins < price || (PIECES[id].needsStage && !farm.stageBuilt)));
     c.classList.toggle('focus', nav && shopTab === 'decor' && i === shopFocus);
@@ -10643,6 +10670,10 @@ if (GUEST && roomCode(GUEST) && /iPhone|iPad|iPod/.test(navigator.userAgent) && 
   note.hidden = false;
   $('homeNoteX').addEventListener('click', () => { note.hidden = true; });
 }
+$('partyCodeCopy').addEventListener('click', () => {   // just the code, for a friend who knows where to type it
+  const b = $('partyCodeCopy');
+  navigator.clipboard?.writeText($('partyCode').textContent).then(() => { b.textContent = t('party.copied'); setTimeout(() => { b.textContent = t('party.copyCode'); }, 1500); }).catch(() => {});
+});
 $('partyCopy').addEventListener('click', () => {
   navigator.clipboard?.writeText(inviteLink()).then(() => { $('partyCopy').textContent = t('party.copied'); setTimeout(() => { $('partyCopy').textContent = t('party.copy'); }, 1500); }).catch(() => {});
 });
@@ -10825,6 +10856,7 @@ function applyLang() {
   drawNotice();
   if (eventOpen()) refreshEvent();
   if (questsOpen()) refreshQuests();
+  if (rewardsOpen()) refreshRewards();
   hud();
   setHint();
   if (pondOpen()) refreshPond();
@@ -11101,6 +11133,8 @@ $('settings').addEventListener('click', e => { if (e.target.id === 'settings') c
 // pays one Buddy Token, and quests are the only way to earn them. Quests and tokens are the
 // player's own, so they count on a friend's farm too, and neither is one of the FARM_KEYS.
 const QUESTS = { hop: 60, flowers: 15, fish: 3, sushi: 1, jam: 40, visit: 1 };   // how many it takes
+const QUEST_PAY = {};   // Buddy Tokens a quest pays, where it's more than one
+const questPay = id => QUEST_PAY[id] ?? 1;
 const buddyHere = () => !!GUEST || [...party.players.values()].some(p => p.hero);
 const buddyOnStage = () => GUEST ? jam.band.size > 0 : bandOf().length > 0;
 const questsOpen = () => $('quests').classList.contains('show');
@@ -11121,15 +11155,17 @@ function questAdd(id) {
   o.n++;
   store.set('bl-quests', q);
   if (o.n === QUESTS[id]) {
-    store.set('bl-buddy', store.get('bl-buddy', 0) + 1);
+    store.set('bl-buddy', store.get('bl-buddy', 0) + questPay(id));
     questToast(id);
   }
   markQuests();
 }
+// 'done'; 'need' (no swing yet) or 'short' (not enough tokens); nothing on a friend's farm or once it's done.
 function buyPorch() {
   const n = store.get('bl-buddy', 0);
-  if (GUEST || farm.porch || !ownedDecor.has('swing')) return;
-  if (n < PORCH_COST) { sfx.bump(); refreshQuests(t('quests.porchShort', { n: PORCH_COST - n })); return; }
+  if (GUEST || farm.porch) return;
+  if (!ownedDecor.has('swing')) { sfx.bump(); return 'need'; }
+  if (n < PORCH_COST) { sfx.bump(); return 'short'; }
   store.set('bl-buddy', n - PORCH_COST);
   store.set('bl-porch', true);
   farm.porch = true;
@@ -11139,13 +11175,85 @@ function buyPorch() {
   sp.update = PIECES.swing.build(sp.group);
   sfx.upgrade();
   cheer(sp.x, sp.z);
-  refreshQuests(t('quests.porchDone'));
+  markQuests();
+  return 'done';
 }
+// What to say about the porch swing: after trying to buy it (buyPorch's answer), or as it stands.
+function porchSays(r) {
+  if (r === 'short') return t('quests.porchShort', { n: PORCH_COST - store.get('bl-buddy', 0) });
+  if (r) return t(r === 'need' ? 'quests.porchNeed' : 'quests.porchDone');
+  return t(farm.porch ? 'quests.porchHave' : ownedDecor.has('swing') ? 'quests.porchSay' : 'quests.porchNeed');
+}
+// The porch swing's card, in Buddy Rewards and the Market: its price in Buddy Tokens, or a check.
+function rewardCard(onTap) {
+  const c = document.createElement('button');
+  c.className = 'heroCard';
+  c.dataset.id = 'porch';
+  c.style.background = PIECES.swing.bg;
+  c.innerHTML = `<img class="cutout" alt="" src="${shots.porch}"><span class="heroName"></span><i class="tag"></i>`;
+  c.addEventListener('click', () => { sfx.ensure(); onTap(); });
+  return c;
+}
+function paintPorch(c) {
+  const name = t('quests.porch');
+  c.classList.toggle('short', !farm.porch && (store.get('bl-buddy', 0) < PORCH_COST || !ownedDecor.has('swing')));
+  c.querySelector('.heroName').textContent = name;
+  const tag = c.querySelector('.tag');
+  tag.className = 'tag ' + (farm.porch ? 'check' : 'cost');
+  tag.innerHTML = farm.porch ? CHECK_SVG : BUDDY_SVG + `<span>${PORCH_COST}</span>`;
+  c.setAttribute('aria-label', farm.porch ? t('aria.ownItem', { name }) : t('quests.porchBuy', { n: PORCH_COST }));
+}
+// From the Market: not enough tokens asks if they'd like to go and earn some.
+function shopPorch() {
+  if (farm.porch) { refreshShop(porchSays()); return; }
+  const r = buyPorch();
+  refreshShop(r === 'short' ? '' : porchSays(r));
+  if (r === 'short') openBuddyAsk();
+}
+const buddyAskOpen = () => $('buddyAsk').classList.contains('show');
+function openBuddyAsk() {
+  const n = store.get('bl-buddy', 0);
+  $('buddyAskN').textContent = n;
+  $('buddyAskText').textContent = t('quests.askShort', { cost: PORCH_COST, n: PORCH_COST - n });
+  $('buddyAsk').classList.add('show');
+  game.picking = true;
+}
+function closeBuddyAsk() {
+  $('buddyAsk').classList.remove('show');
+  game.picking = anyPanel();
+}
+$('buddyAskNo').addEventListener('click', closeBuddyAsk);
+$('buddyAskGo').addEventListener('click', () => { closeBuddyAsk(); closeShop(); openQuests(); });
+$('buddyAsk').addEventListener('click', e => { if (e.target.id === 'buddyAsk') closeBuddyAsk(); });
+// Buddy Rewards: all there is to trade Buddy Tokens for, opened from Buddy Quests (and back to it after).
+const rewardGrid = $('rewardGrid'), rewardsOpen = () => $('rewards').classList.contains('show');
+rewardGrid.append(rewardCard(() => refreshRewards(farm.porch ? porchSays() : porchSays(buyPorch()))));
+function refreshRewards(msg) {
+  $('rewardsN').textContent = store.get('bl-buddy', 0);
+  for (const c of rewardGrid.children) paintPorch(c);
+  $('rewardNote').textContent = msg ?? porchSays();
+}
+function openRewards() {
+  if (GUEST) return;
+  $('quests').classList.remove('show');
+  refreshRewards();
+  $('rewards').classList.add('show');
+  game.picking = true;
+}
+function closeRewards() {
+  $('rewards').classList.remove('show');
+  game.picking = anyPanel();
+  openQuests();
+}
+$('rewardsBtn').addEventListener('click', () => { sfx.ensure(); openRewards(); });
+$('rewardsClose').addEventListener('click', closeRewards);
+$('rewards').addEventListener('click', e => { if (e.target.id === 'rewards') closeRewards(); });
+$('questInvite').addEventListener('click', () => { sfx.ensure(); closeQuests(); openParty(); });
 function questToast(id) {
   const el = document.createElement('div');
   el.className = 'questToast pill';
   el.innerHTML = BUDDY_SVG + '<span></span>';
-  el.querySelector('span').textContent = t('quests.earned');
+  el.querySelector('span').textContent = questPay(id) > 1 ? t('quests.earnedN', { n: questPay(id) }) : t('quests.earned');
   document.body.append(el);
   setTimeout(() => el.remove(), 3200);
   sfx.upgrade();
@@ -11155,24 +11263,19 @@ function markQuests() {
   const left = questsToday().list.filter(o => o.n < QUESTS[o.id]).length;
   $('questCount').textContent = left || '';
   if (questsOpen()) refreshQuests();
+  if (rewardsOpen()) refreshRewards();
 }
-function refreshQuests(msg) {
-  const tokens = store.get('bl-buddy', 0), swing = ownedDecor.has('swing'), buy = $('porchBuy');
-  $('buddyN').textContent = tokens;
-  $('porch').hidden = !!GUEST;
-  $('porchSay').textContent = t(farm.porch ? 'quests.porchHave' : swing ? 'quests.porchSay' : 'quests.porchNeed');
-  buy.hidden = farm.porch || !swing;
-  buy.innerHTML = BUDDY_SVG + `<span>${PORCH_COST}</span>`;
-  buy.classList.toggle('short', tokens < PORCH_COST);
-  buy.setAttribute('aria-label', t('quests.porchBuy', { n: PORCH_COST }));
-  $('porchNote').textContent = msg ?? '';
+function refreshQuests() {
+  $('buddyN').textContent = store.get('bl-buddy', 0);
+  $('questInvite').hidden = $('rewardsBtn').hidden = !!GUEST;   // (on a friend's farm: it's theirs to invite to, and to upgrade)
   $('questList').replaceChildren(...questsToday().list.map(({ id, n }) => {
     const goal = QUESTS[id], li = document.createElement('li');
     li.classList.toggle('done', n >= goal);
-    li.innerHTML = '<span class="questName"></span><span class="questN"></span><i class="questBar"><b></b></i>';
+    li.innerHTML = `<span class="questName"></span><span class="questGain">${BUDDY_SVG}<b>${questPay(id)}</b></span><span class="questN"></span><i class="questBar"><b></b></i>`;
     li.querySelector('.questName').textContent = t('quests.' + id, { n: goal });
+    li.querySelector('.questGain').setAttribute('aria-label', t('quests.gain', { n: questPay(id) }));
     if (n >= goal) li.querySelector('.questN').innerHTML = CHECK_SVG; else li.querySelector('.questN').textContent = n + '/' + goal;
-    li.querySelector('b').style.width = n / goal * 100 + '%';
+    li.querySelector('.questBar b').style.width = n / goal * 100 + '%';
     return li;
   }));
 }
@@ -11187,9 +11290,8 @@ function closeQuests() {
   $('quests').classList.remove('show');
   game.picking = anyPanel();
 }
-$('buddyIcon').innerHTML = BUDDY_SVG;
+for (const el of document.querySelectorAll('.buddyIcon')) el.innerHTML = BUDDY_SVG;
 $('questBtn').addEventListener('click', () => { sfx.ensure(); openQuests(); });
-$('porchBuy').addEventListener('click', () => { sfx.ensure(); buyPorch(); });
 $('questsClose').addEventListener('click', closeQuests);
 $('quests').addEventListener('click', e => { if (e.target.id === 'quests') closeQuests(); });
 markQuests();
@@ -11420,7 +11522,9 @@ function pollPad() {
     return;
   }
   if (game.picking && photoOpen()) { if (menu($('photo'))) return; if (pressed(0)) savePhoto(); else if (pressed(1)) closePhoto(); return; }
-  if (game.picking && questsOpen()) { if (pressed(0) || pressed(1)) closeQuests(); return; }
+  if (game.picking && buddyAskOpen()) { if (menu($('buddyAsk'))) return; if (pressed(1)) closeBuddyAsk(); return; }
+  if (game.picking && rewardsOpen()) { if (menu($('rewards'))) return; if (pressed(1)) closeRewards(); return; }
+  if (game.picking && questsOpen()) { if (menu($('quests'))) return; if (pressed(1)) closeQuests(); return; }
   if (game.picking && eventOpen()) { if (menu(eventAsk() ? $('eventAsk') : $('event'))) return; if ((pressed(0) || pressed(9)) && eventAsk()) sayYes(); else if (pressed(1)) { if (eventAsk()) { closeAsk(); refreshEvent(); } else closeEvent(); } return; }
   if (game.picking && landOpen()) { if (menu($('land'))) return; if (pressed(0) || pressed(9)) buyLand(); else if (pressed(1)) closeLand(); return; }
   if (game.picking && bagOpen()) {   // d-pad chooses a fish, A one more, X one fewer, Y all, Start sells, B closes; asked to be sure: A sells, B keeps them
@@ -11665,4 +11769,4 @@ if (guestNet) {
   placeFarmHero();
   setHint();
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, songRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, syncTune, tuneSync, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, trackPlayers, farmPlayers, buyPorch, goDance, endGroove, leaveCloseUp, mastered, caughtOn, openMastery, refreshMastery, setDance, placeSquare, fishBook: () => fishBook, setBook: b => { fishBook = b; store.set(FISH_KEY, b); }, questAdd, questsToday, openQuests, rowDice, flipLane, startReel, reelGame, reelBeats, showCatch, sushi, dash, mealOf, feedSushi, openSushi, closeSushi, cookSushi, eatSushi, buySushi, startSushi, SUSHI, dropFlower, get pumpkins() { return pumpkins; }, get counting() { return counting; } };
+if (new URLSearchParams(location.search).has('debug')) window.__hop = { party, peers, die, respawn, laneAt, P, game, lanes, move, step, pollPad, get camera() { return camera; }, farm, sfx, renderer, scene, watchFrames, autoQ, jam, fishers, FISH, songRhythm, goFish, landFish, rollFish, goSwing, standUp, walkerOf, swingCam, farmCam, offBeat, stageShow: show, shots, myKey, get music() { return music; }, farmTime(k) { farmTimeAt = k; }, farmLight, lamps, get tapHelp() { return tap; }, keyNow, pentHz, songKey, buyKey, setShopTab, setKeyScale, noteFreq, spooky, startSpooky, endSpooky, goRoad, lanes, spawnMover, settleEvent, addPumpkin, bonePad, buildPumpking, openJam, closeJam, layoutStage, syncTune, tuneSync, earLag, heardBeat, startDay, syncStage, showCount, stageCrew, onPlayer, assign, nearUse, pollPad, addPiece, trackPlayers, farmPlayers, buyPorch, shopPorch, openRewards, goDance, endGroove, leaveCloseUp, mastered, caughtOn, openMastery, refreshMastery, setDance, placeSquare, fishBook: () => fishBook, setBook: b => { fishBook = b; store.set(FISH_KEY, b); }, questAdd, questsToday, openQuests, rowDice, flipLane, startReel, reelGame, reelBeats, showCatch, sushi, dash, mealOf, feedSushi, openSushi, closeSushi, cookSushi, eatSushi, buySushi, startSushi, SUSHI, dropFlower, get pumpkins() { return pumpkins; }, get counting() { return counting; } };

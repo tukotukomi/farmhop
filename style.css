@@ -159,26 +159,28 @@ body.farm.decor #questBtn { display: none; }
 @media (max-width: 560px) {   /* the top row is full on a phone: under the book instead */
   #questBtn, body.farm.event #questBtn { top: calc(env(safe-area-inset-top) + 124px); left: calc(env(safe-area-inset-left) + 14px); }
 }
-#buddyIcon, #buddyIcon svg { display: block; width: 44px; height: 44px; }
+.buddyIcon, .buddyIcon svg { display: block; width: 44px; height: 44px; }
 .buddyCount { flex-wrap: wrap; column-gap: 8px; row-gap: 0; }   /* the label drops below when the row runs out of room */
 .questLabel { font-size: 18px; font-weight: 700; text-align: center; }
 .questList { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 8px; width: 100%; }
-.questList li { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px 10px; padding: 8px 12px 10px; background: #fff; border: 2.5px solid var(--ink); border-radius: 16px; }
+.questList li { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 6px 10px; padding: 8px 12px 10px; background: #fff; border: 2.5px solid var(--ink); border-radius: 16px; }
 .questName { font-weight: 600; line-height: 1.25; }
 .questN { font-weight: 700; white-space: nowrap; }
 .questN svg { display: block; width: 26px; height: 26px; }
+.questGain { display: inline-flex; align-items: center; gap: 2px; padding: 1px 8px 1px 3px; background: var(--cream); border: 2px solid var(--ink); border-radius: 999px; font-size: 14px; font-weight: 700; }
+.questGain svg { width: 22px; height: 22px; }
+.questInvite { display: block; justify-self: center; margin: -4px auto 0; font-size: 15px; opacity: .85; }
+.questInvite[hidden] { display: none; }
+.questWallet { display: grid; justify-items: center; gap: 10px; width: 100%; margin-top: 12px; padding-top: 12px; border-top: 2px dashed rgba(58, 36, 66, .2); }
+#rewardsBtn[hidden] { display: none; }
+#rewardGrid { display: grid; grid-template-columns: repeat(auto-fit, 120px); justify-content: center; gap: 14px 10px; width: 100%; padding-top: 10px; }
+#rewardGrid .heroCard { border-radius: 18px; padding: 4px 3px 8px; }
+#rewardGrid .heroCard .heroName { font-size: 14px; }
+:is(#shopGrid, #rewardGrid) .heroCard .tag.cost > svg:not(.flower) { width: 22px; height: 22px; }
+#buddyAsk .buildActs { margin-top: 4px; }
 .questBar { grid-column: 1 / -1; display: block; height: 10px; overflow: hidden; background: var(--cream-d); border: 2px solid var(--ink); border-radius: 999px; }
 .questBar b { display: block; height: 100%; background: var(--sky); }
 .questList li.done .questBar b { background: var(--leaf); }
-.questBuy { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px 12px; width: 100%; box-sizing: border-box; margin-top: 12px; padding-top: 12px; border-top: 2px dashed rgba(58, 36, 66, .2); text-align: left; }
-.questBuy[hidden] { display: none; }
-.questBuy p { margin: 2px 0 0; font-size: 14px; line-height: 1.3; }
-.questBuy .pondNeed { grid-column: 1 / -1; margin: 0; text-align: center; }
-.questBuy .pondNeed:empty { display: none; }
-#porchBuy { display: flex; align-items: center; gap: 6px; }
-#porchBuy[hidden] { display: none; }
-#porchBuy.short { opacity: .6; }
-#porchBuy svg { width: 24px; height: 24px; }
 .questToast {
   position: fixed; z-index: 40; left: 50%; top: calc(env(safe-area-inset-top) + 14px); translate: -50% 0;
   display: flex; align-items: center; gap: 8px; width: max-content; max-width: calc(100vw - 32px); box-sizing: border-box; padding: 6px 16px 6px 8px;
@@ -600,17 +602,17 @@ body.pad .heroCard.focus, body.keys .heroCard.focus, .heroCard:focus-visible { o
 #bunkGrid .heroCard { cursor: default; }
 #bunkGrid .heroCard.locked { cursor: pointer; }
 #bunkGrid .heroCard.locked img { filter: grayscale(.75) brightness(.92); opacity: .8; }
-#shopGrid .heroCard .tag, #keyGrid .heroCard .tag, #bunkGrid .heroCard .tag {                   /* owned: a green check; locked: the price */
+#shopGrid .heroCard .tag, #keyGrid .heroCard .tag, #bunkGrid .heroCard .tag, #rewardGrid .heroCard .tag {                   /* owned: a green check; locked: the price */
   position: absolute; top: -12px; right: -10px;
   display: inline-flex; align-items: center; gap: 2px;
   height: 34px; min-width: 34px; box-sizing: border-box; justify-content: center;
   border: 2.5px solid var(--ink); border-radius: 999px; box-shadow: 0 3px 0 var(--ink-soft);
 }
-:is(#bunkGrid, #shopGrid, #keyGrid) .heroCard .tag.check { background: var(--leaf); }
-:is(#bunkGrid, #shopGrid, #keyGrid) .heroCard .tag.check svg { width: 20px; height: 20px; }
-:is(#bunkGrid, #shopGrid, #keyGrid) .heroCard .tag.cost { background: var(--cream); padding: 0 9px 0 3px; font-size: 16px; font-weight: 700; }
-:is(#bunkGrid, #shopGrid, #keyGrid) .heroCard .tag.cost .flower { width: 24px; height: 24px; }
-:is(#bunkGrid, #shopGrid, #keyGrid) .heroCard.short .tag.cost { opacity: .7; }
+:is(#bunkGrid, #shopGrid, #keyGrid, #rewardGrid) .heroCard .tag.check { background: var(--leaf); }
+:is(#bunkGrid, #shopGrid, #keyGrid, #rewardGrid) .heroCard .tag.check svg { width: 20px; height: 20px; }
+:is(#bunkGrid, #shopGrid, #keyGrid, #rewardGrid) .heroCard .tag.cost { background: var(--cream); padding: 0 9px 0 3px; font-size: 16px; font-weight: 700; }
+:is(#bunkGrid, #shopGrid, #keyGrid, #rewardGrid) .heroCard .tag.cost .flower { width: 24px; height: 24px; }
+:is(#bunkGrid, #shopGrid, #keyGrid, #rewardGrid) .heroCard.short .tag.cost { opacity: .7; }
 /* ---------- Farm Buildings menu ---------- */
 :is(#buildGrid, #bookGrid) { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 168px)); justify-content: center; gap: 12px; width: 100%; }
 :is(#buildGrid, #bookGrid) .heroCard { background: #ffe9c7; }
@@ -920,7 +922,8 @@ body.canGoHome.farm:not(.fishing, .swinging, .dancing, .jamming) #homeBtn { disp
 .partyChip .path.screen { background: #fff; }
 .partyList { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; min-height: 26px; }
 .partyNone { font-size: 14px; opacity: .6; }
-.partyCode { margin: 0; font-size: 15px; font-weight: 600; }
+.partyCode { margin: 0; font-size: 15px; font-weight: 600; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 8px; }
+.partyCode .chipBtn { font-size: 14px; padding: 3px 12px 5px; }
 .partyCode b { font-size: 24px; letter-spacing: .12em; margin-left: 4px; }
 .partyCode b:empty, .partyCode:has(b:empty) { display: none; }
 .partyJoin { width: 100%; box-sizing: border-box; padding: 0 0 10px; border-top: 0; border-bottom: 2px dashed rgba(58, 36, 66, .2); }

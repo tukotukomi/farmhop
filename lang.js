@@ -33,7 +33,8 @@ export const STRINGS = {
       about: { square: 'A public square for your hoppers to dance together.', booth: 'A DJ booth beside the Dance Square.', led: 'A dance floor that lights up to the music.', roof: 'Psytrance lycra stretched across the square.' },
     },
     quests: {
-      title: 'Buddy Quests', tokens: 'Buddy Tokens', say: 'Team up with a Buddy to finish quests. Each one earns a Buddy Token, and quests are the only way to get them!', next: 'New quests tomorrow.', earned: 'Quest done! +1 Buddy Token',
+      title: 'Buddy Quests', tokens: 'Buddy Tokens', say: 'Team up with a Buddy to finish quests.', invite: 'Invite a Buddy', next: 'New quests tomorrow.', earned: 'Quest done! +1 Buddy Token', earnedN: 'Quest done! +{n} Buddy Tokens', gain: 'Earns {n} Buddy Tokens',
+      rewards: 'Buddy Rewards', rewardsSay: 'Trade your Buddy Tokens for these.', askShort: 'The Porch Swing takes {cost} Buddy Tokens, and you need {n} more. Earn them with Buddy Quests!',
       porch: 'Porch Swing', porchSay: 'Turn your swing into a porch swing for two.', porchNeed: 'Buy the Swing in the Market to upgrade it.', porchHave: 'Your porch swing has room for two. Hop on with a Buddy!', porchBuy: 'Upgrade to a porch swing for {n} Buddy Tokens', porchShort: 'Buddy Tokens still needed: {n}', porchDone: 'Your swing is a porch swing now!',
       hop: 'Hop {n} rows with a Buddy', flowers: 'Pick {n} sunflowers with a Buddy', fish: 'Catch {n} fish with a Buddy', sushi: 'Give a Buddy a piece of sushi', jam: 'Jam with a Buddy', visit: "Visit a Buddy's farm",
     },
@@ -145,7 +146,7 @@ sushiBar: 'Sushi Bar', sushiPlan: 'Build a kitchen to cook your fish into sushi.
       padJoin: 'Another controller? Press Start on it to join. Y changes hopper, Back leaves. Tap a player here to change their hopper.',
       local: 'Local', direct: 'Direct', relay: 'Relay', invite: 'Send invite', inviteCopied: 'Invite link copied!',
       inviteText: "Come hop with me in Betty Lou's Farm Hop! Open this to play along from wherever you are.",
-      btn: 'Play together', scan: 'Scan with a phone camera to join: jam on the Jam Stage, or start the day to hop together. Up to four phones. Friends far away? Send them an invite: they\'ll hop around this farm on their own phone or computer.', none: 'Nobody has joined yet.', copy: 'Copy link', copied: 'Copied!', stop: 'Stop', done: 'Done' },
+      btn: 'Play together', scan: 'Scan with a phone camera to join: jam on the Jam Stage, or start the day to hop together. Up to four phones. Friends far away? Send them an invite: they\'ll hop around this farm on their own phone or computer.', none: 'Nobody has joined yet.', copy: 'Copy link', copyCode: 'Copy', copied: 'Copied!', stop: 'Stop', done: 'Done' },
     remote: {
       pick: 'Pick your hopper', change: 'Change', off: 'Not connected', noRoom: 'Scan the QR code on the Jam Stage to join the jam.',
       connecting: 'Connecting…', reconnecting: 'Reconnecting…', waiting: 'Waiting for the game…',
@@ -204,7 +205,8 @@ sushiBar: 'Sushi Bar', sushiPlan: 'Build a kitchen to cook your fish into sushi.
       about: { square: 'Una plaza pública para que tus saltarines bailen juntos.', booth: 'Una cabina de DJ junto a la plaza.', led: 'Una pista que se ilumina con la música.', roof: 'Lycra psytrance tendida sobre la plaza.' },
     },
     quests: {
-      title: 'Misiones de amigos', tokens: 'Fichas de Amigo', say: 'Únete a un amigo para completar misiones. Cada una te da una Ficha de Amigo, ¡y las misiones son la única forma de conseguirlas!', next: 'Mañana habrá misiones nuevas.', earned: '¡Misión cumplida! +1 Ficha de Amigo',
+      title: 'Misiones de amigos', tokens: 'Fichas de Amigo', say: 'Únete a un amigo para completar misiones.', invite: 'Invita a un amigo', next: 'Mañana habrá misiones nuevas.', earned: '¡Misión cumplida! +1 Ficha de Amigo', earnedN: '¡Misión cumplida! +{n} Fichas de Amigo', gain: 'Da {n} Fichas de Amigo',
+      rewards: 'Premios de amigos', rewardsSay: 'Cambia tus Fichas de Amigo por estos premios.', askShort: 'El columpio de porche cuesta {cost} Fichas de Amigo y te faltan {n}. ¡Consíguelas con las Misiones de amigos!',
       porch: 'Columpio de porche', porchSay: 'Convierte tu columpio en un columpio de porche para dos.', porchNeed: 'Compra el columpio en el Mercado para mejorarlo.', porchHave: 'Tu columpio de porche tiene sitio para dos. ¡Súbete con un amigo!', porchBuy: 'Mejorar a columpio de porche por {n} Fichas de Amigo', porchShort: 'Fichas de Amigo que faltan: {n}', porchDone: '¡Tu columpio ya es de porche!',
       hop: 'Salta {n} filas con un amigo', flowers: 'Recoge {n} girasoles con un amigo', fish: 'Pesca {n} peces con un amigo', sushi: 'Dale una pieza de sushi a un amigo', jam: 'Toca con un amigo', visit: 'Visita la granja de un amigo',
     },
@@ -316,7 +318,7 @@ sushiBar: 'Barra de sushi', sushiPlan: 'Construye una cocina para convertir tus 
       padJoin: '¿Otro mando? Pulsa Start en él para unirte. Y cambia de saltarín, Back sale. Toca a un jugador aquí para cambiar su saltarín.',
       local: 'Local', direct: 'Directo', relay: 'Relevo', invite: 'Enviar invitación', inviteCopied: '¡Enlace copiado!',
       inviteText: '¡Ven a saltar conmigo en Betty Lou\'s Farm Hop! Ábrelo para jugar desde donde estés.',
-      btn: 'Jugar juntos', scan: 'Escanea con la cámara del teléfono para unirte: toca en el escenario o empieza el día para saltar juntos. Hasta cuatro teléfonos. ¿Amigos lejos? Envíales una invitación: saltarán por esta granja en su propio teléfono o computadora.', none: 'Todavía no se ha unido nadie.', copy: 'Copiar enlace', copied: '¡Copiado!', stop: 'Terminar', done: 'Listo' },
+      btn: 'Jugar juntos', scan: 'Escanea con la cámara del teléfono para unirte: toca en el escenario o empieza el día para saltar juntos. Hasta cuatro teléfonos. ¿Amigos lejos? Envíales una invitación: saltarán por esta granja en su propio teléfono o computadora.', none: 'Todavía no se ha unido nadie.', copy: 'Copiar enlace', copyCode: 'Copiar', copied: '¡Copiado!', stop: 'Terminar', done: 'Listo' },
     remote: {
       pick: 'Elige tu saltarín', change: 'Cambiar', off: 'Sin conexión', noRoom: 'Escanea el código QR del escenario para unirte.',
       connecting: 'Conectando…', reconnecting: 'Reconectando…', waiting: 'Esperando al juego…',
@@ -375,7 +377,8 @@ sushiBar: 'Barra de sushi', sushiPlan: 'Construye una cocina para convertir tus 
       about: { square: '让跳跳们一起跳舞的公共广场。', booth: '舞蹈广场旁边的 DJ 台。', led: '随音乐闪亮的舞池。', roof: '横跨广场的迷幻莱卡顶棚。' },
     },
     quests: {
-      title: '伙伴任务', tokens: '伙伴币', say: '和伙伴一起完成任务。每完成一个就能赢得一枚伙伴币，任务是获得伙伴币的唯一方式！', next: '明天会有新任务。', earned: '任务完成！+1 伙伴币',
+      title: '伙伴任务', tokens: '伙伴币', say: '和伙伴一起完成任务。', invite: '邀请伙伴', next: '明天会有新任务。', earned: '任务完成！+1 伙伴币', earnedN: '任务完成！+{n} 伙伴币', gain: '可得 {n} 枚伙伴币',
+      rewards: '伙伴奖励', rewardsSay: '用伙伴币兑换这些奖励。', askShort: '门廊秋千需要 {cost} 枚伙伴币，你还差 {n} 枚。快去完成伙伴任务赚取吧！',
       porch: '门廊秋千', porchSay: '把秋千升级成双人门廊秋千。', porchNeed: '先在集市买下秋千才能升级。', porchHave: '门廊秋千能坐两个人，和伙伴一起坐吧！', porchBuy: '花 {n} 枚伙伴币升级成门廊秋千', porchShort: '还差 {n} 枚伙伴币', porchDone: '秋千变成门廊秋千啦！',
       hop: '和伙伴一起跳过 {n} 行', flowers: '和伙伴一起捡 {n} 朵向日葵', fish: '和伙伴一起钓到 {n} 条鱼', sushi: '送伙伴一份寿司', jam: '和伙伴一起合奏', visit: '去伙伴的农场做客',
     },
@@ -487,7 +490,7 @@ sushiBar: '寿司吧', sushiPlan: '盖一间厨房，把鱼做成寿司。每种
       padJoin: '还有手柄？按它的 Start 加入。Y 换角色，Back 退出。点这里的玩家可以给他换角色。',
       local: '本地', direct: '直连', relay: '中继', invite: '发送邀请', inviteCopied: '邀请链接已复制！',
       inviteText: '来和我一起玩 Betty Lou\'s Farm Hop 吧！打开链接，在哪里都能一起玩。',
-      btn: '一起玩', scan: '用手机相机扫描加入：在音乐舞台合奏，或开始新的一天一起跳。最多四部手机。朋友在远方？发送邀请，他们可以在自己的手机或电脑上在这个农场里跳来跳去。', none: '还没有人加入。', copy: '复制链接', copied: '已复制！', stop: '结束', done: '完成' },
+      btn: '一起玩', scan: '用手机相机扫描加入：在音乐舞台合奏，或开始新的一天一起跳。最多四部手机。朋友在远方？发送邀请，他们可以在自己的手机或电脑上在这个农场里跳来跳去。', none: '还没有人加入。', copy: '复制链接', copyCode: '复制', copied: '已复制！', stop: '结束', done: '完成' },
     remote: {
       pick: '选择角色', change: '更换', off: '未连接', noRoom: '扫描音乐舞台上的二维码加入合奏。',
       connecting: '正在连接…', reconnecting: '正在重新连接…', waiting: '等待游戏…',

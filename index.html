@@ -308,17 +308,43 @@
   <div class="panel pondPanel">
     <h2 id="questsTitle" data-i18n="quests.title">Buddy Quests</h2>
     <div class="panelBody">
-    <div class="eventCount buddyCount"><span id="buddyIcon"></span><b id="buddyN">0</b><span class="questLabel" data-i18n="quests.tokens">Buddy Tokens</span></div>
     <ul id="questList" class="questList"></ul>
     <p class="eventEnds" data-i18n="quests.next">New quests tomorrow.</p>
-    <p class="bunkWho" data-i18n="quests.say">Team up with a Buddy to finish quests. Each one earns a Buddy Token, and quests are the only way to get them!</p>
-    <div id="porch" class="questBuy">
-      <div><b data-i18n="quests.porch">Porch Swing</b><p id="porchSay"></p></div>
-      <button id="porchBuy" class="buyBtn bubble"></button>
-      <p id="porchNote" class="pondNeed"></p>
+    <p class="bunkWho" data-i18n="quests.say">Team up with a Buddy to finish quests.</p>
+    <button id="questInvite" class="linkBtn questInvite" data-i18n="quests.invite">Invite a Buddy</button>
+    <div class="questWallet">
+      <div class="eventCount buddyCount"><span id="buddyIcon" class="buddyIcon"></span><b id="buddyN">0</b><span class="questLabel" data-i18n="quests.tokens">Buddy Tokens</span></div>
+      <button id="rewardsBtn" class="buyBtn bubble" data-i18n="quests.rewards">Buddy Rewards</button>
     </div>
     </div>
     <button id="questsClose" class="closeBtn bubble" data-i18n-aria="aria.close" aria-label="Close">&#x2715;</button>
+  </div>
+</div>
+
+<div id="rewards" class="sheet" role="dialog" aria-modal="true" aria-labelledby="rewardsTitle">
+  <div class="panel pondPanel">
+    <h2 id="rewardsTitle" data-i18n="quests.rewards">Buddy Rewards</h2>
+    <div class="panelBody">
+    <div class="eventCount buddyCount"><span class="buddyIcon"></span><b id="rewardsN">0</b></div>
+    <p class="bunkWho" data-i18n="quests.rewardsSay">Trade your Buddy Tokens for these.</p>
+    <div id="rewardGrid"></div>
+    <p id="rewardNote" class="pondNeed"></p>
+    </div>
+    <button id="rewardsClose" class="closeBtn bubble" data-i18n-aria="aria.close" aria-label="Close">&#x2715;</button>
+  </div>
+</div>
+
+<div id="buddyAsk" class="sheet" role="dialog" aria-modal="true" aria-labelledby="buddyAskTitle">
+  <div class="panel pondPanel">
+    <h2 id="buddyAskTitle" data-i18n="quests.porch">Porch Swing</h2>
+    <div class="panelBody">
+    <div class="eventCount buddyCount"><span class="buddyIcon"></span><b id="buddyAskN">0</b></div>
+    <p id="buddyAskText" class="bunkWho"></p>
+    <div class="buildActs">
+      <button id="buddyAskNo" class="actBtn bubble" data-i18n="event.no">Not now</button>
+      <button id="buddyAskGo" class="buyBtn bubble" data-i18n="quests.title">Buddy Quests</button>
+    </div>
+    </div>
   </div>
 </div>
 
@@ -593,8 +619,8 @@
       </div>
       <p id="joinNote" class="partyScan"></p>
     </form>
+    <p class="partyCode"><span data-i18n="party.code">Room code</span> <b id="partyCode"></b><button id="partyCodeCopy" class="chipBtn" data-i18n="party.copyCode">Copy</button></p>
     <div id="partyQr" class="partyQr"></div>
-    <p class="partyCode"><span data-i18n="party.code">Room code</span> <b id="partyCode"></b></p>
     <p class="partyScan" data-i18n="party.scan">Scan with a phone camera to jam along.</p>
     <p id="partyStatus" class="partyScan"></p>
     <div id="partyList" class="partyList"></div>
