@@ -11272,7 +11272,7 @@ function refreshQuests() {
   $('questList').replaceChildren(...questsToday().list.map(({ id, n }) => {
     const goal = QUESTS[id], li = document.createElement('li');
     li.classList.toggle('done', n >= goal);
-    li.innerHTML = `<span class="questName"></span><span class="questGain">${BUDDY_SVG}<b>${questPay(id)}</b></span><span class="questN"></span><i class="questBar"><b></b></i>`;
+    li.innerHTML = `<span class="questName"></span><span class="questGain">${BUDDY_SVG}<b>${questPay(id)}</b></span><i class="questBar"><b></b><span class="questN"></span></i>`;
     li.querySelector('.questName').textContent = t('quests.' + id, { n: goal });
     li.querySelector('.questGain').setAttribute('aria-label', t('quests.gain', { n: questPay(id) }));
     if (n >= goal) li.querySelector('.questN').innerHTML = CHECK_SVG; else li.querySelector('.questN').textContent = n + '/' + goal;
