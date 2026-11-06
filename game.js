@@ -1868,18 +1868,32 @@ const sfx = (() => {
     o.connect(f1).connect(g).connect(master);
     o.start(t); o.stop(t + dur + 0.02);
   }
-  function guitar(f, t, dur, vol) {                            // an acoustic string: warm triangle with a little saw, bright at the pick, mellowing
+  // A twangy guitar string: saw and triangle through a resonant filter that snaps down
+  // from bright to the note's own harmonics, the pitch settling a hair from sharp onto the
+  // note as the pick lets go, and a click of the pick.
+  function guitar(f, t, dur, vol) {
     const o = ctx.createOscillator(), o2 = ctx.createOscillator(), mix = ctx.createGain(), f1 = ctx.createBiquadFilter(), g = ctx.createGain();
-    o.type = 'triangle'; o2.type = 'sawtooth';
-    o.frequency.value = o2.frequency.value = f;
-    mix.gain.value = 0.3;
+    o.type = 'sawtooth'; o2.type = 'triangle';
+    for (const x of [o, o2]) {
+      x.frequency.setValueAtTime(f * 1.01, t);
+      x.frequency.exponentialRampToValueAtTime(f, t + 0.03);
+    }
+    mix.gain.value = 0.8;
     f1.type = 'lowpass';
-    f1.Q.value = 0.7;
-    f1.frequency.setValueAtTime(3600, t);
-    f1.frequency.exponentialRampToValueAtTime(450, t + dur);
+    f1.Q.value = 7;
+    f1.frequency.setValueAtTime(Math.min(6000, f * 14), t);
+    f1.frequency.exponentialRampToValueAtTime(f * 3, t + 0.12);
+    f1.frequency.exponentialRampToValueAtTime(f * 1.5, t + dur);
     env(g, t, vol, dur, 0.002);
     o.connect(f1); o2.connect(mix).connect(f1); f1.connect(g).connect(master);
     o.start(t); o2.start(t); o.stop(t + dur + 0.02); o2.stop(t + dur + 0.02);
+    const s = ctx.createBufferSource(), hp = ctx.createBiquadFilter(), pg = ctx.createGain();
+    s.buffer = noiseBuf;
+    hp.type = 'highpass';
+    hp.frequency.value = 2500;
+    env(pg, t, vol * 0.5, 0.012, 0.001);
+    s.connect(hp).connect(pg).connect(master);
+    s.start(t, Math.random() * 0.5); s.stop(t + 0.03);
   }
   function boing(f, t, dur, vol, glide = true) {               // up-glide, then a wobble that dies away
     const o = ctx.createOscillator(), g = ctx.createGain(), lfo = ctx.createOscillator(), depth = ctx.createGain();
@@ -2147,8 +2161,9 @@ const sfx = (() => {
         sweep('sine', n * 2, n * 2, t, 0.4, 0.05);
         sweep('sine', n * 3, n * 3, t, 0.3, 0.03);
         sweep('square', n / 2, n / 2, t, 0.22, 0.015);
-      } else if (id === 'captain') {                            // Captain Awesome: a strum down his acoustic, root, fifth, octave, fifth
-        [[n / 2, 0.09], [n * 0.75, 0.07], [n, 0.08], [n * 1.5, 0.05]].forEach(([f, v], i) => guitar(f, t + i * 0.013, 0.6, v));
+      } else if (id === 'captain') {                            // Captain Awesome: two strings of his acoustic, the note and its octave
+        guitar(n / 2, t, 0.55, 0.1);
+        guitar(n, t + 0.012, 0.45, 0.08);
       } else {                                                  // Betty Lou: a banjo pluck
         pluck(n, t, 0.28, 0.11);
         pluck(n / 2, t, 0.2, 0.05);

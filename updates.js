@@ -11,12 +11,14 @@ export const UPDATES = [
     notes: [
       'With a phone on its side, the Market, Fish Backpack and Fish Book show more at once, with less scrolling.',
       'Play Together no longer squeezes the Join button on sideways phones.',
+      'Captain Awesome hops with two twangy guitar strings an octave apart, in tune in every key.',
     ],
     es: {
       title: 'El móvil en horizontal',
       notes: [
         'Con el móvil en horizontal, el Mercado, la Mochila de peces y el Libro de peces muestran más a la vez, con menos desplazamiento.',
         'Jugar juntos ya no aprieta el botón Unirme en móviles en horizontal.',
+        'Capitán Genial salta con dos cuerdas de guitarra vibrantes a una octava, afinadas en cualquier tonalidad.',
       ],
     },
     zh: {
@@ -24,6 +26,7 @@ export const UPDATES = [
       notes: [
         '手机横屏时，集市、鱼背包和鱼类图鉴一次能显示更多内容，滚动更少。',
         '手机横屏时，一起玩窗口的加入按钮不再被挤压。',
+        '超棒船长跳跃时弹出两根相差八度的清脆吉他弦，每个调都很和谐。',
       ],
     },
   },
