@@ -610,6 +610,7 @@ body.pad .heroCard.focus, body.keys .heroCard.focus, .heroCard:focus-visible { o
 .keyCard { padding-top: 16px; }
 .keyGlyph { font-size: 34px; font-weight: 800; line-height: 1.15; margin-bottom: 6px; white-space: nowrap; }   /* the key: C, D♭, Re♭... */
 #shop .setTabs { margin-bottom: 2px; }
+.shopHead { display: contents; }   /* portrait: the title, then the tabs under it */
 .scaleChips { flex-wrap: wrap; margin-bottom: 4px; }   /* one chip per scale: Major, Minor, and more to come */
 .scaleChips[hidden] { display: none; }
 #bunkGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 12px; width: 100%; }
@@ -1330,12 +1331,15 @@ body.pad .navFocus { outline: 4px solid var(--sky); outline-offset: 3px; }
 @media (orientation: landscape) and (min-width: 820px) {
   .partyPanel .panel { max-width: 900px; }
   .partyShare, .partySide { display: contents; }
-  .partyBody { grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: 'code join here' 'qr join here' 'qr scan scan' 'qr stat stat' 'qr list list'; align-items: start; }
+  .partyBody { grid-template-columns: fit-content(220px) minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: 'code join here' 'qr join here' 'qr scan scan' 'qr stat stat' 'qr list list'; align-items: start; }
   .partyCode { grid-area: code; } .partyQr { grid-area: qr; } .partyShare > .partyScan:not(#partyStatus) { grid-area: scan; }
   #partyStatus { grid-area: stat; } #partyList { grid-area: list; } .partyJoin { grid-area: join; } .partySide > .partyHere:not(.partyJoin) { grid-area: here; }
   .partyQr { width: min(220px, calc(100dvh - 250px)); }
   .partyJoin, .partySide > .partyHere:not(.partyJoin) { align-self: stretch; padding: 0; border: 0; }
   .partySide > .partyHere:not(.partyJoin) { width: auto; border-left: 2px dashed rgba(58, 36, 66, .2); padding-left: 14px; }
+  .partyCode span { flex-basis: 100%; }   /* "Room code" over the code, so the left column is only as wide as the QR */
+  .partyJoin .joinRow { width: 100%; }
+  #joinCode { flex: 0 1 8.5em; width: auto; min-width: 0; }   /* the code box gives way before the Join button runs into the next column */
 }
 @media (orientation: landscape) and (max-height: 440px) {
   .partyPanel .panel { padding: 24px 14px 12px; gap: 6px; }
@@ -1385,4 +1389,65 @@ body.pad .navFocus { outline: 4px solid var(--sky); outline-offset: 3px; }
   #farmBtns, #over { bottom: calc(env(safe-area-inset-bottom) + 14px); }
   #hint, body.ready #hint { top: calc(env(safe-area-inset-top) + 72px); }
   .sign { padding: 24px 18px 10px; }
+}
+
+/* ---------- phones on their side: the Market, Fish Backpack and Fish Book use the width ----------
+   Wider windows, smaller cards and less above them, so two rows of cards show at once. The Market's
+   title and tabs share a row; the Backpack's Choose all / Sell go down the right side. */
+@media (orientation: landscape) and (max-height: 520px) {
+  :is(#shop, #bag, #book).sheet { padding-top: calc(env(safe-area-inset-top) + 22px); padding-bottom: calc(env(safe-area-inset-bottom) + 10px); }
+  :is(#shop, #bag, #book) .panel { max-width: 800px; padding-top: 24px; padding-bottom: 10px; }
+  :is(#shop, #bag, #book) h2 { margin-bottom: 4px; }
+  :is(#shop, #bag, #book) .panelBody { padding-top: 6px; padding-bottom: 6px; }
+  :is(#shopWho, #bagWho, #bookCount) { max-width: none; font-size: 13px; margin: 0 auto 3px; }
+  .shopHead { flex: none; display: flex; align-items: center; justify-content: center; gap: 18px; margin-bottom: 0; }
+  .shopHead h2 { margin: 0 !important; }
+  #shop .setTabs { margin: 0; }
+  #shop .setTab { padding-top: 3px; padding-bottom: 4px; }
+  .shopHead h2 { line-height: 1.1; }
+  .scaleChips { margin-bottom: 0; }
+  #shopGrid { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 12px 8px; padding-top: 4px; }
+  #shopGrid .heroCard img { max-width: 58px; margin-bottom: -2px; }
+  #shopGrid .heroCard .heroName { font-size: 11px; padding: 1px 5px 2px; line-height: 1.05; }
+  #shop .pondNeed { min-height: 0; font-size: 13px; }
+  #keyGrid { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 12px 10px; padding-top: 4px; }
+  .keyCard { padding-top: 12px; padding-bottom: 7px; }
+  /* smaller price tags and checks, so they don't cover a small card's picture or key */
+  #shop #shopGrid .heroCard .tag, #shop #keyGrid .heroCard .tag { top: -9px; right: -6px; height: 26px; min-width: 26px; border-width: 2px; box-shadow: 0 2px 0 var(--ink-soft); }
+  #shop :is(#shopGrid, #keyGrid) .heroCard .tag.cost { font-size: 12px; padding: 0 6px 0 2px; }
+  #shop :is(#shopGrid, #keyGrid) .heroCard .tag.cost .flower { width: 15px; height: 15px; }
+  #shop :is(#shopGrid, #keyGrid) .heroCard .tag.check svg { width: 15px; height: 15px; }
+  .keyGlyph { font-size: 24px; margin-bottom: 3px; }
+  /* Fish Backpack */
+  #bag .panelBody { margin-right: 146px; }
+  #bag .panelFoot { position: absolute; top: 58px; bottom: 12px; right: 14px; width: 136px; padding: 0; align-content: center; }
+  #bag .buildActs { flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 10px; margin: 0; }
+  #bag .buildActs > button { justify-content: center; gap: 8px; font-size: 17px; padding: 8px 10px 10px; }
+  #bag .buyBtn .flower { width: 22px; height: 22px; }
+  #bagGrid { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
+  #bagGrid .heroCard { padding: 4px 3px 7px; }
+  #bagGrid .heroCard img { max-width: 64px; margin: -6px 0 -14px; }
+  #bagGrid .heroCard .heroName { position: relative; font-size: 12px; padding: 1px 6px 2px; line-height: 1.1; }
+  #bagGrid .heroCard .tag { top: 4px; left: 4px; font-size: 12px; padding: 0 6px; }
+  #bagGrid .lvl { position: absolute; top: 4px; right: 5px; margin: 0; font-size: 13px; }   /* the price up in the corner, across from how many */
+  #bagGrid .lvl .flower { width: 17px; height: 17px; }
+  #bagGrid .pick { gap: 6px; margin-top: 3px; }
+  #bagGrid .pick b { font-size: 16px; }
+  #bagGrid .pick button { width: 28px; height: 28px; font-size: 17px; }
+  .bagSure { gap: 6px; }
+  .bagSureText { font-size: 17px; }
+  .bagSureList { width: 100%; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }   /* the fish to sell, two or three across */
+  .bagSureList img { width: 32px; height: 32px; }
+  /* Fish Book */
+  #bookGrid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 12px 10px; }
+  #bookGrid .heroCard { padding: 4px 3px 7px; }
+  #bookGrid .heroCard img { max-width: 66px; margin: -6px 0 -14px; }
+  #bookGrid .heroCard .heroName { font-size: 12px; padding: 1px 6px 2px; line-height: 1.1; }
+  #bookGrid .heroCard .lvl { font-size: 12px; margin-top: 2px; }
+  #bookGrid .heroCard .tag { font-size: 14px; }
+  #book .songBadges { margin-top: 3px; gap: 3px; }
+  #book .songBadge { width: 18px; height: 18px; }
+  #book .songBadge svg { width: 11px; height: 11px; }
+  #book .panelFoot { position: absolute; top: 22px; right: 50px; padding: 0; }   /* Fishing Mastery up by the title, leaving the cards the height */
+  #masteryBtn { font-size: 14px; padding: 4px 14px 6px; }
 }
