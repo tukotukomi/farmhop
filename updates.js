@@ -6,6 +6,28 @@
 // This file is plain data: { date: 'YYYY-MM-DD', title, notes: [...], es: { title, notes }, zh: { title, notes } }.
 export const UPDATES = [
   {
+    date: '2026-11-10',
+    title: 'Room to grow',
+    notes: [
+      'Two more fields to buy in More Land, out behind the farm: 1,000 sunflowers, then 2,000.',
+      'Each one shows its sign once you own the field before it.',
+    ],
+    es: {
+      title: 'Espacio para crecer',
+      notes: [
+        'Dos campos más para comprar en Más terreno, detrás de la granja: 1000 girasoles y luego 2000.',
+        'Cada uno muestra su cartel cuando ya tienes el campo anterior.',
+      ],
+    },
+    zh: {
+      title: '更多空间',
+      notes: [
+        '“更多土地”里又有两块田地可以买，在农场后面：先是1000朵向日葵，然后是2000朵。',
+        '买下前一块田地后，下一块的牌子才会出现。',
+      ],
+    },
+  },
+  {
     date: '2026-11-06',
     title: 'Sideways on a phone',
     notes: [
